@@ -1,0 +1,25 @@
+debug: true
+#output: stdout | /path/to/file, по умолчанию stdout
+consumers:
+  - uri: amqp://guest:guest@localhost:5672/path
+    bindings:
+      - # имя обменника
+        exchange: first
+        # имя очереди
+        queue: first
+        # direct|fanout|topic, по умолчанию direct
+        type: direct
+        # по умолчанию пустая строка
+        routing: "someRoute"
+        # количество обработчиков очереди, по умолчанию 1
+        handlers: 2
+      - # если указано name, тогда обменник и очередь именуются одинаково
+        name: second
+  - uri: amqp://guest:guest@192.168.0.1:5672/path1
+    bindings:
+      - name: third
+      - exchange: fourth
+        queue: fourth
+
+mailers:
+  - uri: smtp://username:password@host:25
