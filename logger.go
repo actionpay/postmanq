@@ -87,8 +87,7 @@ func (this *Logger) start() {
 				this.writer.WriteString(
 					fmt.Sprintf(
 						"PostmanQ | %v | %s: %s\n",
-						time.Now(),
-//						time.Now().Format("2006-01-02 15:04:05"),
+						time.Now().Format("2006-01-02 15:04:05"),
 						logLevelNames[message.Level],
 						fmt.Sprintf(message.Message, message.Args...),
 					),

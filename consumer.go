@@ -6,7 +6,7 @@ import (
 )
 
 type Consumer struct {
-	ConsumerConfigs  []*ConsumerConfig      `yaml:"consumers"`
+	AppsConfigs  []*ConsumerApplicationConfig `yaml:"consumers"`
 	apps             []*ConsumerApplication
 }
 
@@ -23,10 +23,10 @@ func (this *Consumer) OnRegister(event *RegisterEvent) {
 func (this *Consumer) OnInit(event *InitEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
-		for _, consumerConfig := range this.ConsumerConfigs {
+		for _, appConfig := range this.AppsConfigs {
 			app := NewConsumerApplication()
 			this.apps = append(this.apps, app)
-			go app.Run(consumerConfig)
+			go app.Run(appConfig)
 		}
 	} else {
 		FailExit("%v", err)
@@ -40,7 +40,7 @@ func (this *Consumer) OnFinish(event *FinishEvent) {
 	event.Group.Done()
 }
 
-type ConsumerConfig struct {
+type ConsumerApplicationConfig struct {
 	URI string          `yaml:"uri"`
 	Bindings []*Binding `yaml:"bindings"`
 }
@@ -71,16 +71,16 @@ func NewConsumerApplication() *ConsumerApplication {
 	return new(ConsumerApplication)
 }
 
-func (this *ConsumerApplication) Run(consumerConfig *ConsumerConfig) {
-	connect, err := amqp.Dial(consumerConfig.URI)
+func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
+	connect, err := amqp.Dial(appConfig.URI)
 	if err == nil {
-		Info("got connection to %s, getting channel", consumerConfig.URI)
+		Info("got connection to %s, getting channel", appConfig.URI)
 		this.connect = connect
 		channel, err := connect.Channel()
 		if err == nil {
-			Info("got channel for %s", consumerConfig.URI)
+			Info("got channel for %s", appConfig.URI)
 			this.channel = channel
-			for _, binding := range consumerConfig.Bindings {
+			for _, binding := range appConfig.Bindings {
 				if len(binding.Type) == 0 {
 					binding.Type = EXCHANGE_TYPE_DIRECT
 				}

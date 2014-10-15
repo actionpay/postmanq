@@ -23,3 +23,11 @@ func (this *Mailer) OnFinish(event *FinishEvent) {
 	event.Group.Done()
 }
 
+type MailApplicationConfig struct {
+	URI string `yaml:"uri"`
+}
+
+type SmtpMailApplication struct {
+
+}
+

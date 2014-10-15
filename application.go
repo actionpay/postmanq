@@ -65,6 +65,7 @@ func NewApplication() *Application {
 		app = new(Application)
 		app.services = []Service{
 			NewLogger(),
+			NewMailer(),
 			NewConsumer(),
 		}
 		app.servicesCount = len(app.services)
