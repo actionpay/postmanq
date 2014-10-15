@@ -1,25 +1,26 @@
 debug: true
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
-  - uri: amqp://guest:guest@localhost:5672/path
+  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
     bindings:
       - # имя обменника
-        exchange: first
+        exchange: postmanq
         # имя очереди
-        queue: first
+        queue: postmanq
         # direct|fanout|topic, по умолчанию direct
         type: direct
         # по умолчанию пустая строка
-        routing: "someRoute"
+        routing: outbox
         # количество обработчиков очереди, по умолчанию 1
-        handlers: 2
+        handlers: 20
       - # если указано name, тогда обменник и очередь именуются одинаково
         name: second
-  - uri: amqp://guest:guest@192.168.0.1:5672/path1
-    bindings:
-      - name: third
-      - exchange: fourth
-        queue: fourth
+#  - uri: amqp://guest:guest@192.168.0.1:5672/path1
+#    bindings:
+#      - name: third
+#      - exchange: fourth
+#        queue: fourth
 
 mailers:
-  - uri: smtp://username:password@host:25
+#  - uri: smtp://username:password@host:25
+  - uri: smtp://username:password@10.222.0.1:25

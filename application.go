@@ -65,6 +65,7 @@ func NewApplication() *Application {
 		app = new(Application)
 		app.services = []Service{
 			NewLogger(),
+			NewConsumer(),
 		}
 		app.servicesCount = len(app.services)
 		app.events = make(chan *ApplicationEvent, 3)
@@ -128,7 +129,6 @@ func (this *Application) Run() {
 				if handler, ok := this.handlers[event.kind]; ok {
 					handler()
 				}
-			default:
 			}
 		}
 		close(this.events)
@@ -137,21 +137,26 @@ func (this *Application) Run() {
 	<- this.done
 }
 
+func (this *Application) log(message *LogMessage) {
+	defer func(){recover()}()
+	app.logChan <- message
+}
+
 func FailExit(message string, args ...interface{}) {
-	app.logChan <- NewLogMessage(LOG_LEVEL_CRITICAL, message, args...)
+	app.log(NewLogMessage(LOG_LEVEL_CRITICAL, message, args...))
 	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
 }
 
 func Err(message string, args ...interface{}) {
-	app.logChan <- NewLogMessage(LOG_LEVEL_ERROR, message, args...)
+	app.log(NewLogMessage(LOG_LEVEL_ERROR, message, args...))
 }
 
 func Warn(message string, args ...interface{}) {
-	app.logChan <- NewLogMessage(LOG_LEVEL_WARNING, message, args...)
+	app.log(NewLogMessage(LOG_LEVEL_WARNING, message, args...))
 }
 
 func Info(message string, args ...interface{}) {
-	app.logChan <- NewLogMessage(LOG_LEVEL_INFO, message, args...)
+	app.log(NewLogMessage(LOG_LEVEL_INFO, message, args...))
 }
 
 

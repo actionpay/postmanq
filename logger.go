@@ -80,10 +80,22 @@ func (this *Logger) OnFinish(event *FinishEvent) {
 }
 
 func (this *Logger) start() {
-	for message := range this.messages {
-		str := fmt.Sprintf(message.Message, message.Args...)
-		this.writer.WriteString(fmt.Sprintf("PostmanQ | %v | %s: %s\n", time.Now(), logLevelNames[message.Level], str))
-		this.writer.Flush()
+	for {
+		select {
+		case message, ok := <- this.messages:
+			if ok {
+				this.writer.WriteString(
+					fmt.Sprintf(
+						"PostmanQ | %v | %s: %s\n",
+						time.Now(),
+//						time.Now().Format("2006-01-02 15:04:05"),
+						logLevelNames[message.Level],
+						fmt.Sprintf(message.Message, message.Args...),
+					),
+				)
+				this.writer.Flush()
+			}
+		}
 	}
 }
 
