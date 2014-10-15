@@ -16,8 +16,9 @@ var (
 )
 
 type RegisterEvent struct {
-	LogChan chan *LogMessage
-	Group   *sync.WaitGroup
+	LogChan  chan *LogMessage
+	MailChan chan *MailMessage
+	Group    *sync.WaitGroup
 }
 
 type InitEvent struct {
@@ -56,6 +57,7 @@ type Application struct {
 	servicesCount  int
 	events         chan *ApplicationEvent
 	logChan        chan *LogMessage
+	mailChan       chan *MailMessage
 	done           chan bool
 	handlers       map[ApplicationEventKind]func()
 }
@@ -89,6 +91,7 @@ func (this *Application) registerServices() {
 	}
 	event.Group.Wait()
 	this.logChan = event.LogChan
+	this.mailChan = event.MailChan
 	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
 }
 
@@ -102,7 +105,7 @@ func (this *Application) initServices() {
 				go service.OnInit(event)
 			}
 		} else {
-			FailExit("%v", err)
+			FailExitWithErr(err)
 		}
 	} else {
 		FailExit("configuration file not found")
@@ -148,6 +151,10 @@ func FailExit(message string, args ...interface{}) {
 	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
 }
 
+func FailExitWithErr(err error) {
+	FailExit("%v", err)
+}
+
 func Err(message string, args ...interface{}) {
 	app.log(NewLogMessage(LOG_LEVEL_ERROR, message, args...))
 }
@@ -160,4 +167,7 @@ func Info(message string, args ...interface{}) {
 	app.log(NewLogMessage(LOG_LEVEL_INFO, message, args...))
 }
 
-
+func SendMail(message *MailMessage) {
+	defer func(){recover()}()
+	app.mailChan <- message
+}

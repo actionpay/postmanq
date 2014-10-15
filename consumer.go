@@ -3,11 +3,12 @@ package postmanq
 import (
 	yaml "gopkg.in/yaml.v2"
 	"github.com/streadway/amqp"
+	"encoding/json"
 )
 
 type Consumer struct {
 	AppsConfigs  []*ConsumerApplicationConfig `yaml:"consumers"`
-	apps             []*ConsumerApplication
+	apps         []*ConsumerApplication
 }
 
 func NewConsumer() *Consumer {
@@ -29,7 +30,7 @@ func (this *Consumer) OnInit(event *InitEvent) {
 			go app.Run(appConfig)
 		}
 	} else {
-		FailExit("%v", err)
+		FailExitWithErr(err)
 	}
 }
 
@@ -102,7 +103,7 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 					err == nil {
 					Info("declared exchange - %s", binding.Exchange)
 				} else {
-					FailExit("%v", err)
+					FailExitWithErr(err)
 				}
 
 				Info("declaring queue - %s", binding.Queue)
@@ -117,7 +118,7 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 				if err == nil {
 					Info("declared queue - %s", binding.Queue)
 				} else {
-					FailExit("%v", err)
+					FailExitWithErr(err)
 				}
 
 				Info("binding to exchange key - \"%s\"", binding.Routing)
@@ -147,17 +148,17 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 							go this.consume(i, deliveries)
 						}
 					} else {
-						FailExit("%v", err)
+						FailExitWithErr(err)
 					}
 				} else {
-					FailExit("%v", err)
+					FailExitWithErr(err)
 				}
 			}
 		} else {
-			FailExit("%v", err)
+			FailExitWithErr(err)
 		}
 	} else {
-		FailExit("%v", err)
+		FailExitWithErr(err)
 	}
 }
 
@@ -165,7 +166,14 @@ func (this *ConsumerApplication) consume(id int, deliveries <- chan amqp.Deliver
 	for {
 		select {
 		case delivery := <- deliveries:
-			Info("consumer - %d, delivery - %s", id, delivery.Body)
+			mail := new(MailMessage)
+			err := json.Unmarshal(delivery.Body, mail)
+			if err == nil {
+				Info("consumer - %d, delivery - %s", id, delivery.Body)
+				SendMail(mail)
+			} else {
+				Warn("mail has invalid format - %s", delivery.Body)
+			}
 		}
 	}
 }

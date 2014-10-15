@@ -1,16 +1,23 @@
 package postmanq
 
-type Mailer struct {
+type MailMessage struct {
+	Envelope  string `json:"envelope"`
+	Recipient string `json:"recipient"`
+	Body      string `json:"body"`
+}
 
+type Mailer struct {
+	AppsConfigs []*ConsumerApplicationConfig `yaml:"mailers"`
+	messages    chan *MailMessage
 }
 
 func NewMailer() *Mailer {
-	mailer := new(Mailer)
-
-	return mailer
+	return new(Mailer)
 }
 
 func (this *Mailer) OnRegister(event *RegisterEvent) {
+	this.messages = make(chan *MailMessage)
+	event.MailChan = this.messages
 	event.Group.Done()
 }
 
@@ -19,15 +26,28 @@ func (this *Mailer) OnInit(event *InitEvent) {
 }
 
 func (this *Mailer) OnFinish(event *FinishEvent) {
-
+	close(this.messages)
 	event.Group.Done()
 }
 
-type MailApplicationConfig struct {
+type MailerApplicationConfig struct {
 	URI string `yaml:"uri"`
 }
 
-type SmtpMailApplication struct {
-
+type MailerApplication interface {
+	Run(*MailerApplicationConfig)
 }
 
+type MailerApplicationType string
+
+const (
+	MAILER_APPLICATION_TYPE_MTA MailerApplicationType = "mta"
+	MAILER_APPLICATION_TYPE_SMTP                      = "smtp"
+	MAILER_APPLICATION_TYPE_MX                        = "mx"
+)
+
+
+
+type SmtpMailerApplication struct {
+
+}

@@ -68,7 +68,7 @@ func (this *Logger) OnRegister(event *RegisterEvent) {
 func (this *Logger) OnInit(event *InitEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err != nil {
-		FailExit("%v", err)
+		FailExitWithErr(err)
 	}
 	this.writer = nil
 	this.initWriter()
@@ -117,7 +117,7 @@ func (this *Logger) initWriter() {
 					output = logFile
 				}
 				if err != nil {
-					FailExit("%v", err)
+					FailExitWithErr(err)
 				}
 			}
 		}
