@@ -73,6 +73,7 @@ func NewConsumerApplication() *ConsumerApplication {
 }
 
 func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
+	Info("connect to %s", appConfig.URI)
 	connect, err := amqp.Dial(appConfig.URI)
 	if err == nil {
 		Info("got connection to %s, getting channel", appConfig.URI)
@@ -91,7 +92,7 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 				}
 
 				Info("declaring exchange - %s", binding.Exchange)
-				if err = channel.ExchangeDeclare(
+				err = channel.ExchangeDeclare(
 					binding.Exchange,      // name of the exchange
 					string(binding.Type),  // type
 					true,                  // durable
@@ -100,20 +101,20 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 					false,                 // noWait
 					nil,                   // arguments
 				)
-					err == nil {
+				if err == nil {
 					Info("declared exchange - %s", binding.Exchange)
 				} else {
 					FailExitWithErr(err)
 				}
 
 				Info("declaring queue - %s", binding.Queue)
-				queue, err := channel.QueueDeclare(
+				_, err := channel.QueueDeclare(
 					binding.Queue, // name of the queue
-					true,      // durable
-					false,     // delete when usused
-					false,     // exclusive
-					false,     // noWait
-					nil,       // arguments
+					true,          // durable
+					false,         // delete when usused
+					false,         // exclusive
+					false,         // noWait
+					nil,           // arguments
 				)
 				if err == nil {
 					Info("declared queue - %s", binding.Queue)
@@ -122,15 +123,15 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 				}
 
 				Info("binding to exchange key - \"%s\"", binding.Routing)
-				if err = channel.QueueBind(
-					queue.Name,       // name of the queue
+				err = channel.QueueBind(
+					binding.Queue,    // name of the queue
 					binding.Routing,  // bindingKey
 					binding.Exchange, // sourceExchange
 					false,            // noWait
 					nil,              // arguments
 				)
-					err == nil {
-					Info("queue bind - %s", binding.Queue)
+				if err == nil {
+					Info("queue %s bind to exchange %s", binding.Queue, binding.Exchange)
 					deliveries, err := channel.Consume(
 						binding.Exchange, // name
 						"",               // consumerTag,
@@ -163,17 +164,14 @@ func (this *ConsumerApplication) Run(appConfig *ConsumerApplicationConfig) {
 }
 
 func (this *ConsumerApplication) consume(id int, deliveries <- chan amqp.Delivery) {
-	for {
-		select {
-		case delivery := <- deliveries:
-			mail := new(MailMessage)
-			err := json.Unmarshal(delivery.Body, mail)
-			if err == nil {
-				Info("consumer - %d, delivery - %s", id, delivery.Body)
-				SendMail(mail)
-			} else {
-				Warn("mail has invalid format - %s", delivery.Body)
-			}
+	for delivery := range deliveries {
+		mail := new(MailMessage)
+		err := json.Unmarshal(delivery.Body, mail)
+		if err == nil {
+			Info("consumer - %d, delivery - %s", id, delivery.Body)
+			SendMail(mail)
+		} else {
+			Warn("mail has invalid format - %s", delivery.Body)
 		}
 	}
 }

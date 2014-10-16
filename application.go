@@ -57,9 +57,9 @@ type Application struct {
 	servicesCount  int
 	events         chan *ApplicationEvent
 	logChan        chan *LogMessage
-	mailChan       chan *MailMessage
 	done           chan bool
 	handlers       map[ApplicationEventKind]func()
+	mailers        []*MailerApplication
 }
 
 func NewApplication() *Application {
@@ -91,7 +91,6 @@ func (this *Application) registerServices() {
 	}
 	event.Group.Wait()
 	this.logChan = event.LogChan
-	this.mailChan = event.MailChan
 	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
 }
 
@@ -168,6 +167,6 @@ func Info(message string, args ...interface{}) {
 }
 
 func SendMail(message *MailMessage) {
-	defer func(){recover()}()
-	app.mailChan <- message
+//	defer func(){recover()}()
+//	app.mailChan <- message
 }
