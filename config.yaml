@@ -26,5 +26,5 @@ mailers:
   - uri: mta://username:password@10.222.0.1:25
   - uri: smtp://username:password@10.222.0.1:25
   - uri: smtp://username:password@10.222.0.1:25
-  - uri: smtp://username:password@10.222.0.1:25
+  - uri: smtp://10.222.0.1:25
     handlers: 4

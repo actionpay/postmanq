@@ -3,12 +3,20 @@ package postmanq
 import (
 	yaml "gopkg.in/yaml.v2"
 	"net/url"
+	"github.com/streadway/amqp"
+	"regexp"
+	"net/smtp"
+)
+
+var (
+	emailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
 )
 
 type MailMessage struct {
 	Envelope  string `json:"envelope"`
 	Recipient string `json:"recipient"`
 	Body      string `json:"body"`
+	Delivery  amqp.Delivery
 }
 
 type Mailer struct {
@@ -34,7 +42,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 				appType := MailerApplicationType(appUrl.Scheme)
 				if mailerConstruct, ok := mailerConstructs[appType]; ok {
 					app := mailerConstruct()
-					app.Init()
+					app.Init(appConfig)
 					this.apps = append(this.apps, app)
 				} else {
 					Warn("mailer application with type %s not found", appType)
@@ -65,7 +73,7 @@ type MailerApplicationConfig struct {
 }
 
 type MailerApplication interface {
-	Init()
+	Init(*MailerApplicationConfig)
 	Run()
 	IncrMessagesCount()
 	MessagesCount() int64
@@ -89,6 +97,7 @@ var (
 type AbstractMailerApplication struct {
 	messagesCount int64
 	messages      chan *MailMessage
+	config        *MailerApplicationConfig
 }
 
 func (this *AbstractMailerApplication) MessagesCount() int64 {
@@ -99,7 +108,8 @@ func (this *AbstractMailerApplication) Channel() chan <- *MailMessage {
 	return this.messages
 }
 
-func (this *AbstractMailerApplication) Init() {
+func (this *AbstractMailerApplication) Init(config *MailerApplicationConfig) {
+	this.config = config
 	this.messagesCount = 0
 	this.messages = make(chan *MailMessage)
 }
@@ -110,19 +120,33 @@ func (this *AbstractMailerApplication) IncrMessagesCount() {
 
 type SmtpMailerApplication struct {
 	AbstractMailerApplication
+	uri  *url.URL
+	auth *smtp.Auth
 }
 
 func NewSmtpMailerApplication() MailerApplication {
 	return new(SmtpMailerApplication)
 }
 
+func (this *SmtpMailerApplication) Init(config *MailerApplicationConfig) {
+	var err error
+	this.AbstractMailerApplication.Init(config)
+	this.uri, err = url.Parse(config.URI)
+	if err == nil {
+		Info("url parsed %v", this.uri)
+		//		if this.uri.User != nil {
+//			this.auth = smtp.CRAMMD5Auth(this.uri.User.Username(), this.uri.User.Password())
+//		}
+	} else {
+		Warn("can't parse url %s", config.URI)
+	}
+}
+
 func (this *SmtpMailerApplication) Run() {
 	for message := range this.messages {
-		if message != nil {}
-//		Info("messages count: %d", this.messagesCount)
-//		time.Sleep(16 * time.Second)
-//		atomic.AddInt64(&this.messagesCount, 1)
-
-//		Info("%v", message)
+		if emailRegexp.MatchString(message.Envelope) && emailRegexp.MatchString(message.Recipient) {
+//			Info("%v", emailRegexp.FindAllString(message.Recipient, -1))
+//			Info("%v", emailRegexp.FindAllStringSubmatch(message.Recipient, -1))
+		}
 	}
 }

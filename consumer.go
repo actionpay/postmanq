@@ -176,14 +176,14 @@ func (this *ConsumerApplication) Run() {
 
 func (this *ConsumerApplication) consume(id int, deliveries <- chan amqp.Delivery) {
 	for delivery := range deliveries {
-		mail := new(MailMessage)
-		err := json.Unmarshal(delivery.Body, mail)
+		message := new(MailMessage)
+		err := json.Unmarshal(delivery.Body, message)
 		if err == nil {
 			Info("consumer - %d, delivery - %s", id, delivery.Body)
-			SendMail(mail)
+			message.Delivery = delivery
+			SendMail(message)
 		} else {
-			SendMail(new(MailMessage))
-//			Warn("mail has invalid format - %s", delivery.Body)
+			Warn("mail has invalid format - %s", delivery.Body)
 		}
 	}
 }
