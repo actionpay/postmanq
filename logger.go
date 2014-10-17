@@ -16,8 +16,8 @@ type LogLevel int
 const(
 	LOG_LEVEL_INFO = iota
 	LOG_LEVEL_WARNING
-	LOG_LEVEL_ERROR
 	LOG_LEVEL_CRITICAL
+	LOG_LEVEL_ERROR
 )
 
 var (
@@ -25,8 +25,8 @@ var (
 	logLevelNames = map[LogLevel]string{
 		LOG_LEVEL_INFO:     "Info",
 		LOG_LEVEL_WARNING:  "Warning",
-		LOG_LEVEL_ERROR:    "Error",
 		LOG_LEVEL_CRITICAL: "Critical",
+		LOG_LEVEL_ERROR:    "Error",
 	}
 )
 
@@ -72,7 +72,10 @@ func (this *Logger) OnInit(event *InitEvent) {
 	}
 	this.writer = nil
 	this.initWriter()
+	event.Group.Done()
 }
+
+func (this *Logger) OnRun() {}
 
 func (this *Logger) OnFinish(event *FinishEvent) {
 	close(this.messages)

@@ -22,7 +22,9 @@ type RegisterEvent struct {
 }
 
 type InitEvent struct {
-	Data []byte
+	Data    []byte
+	Mailers []MailerApplication
+	Group   *sync.WaitGroup
 }
 
 type FinishEvent struct {
@@ -32,6 +34,7 @@ type FinishEvent struct {
 type Service interface {
 	OnRegister(*RegisterEvent)
 	OnInit(*InitEvent)
+	OnRun()
 	OnFinish(*FinishEvent)
 }
 
@@ -40,6 +43,7 @@ type ApplicationEventKind int
 const (
 	APPLICATION_EVENT_KIND_REGISTER ApplicationEventKind = iota
 	APPLICATION_EVENT_KIND_INIT
+	APPLICATION_EVENT_KIND_RUN
 	APPLICATION_EVENT_KIND_FINISH
 )
 
@@ -59,7 +63,8 @@ type Application struct {
 	logChan        chan *LogMessage
 	done           chan bool
 	handlers       map[ApplicationEventKind]func()
-	mailers        []*MailerApplication
+	mailers        []MailerApplication
+	mutex          *sync.Mutex
 }
 
 func NewApplication() *Application {
@@ -71,13 +76,15 @@ func NewApplication() *Application {
 			NewConsumer(),
 		}
 		app.servicesCount = len(app.services)
-		app.events = make(chan *ApplicationEvent, 3)
+		app.events = make(chan *ApplicationEvent, 4)
 		app.done = make(chan bool)
 		app.handlers = map[ApplicationEventKind]func(){
 			APPLICATION_EVENT_KIND_REGISTER: app.registerServices,
 			APPLICATION_EVENT_KIND_INIT    : app.initServices,
+			APPLICATION_EVENT_KIND_RUN     : app.runServices,
 			APPLICATION_EVENT_KIND_FINISH  : app.finishServices,
 		}
+		app.mutex = new(sync.Mutex)
 	}
 	return app
 }
@@ -100,14 +107,25 @@ func (this *Application) initServices() {
 		if err == nil {
 			event := new(InitEvent)
 			event.Data = bytes
+			event.Group = new(sync.WaitGroup)
+			event.Group.Add(this.servicesCount)
 			for _, service := range this.services {
 				go service.OnInit(event)
 			}
+			event.Group.Wait()
+			this.mailers = event.Mailers
+			this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_RUN)
 		} else {
 			FailExitWithErr(err)
 		}
 	} else {
 		FailExit("configuration file not found")
+	}
+}
+
+func (this *Application) runServices() {
+	for _, service := range this.services {
+		go service.OnRun()
 	}
 }
 
@@ -146,7 +164,7 @@ func (this *Application) log(message *LogMessage) {
 }
 
 func FailExit(message string, args ...interface{}) {
-	app.log(NewLogMessage(LOG_LEVEL_CRITICAL, message, args...))
+	app.log(NewLogMessage(LOG_LEVEL_ERROR, message, args...))
 	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
 }
 
@@ -167,6 +185,21 @@ func Info(message string, args ...interface{}) {
 }
 
 func SendMail(message *MailMessage) {
-//	defer func(){recover()}()
-//	app.mailChan <- message
+	app.mutex.Lock()
+	index := -1
+	var count int64 = -1
+	for i, mailer := range app.mailers {
+		Info("mailer - %d, messages count - %d", i, mailer.MessagesCount())
+		if count == -1 || count > mailer.MessagesCount() {
+			count = mailer.MessagesCount()
+			index = i
+		}
+	}
+	if 0 <= index && index <= len(app.mailers) {
+		mailer := app.mailers[index]
+		Info("send message to mailer - %d", index)
+		mailer.IncrMessagesCount()
+		mailer.Channel() <- message
+	}
+	app.mutex.Unlock()
 }

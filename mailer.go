@@ -13,6 +13,7 @@ type MailMessage struct {
 
 type Mailer struct {
 	AppsConfigs []*MailerApplicationConfig `yaml:"mailers"`
+	apps        []MailerApplication
 }
 
 func NewMailer() *Mailer {
@@ -26,12 +27,15 @@ func (this *Mailer) OnRegister(event *RegisterEvent) {
 func (this *Mailer) OnInit(event *InitEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
+		this.apps = make([]MailerApplication, 0)
 		for _, appConfig := range this.AppsConfigs {
 			appUrl, err := url.Parse(appConfig.URI)
 			if err == nil {
 				appType := MailerApplicationType(appUrl.Scheme)
-				if _, ok := mailerApps[appType]; ok {
-
+				if mailerConstruct, ok := mailerConstructs[appType]; ok {
+					app := mailerConstruct()
+					app.Init()
+					this.apps = append(this.apps, app)
 				} else {
 					Warn("mailer application with type %s not found", appType)
 				}
@@ -39,8 +43,16 @@ func (this *Mailer) OnInit(event *InitEvent) {
 				FailExitWithErr(err)
 			}
 		}
+		event.Mailers = this.apps
+		event.Group.Done()
 	} else {
 		FailExitWithErr(err)
+	}
+}
+
+func (this *Mailer) OnRun() {
+	for _, app := range this.apps {
+		go app.Run()
 	}
 }
 
@@ -53,9 +65,11 @@ type MailerApplicationConfig struct {
 }
 
 type MailerApplication interface {
-	MessagesCount() int
+	Init()
+	Run()
+	IncrMessagesCount()
+	MessagesCount() int64
 	Channel() chan <- *MailMessage
-	Run(*MailerApplicationConfig)
 }
 
 type MailerApplicationType string
@@ -67,17 +81,17 @@ const (
 )
 
 var (
-	mailerApps = map[MailerApplicationType]MailerApplication {
-		MAILER_APPLICATION_TYPE_SMTP: new(SmtpMailerApplication),
+	mailerConstructs = map[MailerApplicationType]func() MailerApplication {
+		MAILER_APPLICATION_TYPE_SMTP: NewSmtpMailerApplication,
 	}
 )
 
 type AbstractMailerApplication struct {
-	messagesCount int
+	messagesCount int64
 	messages      chan *MailMessage
 }
 
-func (this *AbstractMailerApplication) MessagesCount() int {
+func (this *AbstractMailerApplication) MessagesCount() int64 {
 	return this.messagesCount
 }
 
@@ -85,10 +99,30 @@ func (this *AbstractMailerApplication) Channel() chan <- *MailMessage {
 	return this.messages
 }
 
+func (this *AbstractMailerApplication) Init() {
+	this.messagesCount = 0
+	this.messages = make(chan *MailMessage)
+}
+
+func (this *AbstractMailerApplication) IncrMessagesCount() {
+	this.messagesCount++
+}
+
 type SmtpMailerApplication struct {
 	AbstractMailerApplication
 }
 
-func (this *SmtpMailerApplication) Run(*MailerApplicationConfig) {
+func NewSmtpMailerApplication() MailerApplication {
+	return new(SmtpMailerApplication)
+}
 
+func (this *SmtpMailerApplication) Run() {
+	for message := range this.messages {
+		if message != nil {}
+//		Info("messages count: %d", this.messagesCount)
+//		time.Sleep(16 * time.Second)
+//		atomic.AddInt64(&this.messagesCount, 1)
+
+//		Info("%v", message)
+	}
 }
