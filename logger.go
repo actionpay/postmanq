@@ -14,19 +14,28 @@ import (
 type LogLevel int
 
 const(
-	LOG_LEVEL_INFO = iota
+	LOG_LEVEL_INFO    LogLevel = iota
 	LOG_LEVEL_WARNING
-	LOG_LEVEL_CRITICAL
 	LOG_LEVEL_ERROR
+)
+
+const (
+	LOG_LEVEL_INFO_NAME    = "info"
+	LOG_LEVEL_WARNING_NAME = "warning"
+	LOG_LEVEL_ERROR_NAME   = "error"
 )
 
 var (
 	filenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
-	logLevelNames = map[LogLevel]string{
-		LOG_LEVEL_INFO:     "Info",
-		LOG_LEVEL_WARNING:  "Warning",
-		LOG_LEVEL_CRITICAL: "Critical",
-		LOG_LEVEL_ERROR:    "Error",
+	logLevelById = map[LogLevel]string{
+		LOG_LEVEL_INFO:    LOG_LEVEL_INFO_NAME,
+		LOG_LEVEL_WARNING: LOG_LEVEL_WARNING_NAME,
+		LOG_LEVEL_ERROR:   LOG_LEVEL_ERROR_NAME,
+	}
+	logLevelByName = map[string]LogLevel{
+		LOG_LEVEL_INFO_NAME   : LOG_LEVEL_INFO,
+		LOG_LEVEL_WARNING_NAME: LOG_LEVEL_WARNING,
+		LOG_LEVEL_ERROR_NAME  : LOG_LEVEL_ERROR,
 	}
 )
 
@@ -45,10 +54,11 @@ func NewLogMessage(level LogLevel, message string, args ...interface{}) *LogMess
 }
 
 type Logger struct {
-	Debug   bool              `yaml:"debug"`
-	Output  string            `yaml:"output"`
-	writer  *bufio.Writer
-	messages chan *LogMessage
+	LogLevelName string           `yaml:"logLevel"`
+	level        LogLevel
+	Output       string           `yaml:"output"`
+	writer       *bufio.Writer
+	messages     chan *LogMessage
 }
 
 func NewLogger() *Logger {
@@ -57,7 +67,7 @@ func NewLogger() *Logger {
 }
 
 func (this *Logger) OnRegister(event *RegisterEvent) {
-	this.Debug = true
+	this.level = LOG_LEVEL_ERROR
 	this.messages = make(chan *LogMessage)
 	this.initWriter()
 	go this.start()
@@ -67,12 +77,16 @@ func (this *Logger) OnRegister(event *RegisterEvent) {
 
 func (this *Logger) OnInit(event *InitEvent) {
 	err := yaml.Unmarshal(event.Data, this)
-	if err != nil {
+	if err == nil {
+		if level, ok := logLevelByName[this.LogLevelName]; ok {
+			this.level = level
+		}
+		this.writer = nil
+		this.initWriter()
+		event.Group.Done()
+	} else {
 		FailExitWithErr(err)
 	}
-	this.writer = nil
-	this.initWriter()
-	event.Group.Done()
 }
 
 func (this *Logger) OnRun() {}
@@ -86,12 +100,12 @@ func (this *Logger) start() {
 	for {
 		select {
 		case message, ok := <- this.messages:
-			if ok {
+			if ok && this.level <= message.Level {
 				this.writer.WriteString(
 					fmt.Sprintf(
 						"PostmanQ | %v | %s: %s\n",
 						time.Now().Format("2006-01-02 15:04:05"),
-						logLevelNames[message.Level],
+						logLevelById[message.Level],
 						fmt.Sprintf(message.Message, message.Args...),
 					),
 				)

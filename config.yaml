@@ -1,4 +1,4 @@
-debug: true
+logLevel: info # info|warning|error, по умолчанию error
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
   - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
@@ -23,8 +23,9 @@ consumers:
 
 mailers:
 #  - uri: smtp://username:password@host:25
-  - uri: mta://username:password@10.222.0.1:25
-  - uri: smtp://username:password@10.222.0.1:25
-  - uri: smtp://username:password@10.222.0.1:25
-  - uri: smtp://10.222.0.1:25
-    handlers: 4
+#  - uri: mta://10.222.0.1:25
+  - uri: local://10.222.0.1:25
+    timeout: 60
+#  - uri: smtp://smtp.gmail.com:587
+#    username: asolomonoff@gmail.com
+#    password: asolomonoff001

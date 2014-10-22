@@ -157,7 +157,7 @@ func (this *ConsumerApplication) Run() {
 		this.binding.Exchange, // name
 		"",                    // consumerTag,
 		false,                 // noAck
-		false,                 // exclusive
+		true,                  // exclusive
 		false,                 // noLocal
 		false,                 // noWait
 		nil,                   // arguments

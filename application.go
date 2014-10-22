@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"io/ioutil"
 	"time"
+	"runtime/debug"
 )
 
 const (
@@ -163,8 +164,12 @@ func (this *Application) log(message *LogMessage) {
 	app.logChan <- message
 }
 
-func FailExit(message string, args ...interface{}) {
+func Err(message string, args ...interface{}) {
 	app.log(NewLogMessage(LOG_LEVEL_ERROR, message, args...))
+}
+
+func FailExit(message string, args ...interface{}) {
+	Err(message, args...)
 	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
 }
 
@@ -172,12 +177,12 @@ func FailExitWithErr(err error) {
 	FailExit("%v", err)
 }
 
-func Err(message string, args ...interface{}) {
-	app.log(NewLogMessage(LOG_LEVEL_ERROR, message, args...))
-}
-
 func Warn(message string, args ...interface{}) {
 	app.log(NewLogMessage(LOG_LEVEL_WARNING, message, args...))
+}
+
+func WarnWithErr(err error) {
+	Warn("%v\n%s", err, debug.Stack())
 }
 
 func Info(message string, args ...interface{}) {
