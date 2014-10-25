@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"time"
 	"runtime/debug"
+	"fmt"
 )
 
 const (
@@ -23,9 +24,10 @@ type RegisterEvent struct {
 }
 
 type InitEvent struct {
-	Data    []byte
-	Mailers []MailerApplication
-	Group   *sync.WaitGroup
+	Data         []byte
+	Mailers      []MailerApplication
+	MailersCount int
+	Group        *sync.WaitGroup
 }
 
 type FinishEvent struct {
@@ -66,6 +68,7 @@ type Application struct {
 	handlers       map[ApplicationEventKind]func()
 	mailers        []MailerApplication
 	mutex          *sync.Mutex
+	mailsCount     int64
 }
 
 func NewApplication() *Application {
@@ -165,7 +168,8 @@ func (this *Application) log(message *LogMessage) {
 }
 
 func Err(message string, args ...interface{}) {
-	app.log(NewLogMessage(LOG_LEVEL_ERROR, message, args...))
+	args = append(args, debug.Stack())
+	app.log(NewLogMessage(LOG_LEVEL_ERROR, fmt.Sprint(message, "\n%s"), args...))
 }
 
 func FailExit(message string, args ...interface{}) {
@@ -189,12 +193,16 @@ func Info(message string, args ...interface{}) {
 	app.log(NewLogMessage(LOG_LEVEL_INFO, message, args...))
 }
 
+func Debug(message string, args ...interface{}) {
+	app.log(NewLogMessage(LOG_LEVEL_DEBUG, message, args...))
+}
+
 func SendMail(message *MailMessage) {
 	app.mutex.Lock()
 	index := -1
 	var count int64 = -1
 	for i, mailer := range app.mailers {
-		Info("mailer - %d, messages count - %d", i, mailer.MessagesCount())
+		Debug("mailer#%d, messages count - %d", i, mailer.MessagesCount())
 		if count == -1 || count > mailer.MessagesCount() {
 			count = mailer.MessagesCount()
 			index = i
@@ -202,9 +210,17 @@ func SendMail(message *MailMessage) {
 	}
 	if 0 <= index && index <= len(app.mailers) {
 		mailer := app.mailers[index]
-		Info("send message to mailer - %d", index)
+		Debug("send message to mailer#%d", index)
 		mailer.IncrMessagesCount()
 		mailer.Channel() <- message
 	}
 	app.mutex.Unlock()
 }
+
+func GetMailMessageId() int64 {
+	app.mutex.Lock()
+	app.mailsCount++
+	app.mutex.Unlock()
+	return app.mailsCount
+}
+

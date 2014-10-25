@@ -14,12 +14,14 @@ import (
 type LogLevel int
 
 const(
-	LOG_LEVEL_INFO    LogLevel = iota
+	LOG_LEVEL_DEBUG   LogLevel = iota
+	LOG_LEVEL_INFO
 	LOG_LEVEL_WARNING
 	LOG_LEVEL_ERROR
 )
 
 const (
+	LOG_LEVEL_DEBUG_NAME   = "debug"
 	LOG_LEVEL_INFO_NAME    = "info"
 	LOG_LEVEL_WARNING_NAME = "warning"
 	LOG_LEVEL_ERROR_NAME   = "error"
@@ -28,11 +30,13 @@ const (
 var (
 	filenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
 	logLevelById = map[LogLevel]string{
+		LOG_LEVEL_DEBUG:   LOG_LEVEL_DEBUG_NAME,
 		LOG_LEVEL_INFO:    LOG_LEVEL_INFO_NAME,
 		LOG_LEVEL_WARNING: LOG_LEVEL_WARNING_NAME,
 		LOG_LEVEL_ERROR:   LOG_LEVEL_ERROR_NAME,
 	}
 	logLevelByName = map[string]LogLevel{
+		LOG_LEVEL_DEBUG_NAME   : LOG_LEVEL_DEBUG,
 		LOG_LEVEL_INFO_NAME   : LOG_LEVEL_INFO,
 		LOG_LEVEL_WARNING_NAME: LOG_LEVEL_WARNING,
 		LOG_LEVEL_ERROR_NAME  : LOG_LEVEL_ERROR,
@@ -67,7 +71,7 @@ func NewLogger() *Logger {
 }
 
 func (this *Logger) OnRegister(event *RegisterEvent) {
-	this.level = LOG_LEVEL_ERROR
+	this.level = LOG_LEVEL_WARNING
 	this.messages = make(chan *LogMessage)
 	this.initWriter()
 	go this.start()

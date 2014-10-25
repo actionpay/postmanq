@@ -16,10 +16,12 @@ var (
 )
 
 type MailMessage struct {
+	Id        int64
 	Envelope  string `json:"envelope"`
 	Recipient string `json:"recipient"`
 	Body      string `json:"body"`
 	Delivery  amqp.Delivery
+	Done      chan bool
 }
 
 type Mailer struct {
@@ -38,15 +40,23 @@ func (this *Mailer) OnRegister(event *RegisterEvent) {
 func (this *Mailer) OnInit(event *InitEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
+		Info("init mailers apps...")
 		this.apps = make([]MailerApplication, 0)
-		for _, appConfig := range this.AppsConfigs {
+		for j, appConfig := range this.AppsConfigs {
 			appUrl, err := url.Parse(appConfig.URI)
 			if err == nil {
 				appType := MailerApplicationType(appUrl.Scheme)
 				if mailerConstruct, ok := mailerConstructs[appType]; ok {
-					app := mailerConstruct()
-					app.Init(appConfig)
-					this.apps = append(this.apps, app)
+					if appConfig.Handlers == 0 {
+						appConfig.Handlers = 1
+					}
+					for i := 0; i < appConfig.Handlers; i++ {
+						app := mailerConstruct()
+						app.SetId(j * appConfig.Handlers + i)
+						app.Init(appConfig)
+						Info("create mailer app#%d", app.GetId())
+						this.apps = append(this.apps, app)
+					}
 				} else {
 					Warn("mailer application with type %s not found", appType)
 				}
@@ -55,6 +65,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			}
 		}
 		event.Mailers = this.apps
+		event.MailersCount = len(this.apps)
 		event.Group.Done()
 	} else {
 		FailExitWithErr(err)
@@ -62,6 +73,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 }
 
 func (this *Mailer) OnRun() {
+	Info("run mailers apps...")
 	for _, app := range this.apps {
 		go app.Run()
 	}
@@ -76,11 +88,13 @@ type MailerApplicationConfig struct {
 	Username string        `yaml:"username"`
 	Password string        `yaml:"password"`
 	Timeout  time.Duration `yaml:"timeout"`
-
+	Handlers int           `yaml:"handlers"`
 }
 
 type MailerApplication interface {
 	Init(*MailerApplicationConfig)
+	GetId() int
+	SetId(int)
 	Run()
 	IncrMessagesCount()
 	MessagesCount() int64
@@ -92,7 +106,6 @@ type MailerApplicationType string
 const (
 	MAILER_APPLICATION_TYPE_MTA  MailerApplicationType = "mta"
 	MAILER_APPLICATION_TYPE_SMTP                       = "smtp"
-	MAILER_APPLICATION_TYPE_MX                         = "mx"
 	MAILER_APPLICATION_TYPE_LOCAL                      = "local"
 )
 
@@ -104,10 +117,19 @@ var (
 )
 
 type AbstractMailerApplication struct {
+	id            int
 	messagesCount int64
 	messages      chan *MailMessage
 	config        *MailerApplicationConfig
 	uri           *url.URL
+}
+
+func (this *AbstractMailerApplication) GetId() int {
+	return this.id
+}
+
+func (this *AbstractMailerApplication) SetId(id int) {
+	this.id = id
 }
 
 func (this *AbstractMailerApplication) MessagesCount() int64 {
@@ -125,9 +147,9 @@ func (this *AbstractMailerApplication) Init(config *MailerApplicationConfig) {
 	this.messages = make(chan *MailMessage)
 	this.uri, err = url.Parse(config.URI)
 	if err == nil {
-		Info("url parsed %v", this.uri)
+		Debug("url parsed %v", this.uri)
 	} else {
-		Warn("can't parse url %s", config.URI)
+		FailExit("can't parse url %s", config.URI)
 	}
 }
 
@@ -137,6 +159,11 @@ func (this *AbstractMailerApplication) IncrMessagesCount() {
 
 func (this *AbstractMailerApplication) isValidMessage(message *MailMessage) bool {
 	return emailRegexp.MatchString(message.Envelope) && emailRegexp.MatchString(message.Recipient)
+}
+
+func (this *AbstractMailerApplication) returnMessageToQueueWithErr(message *MailMessage, err error) {
+	message.Done <- false
+	WarnWithErr(err)
 }
 
 type SmtpMailerApplication struct {
@@ -157,6 +184,7 @@ func (this *SmtpMailerApplication) Init(config *MailerApplicationConfig) {
 }
 
 func (this *SmtpMailerApplication) Run() {
+	Info("run smtp mailer app%d", this.id)
 	for message := range this.messages {
 		if this.isValidMessage(message) {
 			this.send(message)
@@ -201,91 +229,58 @@ func (this *SmtpMailerApplication) send(message *MailMessage) {
 
 type LocalMailerApplication struct {
 	AbstractMailerApplication
-	client *smtp.Client
-	timer  *time.Timer
 }
 
 func NewLocalMailerApplication() MailerApplication {
 	return new(LocalMailerApplication)
 }
 
-func (this *LocalMailerApplication) Init(config *MailerApplicationConfig) {
-	this.AbstractMailerApplication.Init(config)
-	this.connect()
-}
-
 func (this *LocalMailerApplication) Run() {
-	if this.client != nil {
-		for message := range this.messages {
-			this.timer.Reset(this.config.Timeout * time.Second)
-			if this.isValidMessage(message) {
-				err := this.client.Mail(message.Envelope)
+	Info("run local mailer app#%d", this.id)
+	for message := range this.messages {
+		if this.isValidMessage(message) {
+			Info("local mailer#%d receive mail#%d", this.id, message.Id)
+			client, err := smtp.Dial(this.uri.Host)
+			err = client.Mail(message.Envelope)
+			if err == nil {
+				Debug("MAIL FROM: %s", message.Envelope)
+				err = client.Rcpt(message.Recipient)
 				if err == nil {
-					Info("MAIL FROM: %s", message.Envelope)
-					err = this.client.Rcpt(message.Recipient)
+					Debug("RCPT TO: %s", message.Recipient)
+					wc, err := client.Data()
 					if err == nil {
-						Info("RCPT TO: %s", message.Recipient)
-						wc, err := this.client.Data()
+						Debug("DATA")
+						_, err = fmt.Fprintf(wc, message.Body)
 						if err == nil {
-							Info("DATA")
-							_, err = fmt.Fprintf(wc, message.Body)
+							Debug("%s", message.Body)
+							err = wc.Close()
 							if err == nil {
-								Info("%s", message.Body)
-								err = wc.Close()
+								Debug(".")
+								err = client.Quit()
 								if err == nil {
-									Info(".")
-									err = this.client.Reset()
-									if err == nil {
-										Info("RSET")
-										err := message.Delivery.Ack(true)
-										if err == nil {
-											Info("message is acknowledged")
-										} else {
-											WarnWithErr(err)
-										}
-									} else {
-										WarnWithErr(err)
-									}
+									Debug("QUIT")
+									Info("local mailer#%d send mail#%d to mta", this.id, message.Id)
+									message.Done <- true
 								} else {
-									WarnWithErr(err)
+									this.returnMessageToQueueWithErr(message, err)
 								}
 							} else {
-								WarnWithErr(err)
+								this.returnMessageToQueueWithErr(message, err)
 							}
 						} else {
-							WarnWithErr(err)
+							this.returnMessageToQueueWithErr(message, err)
 						}
 					} else {
-						WarnWithErr(err)
+						this.returnMessageToQueueWithErr(message, err)
 					}
 				} else {
-					WarnWithErr(err)
+					this.returnMessageToQueueWithErr(message, err)
 				}
+			} else {
+				this.returnMessageToQueueWithErr(message, err)
 			}
-		}
-	}
-}
-
-func (this *LocalMailerApplication) connect() {
-	if this.client == nil {
-		var err error
-		this.client, err = smtp.Dial(this.uri.Host)
-		if err == nil {
-			Info("connect to %s", this.uri.Host)
-			this.timer = time.AfterFunc(this.config.Timeout * time.Second, this.reconnect)
 		} else {
-			WarnWithErr(err)
+			this.returnMessageToQueueWithErr(message, nil)
 		}
-	}
-}
-
-func (this *LocalMailerApplication) reconnect() {
-	if this.client != nil {
-		err := this.client.Quit()
-		if err != nil {
-			WarnWithErr(err)
-		}
-		this.client = nil
-		this.connect()
 	}
 }
