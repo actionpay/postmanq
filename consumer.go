@@ -215,7 +215,7 @@ func (this *ConsumerApplication) consume(id int) {
 				message := new(MailMessage)
 				err := json.Unmarshal(delivery.Body, message)
 				if err == nil {
-					message.Id = GetMailMessageId()
+					message.Init()
 					Info("consumer app#%d, handler#%d send mail#%d to mailer", this.id, id, message.Id)
 					Debug("mail#%d: envelope - %s\n recipient - %s\n body - %s",
 						message.Id,
@@ -223,7 +223,6 @@ func (this *ConsumerApplication) consume(id int) {
 						message.Recipient,
 						message.Body,
 					)
-					message.Done = make(chan bool)
 					SendMail(message)
 					delivery.Ack(<- message.Done)
 					message = nil

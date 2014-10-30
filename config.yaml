@@ -1,8 +1,9 @@
 #logLevel: info # debug|info|warning|error, по умолчанию warning
-logLevel: warning
+logLevel: debug
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
-  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
+#  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
+  - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
     bindings:
       - # имя обменника
         exchange: postmanq
@@ -22,12 +23,15 @@ consumers:
 #      - exchange: fourth
 #        queue: fourth
 
+privateKey: /home/solomonov/postmanq/src/github.com/byorty/postmanq/postmanq_rsa
 mailers:
 #  - uri: smtp://username:password@host:25
 #  - uri: mta://10.222.0.1:25
-  - uri: local://10.222.0.1:25
-    timeout: 60
-    handlers: 20
+#  - uri: local://10.222.0.1:25
+#  - uri: local://88.208.2.6:25
+#    handlers: 10
 #  - uri: smtp://smtp.gmail.com:587
 #    username: asolomonoff@gmail.com
 #    password: asolomonoff001
+  - uri: mta://176.74.15.206:25
+    handlers: 5
