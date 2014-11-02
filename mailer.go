@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 	"net"
-	"math/rand"
 	"errors"
 	"bytes"
 	"crypto/sha1"
@@ -215,8 +214,8 @@ type MailerApplication interface {
 	Init(*MailerApplicationConfig)
 	GetId() int
 	SetId(int)
-	IncrMessagesCount()
-	MessagesCount() int64
+	IncrMessagesCountByHostname(string)
+	MessagesCountByHostname(string) int64
 	SetPrivateKey([]byte)
 	Channel() chan *MailMessage
 	PrepareMail(message *MailMessage)
@@ -233,6 +232,10 @@ const (
 	MAILER_APPLICATION_TYPE_LOCAL                      = "local"
 )
 
+const (
+	CONNECTION_TIMEOUT = time.Second * 30
+)
+
 var (
 	mailerConstructs = map[MailerApplicationType]func() MailerApplication {
 		MAILER_APPLICATION_TYPE_MTA  : NewMtaMailerApplication,
@@ -242,13 +245,13 @@ var (
 )
 
 type AbstractMailerApplication struct {
-	id            int
-	messagesCount int64
-	messages      chan *MailMessage
-	config        *MailerApplicationConfig
-	uri           *url.URL
-	multipleSend  bool
-	privateKey    []byte
+	id             int
+	messagesCounts map[string]int64
+	messages       chan *MailMessage
+	config         *MailerApplicationConfig
+	uri            *url.URL
+	multipleSend   bool
+	privateKey     []byte
 }
 
 func (this *AbstractMailerApplication) GetId() int {
@@ -259,8 +262,11 @@ func (this *AbstractMailerApplication) SetId(id int) {
 	this.id = id
 }
 
-func (this *AbstractMailerApplication) MessagesCount() int64 {
-	return this.messagesCount
+func (this *AbstractMailerApplication) MessagesCountByHostname(hostname string) int64 {
+	if _, ok := this.messagesCounts[hostname]; !ok {
+		this.messagesCounts[hostname] = 0
+	}
+	return this.messagesCounts[hostname]
 }
 
 func (this *AbstractMailerApplication) SetPrivateKey(privateKey []byte) {
@@ -275,7 +281,7 @@ func (this *AbstractMailerApplication) Init(config *MailerApplicationConfig) {
 	var err error
 	this.multipleSend = false
 	this.config = config
-	this.messagesCount = 0
+	this.messagesCounts = make(map[string]int64)
 	this.messages = make(chan *MailMessage)
 	this.uri, err = url.Parse(config.URI)
 	if err == nil {
@@ -285,8 +291,12 @@ func (this *AbstractMailerApplication) Init(config *MailerApplicationConfig) {
 	}
 }
 
-func (this *AbstractMailerApplication) IncrMessagesCount() {
-	this.messagesCount++
+func (this *AbstractMailerApplication) IncrMessagesCountByHostname(hostname string) {
+	if _, ok := this.messagesCounts[hostname]; ok {
+		this.messagesCounts[hostname]++
+	} else {
+		this.messagesCounts[hostname] = 1
+	}
 }
 
 func (this *AbstractMailerApplication) IsValidMessage(message *MailMessage) bool {
@@ -310,7 +320,7 @@ func (this *AbstractMailerApplication) send(client *smtp.Client, message *MailMe
 				Debug("DATA")
 				_, err = fmt.Fprintf(wc, message.Body)
 				if err == nil {
-					Debug("%s", message.Body)
+//					Debug("%s", message.Body)
 					err = wc.Close()
 					if err == nil {
 						Debug(".")
@@ -326,6 +336,7 @@ func (this *AbstractMailerApplication) send(client *smtp.Client, message *MailMe
 								Debug("QUIT")
 							}
 							Info("mailer#%d send mail#%d to mta", this.id, message.Id)
+//							this.messagesCounts[message.HostnameTo]--
 							message.Done <- true
 						} else {
 							this.returnMessageToQueueWithErr(message, err)
@@ -407,7 +418,7 @@ func (this *AbstractMailerApplication) CreateDkim(message *MailMessage) {
 
 type SmtpMailerApplication struct {
 	AbstractMailerApplication
-	auth   smtp.Auth
+	auth smtp.Auth
 }
 
 func NewSmtpMailerApplication() MailerApplication {
@@ -417,8 +428,12 @@ func NewSmtpMailerApplication() MailerApplication {
 func (this *SmtpMailerApplication) Init(config *MailerApplicationConfig) {
 	this.AbstractMailerApplication.Init(config)
 	if len(config.Username) > 0 && len(config.Password) > 0 {
-		hostParts := strings.Split(this.uri.Host, ":")
-		this.auth = smtp.PlainAuth("", config.Username, config.Password, hostParts[0])
+		hostname, _, err := net.SplitHostPort(this.uri.Host)
+		if err == nil {
+			this.auth = smtp.PlainAuth("", config.Username, config.Password, hostname)
+		} else {
+			WarnWithErr(err)
+		}
 	}
 }
 
@@ -452,8 +467,8 @@ func (this *LocalMailerApplication) Send(message *MailMessage) {
 
 type MtaMailerApplication struct {
 	AbstractMailerApplication
-	hostname  string
-	mxServers map[string]*MxServer
+	hostname       string
+	remoteServices map[string]*RemoteService
 }
 
 func NewMtaMailerApplication() MailerApplication {
@@ -463,45 +478,153 @@ func NewMtaMailerApplication() MailerApplication {
 func (this *MtaMailerApplication) Init(config *MailerApplicationConfig) {
 	this.AbstractMailerApplication.Init(config)
 	this.multipleSend = true
-	hostParts := strings.Split(this.uri.Host, ":")
-	this.hostname = hostParts[0]
-	this.mxServers = make(map[string]*MxServer)
+	hostname, _, err := net.SplitHostPort(this.uri.Host)
+	if err == nil {
+		this.hostname = hostname
+	} else {
+		WarnWithErr(err)
+	}
+	this.remoteServices = make(map[string]*RemoteService)
 }
 
 func (this *MtaMailerApplication) Send(message *MailMessage) {
 	Info("mta mailer#%d receive mail#%d", this.id, message.Id)
-	if _, ok := this.mxServers[message.HostnameTo]; !ok {
-		mxes, err := net.LookupMX(message.HostnameTo)
+	if _, ok := this.remoteServices[message.HostnameTo]; !ok {
+		domains, err := net.LookupMX(message.HostnameTo)
 		if err == nil {
-			mxesCount := len(mxes)
-			mxServer := new(MxServer)
-			mxServer.hosts = make([]string, mxesCount)
-			mxServer.messagesCounts = make([]int64, mxesCount)
-			mxServer.clients = make([]*smtp.Client, mxesCount)
-			for i, mx := range mxes {
-				mxServer.hosts[i] = mx.Host
-				mxServer.messagesCounts[i] = 0
-				client, _ := smtp.Dial(fmt.Sprintf("%s:25", mx.Host))
-				client.Hello(this.hostname)
-				mxServer.clients[i] = client
+			remoteService := new(RemoteService)
+			remoteService.apps = make(map[string]*RemoteMtaApplication)
+			for _, domain := range domains {
+				remoteService.apps[domain.Host] = NewRemoteMtaApplication(domain.Host)
 			}
-			this.mxServers[message.HostnameTo] = mxServer
+			this.remoteServices[message.HostnameTo] = remoteService
 		} else {
-			WarnWithErr(err)
+			this.returnMessageToQueueWithErr(message, errors.New(fmt.Sprintf("can't receive mx domains for %s", message.HostnameTo)))
 		}
 	}
+	this.sendViaRemoteService(message)
+}
 
-	if mxServer, ok := this.mxServers[message.HostnameTo]; ok {
-		index := rand.Intn(len(mxServer.hosts))
-		client := mxServer.clients[index]
-		this.send(client, message)
-	} else {
-		this.returnMessageToQueueWithErr(message, errors.New(fmt.Sprintf("mx server not found for %s", message.HostnameTo)))
+func (this *MtaMailerApplication) sendViaRemoteService(message *MailMessage) {
+	if remoteService, ok := this.remoteServices[message.HostnameTo]; ok {
+		Debug("mta mailer#%d get remote app for %s", this.id, message.HostnameTo)
+		remoteApp, err := remoteService.GetApp(message)
+		if remoteApp == nil {
+			this.returnMessageToQueueWithErr(message, err)
+		} else {
+			switch remoteApp.Status {
+			case REMOTE_MTA_APPLICATION_INVALID_CONNECTION, REMOTE_MTA_APPLICATION_INVALID_CLIENT:
+				this.returnMessageToQueueWithErr(message, err)
+				break;
+			case REMOTE_MTA_APPLICATION_DISCONNECTED:
+				time.Sleep(time.Second)
+				this.sendViaRemoteService(message)
+				break;
+			case REMOTE_MTA_APPLICATION_CONNECTED:
+				remoteApp.ResetTimer()
+				this.send(remoteApp.Client, message)
+				break;
+			}
+		}
 	}
 }
 
-type MxServer struct {
-	hosts    	   []string
-	messagesCounts []int64
-	clients        []*smtp.Client
+type RemoteService struct {
+	apps map[string]*RemoteMtaApplication
+}
+
+func (this *RemoteService) GetApp(message *MailMessage) (*RemoteMtaApplication, error) {
+	var appErr error
+	var targetDomain string
+	var count int64 = -1
+	for domain, app := range this.apps {
+		if (count == -1 || count > app.messagesCount) &&
+		   (app.Status != REMOTE_MTA_APPLICATION_INVALID_CONNECTION || app.Status != REMOTE_MTA_APPLICATION_INVALID_CLIENT) {
+			count = app.messagesCount
+			targetDomain = domain
+		}
+	}
+	if len(targetDomain) == 0 {
+		return nil, errors.New(fmt.Sprintf("can't find remote app for %s", message.HostnameTo))
+	}
+	Debug("get remote mta application for domain %s", targetDomain)
+	app := this.apps[targetDomain]
+	address := net.JoinHostPort(targetDomain, "25")
+	if app.Connection == nil {
+		connect, err := net.Dial("tcp", address)
+		if err == nil {
+			Info("connect to mta %s", address)
+			connect.SetDeadline(time.Now().Add(CONNECTION_TIMEOUT))
+			app.Connection = &connect
+		} else {
+			appErr = err
+			app.Status = REMOTE_MTA_APPLICATION_INVALID_CONNECTION
+		}
+	}
+	if app.Client == nil {
+		client, err := smtp.NewClient(*app.Connection, targetDomain)
+		if err == nil {
+			Info("create smtp client to mta %s", address)
+			err := client.Hello(message.HostnameFrom)
+			if err == nil {
+				Debug("HELLO: %s", message.HostnameFrom)
+				app.Client = client
+				app.Status = REMOTE_MTA_APPLICATION_CONNECTED
+				app.messagesCount++
+				app.timer = time.AfterFunc(CONNECTION_TIMEOUT - time.Second, app.disconnect)
+			} else {
+				appErr = err
+				app.Status = REMOTE_MTA_APPLICATION_INVALID_CLIENT
+			}
+		} else {
+			appErr = err
+			app.Status = REMOTE_MTA_APPLICATION_INVALID_CLIENT
+		}
+	}
+	return app, appErr
+}
+
+type RemoteMtaApplicationStatus int
+
+const (
+	REMOTE_MTA_APPLICATION_DISCONNECTED RemoteMtaApplicationStatus = iota
+	REMOTE_MTA_APPLICATION_CONNECTED
+	REMOTE_MTA_APPLICATION_INVALID_CONNECTION
+	REMOTE_MTA_APPLICATION_INVALID_CLIENT
+)
+
+type RemoteMtaApplication struct {
+	Connection    *net.Conn
+	Client        *smtp.Client
+	Status        RemoteMtaApplicationStatus
+	timer         *time.Timer
+	hostname      string
+	messagesCount int64
+}
+
+func NewRemoteMtaApplication(hostname string) *RemoteMtaApplication {
+	app := new(RemoteMtaApplication)
+	app.hostname = hostname
+	app.Status = REMOTE_MTA_APPLICATION_DISCONNECTED
+	return app
+}
+
+func (this *RemoteMtaApplication) disconnect() {
+	this.Status = REMOTE_MTA_APPLICATION_DISCONNECTED
+	Info("remote application disconnect of %s", this.hostname)
+	err := this.Client.Quit()
+	if err != nil {
+		WarnWithErr(err)
+		err = (*this.Connection).Close()
+		if err != nil {
+			WarnWithErr(err)
+		}
+	}
+	this.Client = nil
+	this.Connection = nil
+}
+
+func (this *RemoteMtaApplication) ResetTimer() {
+	(*this.Connection).SetDeadline(time.Now().Add(CONNECTION_TIMEOUT))
+	this.timer.Reset(CONNECTION_TIMEOUT)
 }

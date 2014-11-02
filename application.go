@@ -202,16 +202,17 @@ func SendMail(message *MailMessage) {
 	index := -1
 	var count int64 = -1
 	for i, mailer := range app.mailers {
-		Debug("mailer#%d, messages count - %d", i, mailer.MessagesCount())
-		if count == -1 || count > mailer.MessagesCount() {
-			count = mailer.MessagesCount()
+		messageCount := mailer.MessagesCountByHostname(message.HostnameTo)
+		Debug("mailer#%d, messages count - %d", i, messageCount)
+		if count == -1 || count > messageCount {
+			count = messageCount
 			index = i
 		}
 	}
 	if 0 <= index && index <= len(app.mailers) {
 		mailer := app.mailers[index]
 		Debug("send message to mailer#%d", index)
-		mailer.IncrMessagesCount()
+		mailer.IncrMessagesCountByHostname(message.HostnameTo)
 		mailer.Channel() <- message
 	}
 	app.mutex.Unlock()

@@ -1,5 +1,5 @@
 #logLevel: info # debug|info|warning|error, по умолчанию warning
-logLevel: debug
+logLevel: info
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
 #  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
@@ -34,4 +34,5 @@ mailers:
 #    username: asolomonoff@gmail.com
 #    password: asolomonoff001
   - uri: mta://176.74.15.206:25
-    handlers: 5
+#    handlers: 20
+    handlers: 10

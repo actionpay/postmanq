@@ -10924,17 +10924,18 @@ func main() {
 	}
 	log.Printf("got Channel")
 
-	messageCount := 1
+//	messageCount := 1
+	messageCount := 1000
 
 	group := new(sync.WaitGroup)
 	group.Add(messageCount)
 	for i := 0; i < messageCount; i++ {
 		go func() {
 			json, err := json.Marshal(map[string]string{
-//				"envelope": "robot@actionpay.ru",
-				"envelope": "robot@adnwb.ru",
-//				"recipient": "apmail@adonweb.ru",
-				"recipient": "asolomonoff@gmail.com",
+				"envelope": "robot@actionpay.ru",
+//				"envelope": "robot@adnwb.ru",
+				"recipient": "apmail@adonweb.ru",
+//				"recipient": "asolomonoff@gmail.com",
 				"body": message[:rand.Intn(len(message) / 10)],
 			})
 			if err = channel.Publish(

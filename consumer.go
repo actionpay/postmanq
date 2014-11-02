@@ -198,7 +198,7 @@ func (this *ConsumerApplication) Run() {
 
 func (this *ConsumerApplication) consume(id int) {
 	channel, err := this.connect.Channel()
-	channel.Qos(this.mailersCount / this.binding.Handlers * 2, 0, false)
+	channel.Qos(this.mailersCount / this.binding.Handlers * 3, 0, false)
 	deliveries, err := channel.Consume(
 		this.binding.Exchange, // name
 		"",                    // consumerTag,
@@ -217,12 +217,12 @@ func (this *ConsumerApplication) consume(id int) {
 				if err == nil {
 					message.Init()
 					Info("consumer app#%d, handler#%d send mail#%d to mailer", this.id, id, message.Id)
-					Debug("mail#%d: envelope - %s\n recipient - %s\n body - %s",
-						message.Id,
-						message.Envelope,
-						message.Recipient,
-						message.Body,
-					)
+//					Debug("mail#%d: envelope - %s\n recipient - %s\n body - %s",
+//						message.Id,
+//						message.Envelope,
+//						message.Recipient,
+//						message.Body,
+//					)
 					SendMail(message)
 					delivery.Ack(<- message.Done)
 					message = nil
