@@ -18,9 +18,7 @@ func NewConsumer() *Consumer {
 	return consumer
 }
 
-func (this *Consumer) OnRegister(event *RegisterEvent) {
-	event.Group.Done()
-}
+func (this *Consumer) OnRegister() {}
 
 func (this *Consumer) OnInit(event *InitEvent) {
 	Debug("init consumers apps...")
@@ -104,7 +102,6 @@ func (this *Consumer) OnInit(event *InitEvent) {
 				FailExitWithErr(err)
 			}
 		}
-		event.Group.Done()
 	} else {
 		FailExitWithErr(err)
 	}
@@ -217,12 +214,6 @@ func (this *ConsumerApplication) consume(id int) {
 				if err == nil {
 					message.Init()
 					Info("consumer app#%d, handler#%d send mail#%d to mailer", this.id, id, message.Id)
-//					Debug("mail#%d: envelope - %s\n recipient - %s\n body - %s",
-//						message.Id,
-//						message.Envelope,
-//						message.Recipient,
-//						message.Body,
-//					)
 					SendMail(message)
 					delivery.Ack(<- message.Done)
 					message = nil

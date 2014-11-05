@@ -1,5 +1,5 @@
 #logLevel: info # debug|info|warning|error, по умолчанию warning
-logLevel: info
+logLevel: warning
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
 #  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
@@ -14,9 +14,9 @@ consumers:
         # по умолчанию пустая строка
         routing: outbox
         # количество обработчиков очереди, по умолчанию 1
-        handlers: 3
-      - # если указано name, тогда обменник и очередь именуются одинаково
-        name: second
+        handlers: 10
+#      - # если указано name, тогда обменник и очередь именуются одинаково
+#        name: second
 #  - uri: amqp://guest:guest@192.168.0.1:5672/path1
 #    bindings:
 #      - name: third
@@ -34,5 +34,5 @@ mailers:
 #    username: asolomonoff@gmail.com
 #    password: asolomonoff001
   - uri: mta://176.74.15.206:25
-#    handlers: 20
-    handlers: 10
+    handlers: 20
+#    handlers: 10

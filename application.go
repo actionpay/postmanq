@@ -5,8 +5,6 @@ import (
 	"runtime"
 	"io/ioutil"
 	"time"
-	"runtime/debug"
-	"fmt"
 )
 
 const (
@@ -17,28 +15,29 @@ var (
 	app *Application
 )
 
-type RegisterEvent struct {
-	LogChan  chan *LogMessage
-	MailChan chan *MailMessage
-	Group    *sync.WaitGroup
-}
-
 type InitEvent struct {
 	Data         []byte
-	Mailers      []MailerApplication
 	MailersCount int
-	Group        *sync.WaitGroup
 }
 
 type FinishEvent struct {
-	Group   *sync.WaitGroup
+	Group *sync.WaitGroup
 }
 
 type Service interface {
-	OnRegister(*RegisterEvent)
+	OnRegister()
 	OnInit(*InitEvent)
 	OnRun()
 	OnFinish(*FinishEvent)
+}
+
+type SendEvent struct {
+	Client  *SmtpClient
+	Message *MailMessage
+}
+
+type SendService interface {
+	OnSend(*SendEvent)
 }
 
 type ApplicationEventKind int
@@ -63,12 +62,8 @@ type Application struct {
 	services       []Service
 	servicesCount  int
 	events         chan *ApplicationEvent
-	logChan        chan *LogMessage
 	done           chan bool
 	handlers       map[ApplicationEventKind]func()
-	mailers        []MailerApplication
-	mutex          *sync.Mutex
-	mailsCount     int64
 }
 
 func NewApplication() *Application {
@@ -88,20 +83,14 @@ func NewApplication() *Application {
 			APPLICATION_EVENT_KIND_RUN     : app.runServices,
 			APPLICATION_EVENT_KIND_FINISH  : app.finishServices,
 		}
-		app.mutex = new(sync.Mutex)
 	}
 	return app
 }
 
 func (this *Application) registerServices() {
-	event := new(RegisterEvent)
-	event.Group = new(sync.WaitGroup)
-	event.Group.Add(this.servicesCount)
 	for _, service := range this.services {
-		go service.OnRegister(event)
+		service.OnRegister()
 	}
-	event.Group.Wait()
-	this.logChan = event.LogChan
 	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
 }
 
@@ -111,13 +100,9 @@ func (this *Application) initServices() {
 		if err == nil {
 			event := new(InitEvent)
 			event.Data = bytes
-			event.Group = new(sync.WaitGroup)
-			event.Group.Add(this.servicesCount)
 			for _, service := range this.services {
-				go service.OnInit(event)
+				service.OnInit(event)
 			}
-			event.Group.Wait()
-			this.mailers = event.Mailers
 			this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_RUN)
 		} else {
 			FailExitWithErr(err)
@@ -141,7 +126,7 @@ func (this *Application) finishServices() {
 		go service.OnFinish(event)
 	}
 	event.Group.Wait()
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Second)
 	this.done <- true
 }
 
@@ -161,67 +146,3 @@ func (this *Application) Run() {
 	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_REGISTER)
 	<- this.done
 }
-
-func (this *Application) log(message *LogMessage) {
-	defer func(){recover()}()
-	app.logChan <- message
-}
-
-func Err(message string, args ...interface{}) {
-	args = append(args, debug.Stack())
-	app.log(NewLogMessage(LOG_LEVEL_ERROR, fmt.Sprint(message, "\n%s"), args...))
-}
-
-func FailExit(message string, args ...interface{}) {
-	Err(message, args...)
-	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
-}
-
-func FailExitWithErr(err error) {
-	FailExit("%v", err)
-}
-
-func Warn(message string, args ...interface{}) {
-	app.log(NewLogMessage(LOG_LEVEL_WARNING, message, args...))
-}
-
-func WarnWithErr(err error) {
-	Warn("%v\n%s", err, debug.Stack())
-}
-
-func Info(message string, args ...interface{}) {
-	app.log(NewLogMessage(LOG_LEVEL_INFO, message, args...))
-}
-
-func Debug(message string, args ...interface{}) {
-	app.log(NewLogMessage(LOG_LEVEL_DEBUG, message, args...))
-}
-
-func SendMail(message *MailMessage) {
-	app.mutex.Lock()
-	index := -1
-	var count int64 = -1
-	for i, mailer := range app.mailers {
-		messageCount := mailer.MessagesCountByHostname(message.HostnameTo)
-		Debug("mailer#%d, messages count - %d", i, messageCount)
-		if count == -1 || count > messageCount {
-			count = messageCount
-			index = i
-		}
-	}
-	if 0 <= index && index <= len(app.mailers) {
-		mailer := app.mailers[index]
-		Debug("send message to mailer#%d", index)
-		mailer.IncrMessagesCountByHostname(message.HostnameTo)
-		mailer.Channel() <- message
-	}
-	app.mutex.Unlock()
-}
-
-func GetMailMessageId() int64 {
-	app.mutex.Lock()
-	app.mailsCount++
-	app.mutex.Unlock()
-	return app.mailsCount
-}
-

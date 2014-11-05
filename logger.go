@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 	yaml "gopkg.in/yaml.v2"
+	"runtime/debug"
 )
 
 type LogLevel int
@@ -41,6 +42,7 @@ var (
 		LOG_LEVEL_WARNING_NAME: LOG_LEVEL_WARNING,
 		LOG_LEVEL_ERROR_NAME  : LOG_LEVEL_ERROR,
 	}
+	logger *Logger
 )
 
 type LogMessage struct {
@@ -66,17 +68,17 @@ type Logger struct {
 }
 
 func NewLogger() *Logger {
-	logger := new(Logger)
+	if logger == nil {
+		logger = new(Logger)
+	}
 	return logger
 }
 
-func (this *Logger) OnRegister(event *RegisterEvent) {
+func (this *Logger) OnRegister() {
 	this.level = LOG_LEVEL_WARNING
 	this.messages = make(chan *LogMessage)
 	this.initWriter()
 	go this.start()
-	event.LogChan = this.messages
-	event.Group.Done()
 }
 
 func (this *Logger) OnInit(event *InitEvent) {
@@ -87,7 +89,6 @@ func (this *Logger) OnInit(event *InitEvent) {
 		}
 		this.writer = nil
 		this.initWriter()
-		event.Group.Done()
 	} else {
 		FailExitWithErr(err)
 	}
@@ -144,4 +145,39 @@ func (this *Logger) initWriter() {
 		}
 		this.writer = bufio.NewWriter(output)
 	}
+}
+
+func log(message *LogMessage) {
+	defer func(){recover()}()
+	logger.messages <- message
+}
+
+func Err(message string, args ...interface{}) {
+	args = append(args, debug.Stack())
+	log(NewLogMessage(LOG_LEVEL_ERROR, fmt.Sprint(message, "\n%s"), args...))
+}
+
+func FailExit(message string, args ...interface{}) {
+	Err(message, args...)
+	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+}
+
+func FailExitWithErr(err error) {
+	FailExit("%v", err)
+}
+
+func Warn(message string, args ...interface{}) {
+	log(NewLogMessage(LOG_LEVEL_WARNING, message, args...))
+}
+
+func WarnWithErr(err error) {
+	Warn("%v\n%s", err, debug.Stack())
+}
+
+func Info(message string, args ...interface{}) {
+	log(NewLogMessage(LOG_LEVEL_INFO, message, args...))
+}
+
+func Debug(message string, args ...interface{}) {
+	log(NewLogMessage(LOG_LEVEL_DEBUG, message, args...))
 }
