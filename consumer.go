@@ -218,7 +218,7 @@ func (this *ConsumerApplication) consume(id int) {
 					delivery.Ack(<- message.Done)
 					message = nil
 				} else {
-					Warn("mail has invalid format - \"%s\"", delivery.Body)
+					WarnWithErr(err)
 				}
 			}
 		}()

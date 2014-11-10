@@ -61,8 +61,8 @@ func NewLogMessage(level LogLevel, message string, args ...interface{}) *LogMess
 
 type Logger struct {
 	LogLevelName string           `yaml:"logLevel"`
-	level        LogLevel
 	Output       string           `yaml:"output"`
+	level        LogLevel
 	writer       *bufio.Writer
 	messages     chan *LogMessage
 }
@@ -102,21 +102,16 @@ func (this *Logger) OnFinish(event *FinishEvent) {
 }
 
 func (this *Logger) start() {
-	for {
-		select {
-		case message, ok := <- this.messages:
-			if ok && this.level <= message.Level {
-				this.writer.WriteString(
-					fmt.Sprintf(
-						"PostmanQ | %v | %s: %s\n",
-						time.Now().Format("2006-01-02 15:04:05"),
-						logLevelById[message.Level],
-						fmt.Sprintf(message.Message, message.Args...),
-					),
-				)
-				this.writer.Flush()
-			}
-		}
+	for message := range this.messages {
+		this.writer.WriteString(
+			fmt.Sprintf(
+				"PostmanQ | %v | %s: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"),
+				logLevelById[message.Level],
+				fmt.Sprintf(message.Message, message.Args...),
+			),
+		)
+		this.writer.Flush()
 	}
 }
 
@@ -147,14 +142,18 @@ func (this *Logger) initWriter() {
 	}
 }
 
-func log(message *LogMessage) {
+func log(message string, level LogLevel, args ...interface{}) {
 	defer func(){recover()}()
-	logger.messages <- message
+	if logger.level <= level {
+		if level > LOG_LEVEL_INFO {
+			message = fmt.Sprint(message, "\n", string(debug.Stack()))
+		}
+		logger.messages <- NewLogMessage(level, message, args...)
+	}
 }
 
 func Err(message string, args ...interface{}) {
-	args = append(args, debug.Stack())
-	log(NewLogMessage(LOG_LEVEL_ERROR, fmt.Sprint(message, "\n%s"), args...))
+	log(message, LOG_LEVEL_ERROR, args...)
 }
 
 func FailExit(message string, args ...interface{}) {
@@ -167,17 +166,17 @@ func FailExitWithErr(err error) {
 }
 
 func Warn(message string, args ...interface{}) {
-	log(NewLogMessage(LOG_LEVEL_WARNING, message, args...))
+	log(message, LOG_LEVEL_WARNING, args...)
 }
 
 func WarnWithErr(err error) {
-	Warn("%v\n%s", err, debug.Stack())
+	Warn("%v", err)
 }
 
 func Info(message string, args ...interface{}) {
-	log(NewLogMessage(LOG_LEVEL_INFO, message, args...))
+	log(message, LOG_LEVEL_INFO, args...)
 }
 
 func Debug(message string, args ...interface{}) {
-	log(NewLogMessage(LOG_LEVEL_DEBUG, message, args...))
+	log(message, LOG_LEVEL_DEBUG, args...)
 }

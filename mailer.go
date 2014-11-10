@@ -8,7 +8,6 @@ import (
 	"strings"
 	"fmt"
 	"time"
-	"net"
 	"errors"
 	"bytes"
 	"crypto/sha1"
@@ -17,7 +16,6 @@ import (
 	"io/ioutil"
 	"sync/atomic"
 	"sync"
-	"runtime/debug"
 )
 
 var (
@@ -76,7 +74,7 @@ func getContentTransferEncoding(message *MailMessage) string {
 
 func getMessageId(message *MailMessage) string {
 	hash := sha1.New()
-	io.WriteString(hash, message.Body)
+	io.WriteString(hash, string(message.Body))
 	return fmt.Sprintf("%x.%d@%s", hash.Sum(nil), time.Now().UnixNano(), message.HostnameFrom)
 }
 
@@ -84,7 +82,7 @@ type MailMessage struct {
 	Id           int64
 	Envelope     string        `json:"envelope"`
 	Recipient    string        `json:"recipient"`
-	Body         string        `json:"body"`
+	Body         []byte        `json:"body"`
 	Delivery     amqp.Delivery
 	Done         chan bool
 	HostnameFrom string
@@ -118,6 +116,7 @@ func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 type Mailer struct {
 	AppsConfigs        []*MailerApplicationConfig `yaml:"mailers"`
 	PrivateKeyFilename string                     `yaml:"privateKey"`
+	DkimSelector       string                     `yaml:"dkimSelector"`
 	messages           chan *MailMessage
 	apps               []MailerApplication
 	sendServices       []SendService
@@ -156,6 +155,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			"Content-Type",
 			"Content-Transfer-Encoding",
 			"Message-ID",
+			dkim.SignatureHeaderKey,
 		}
 		Info("init mailers apps...")
 		this.mutex = new(sync.Mutex)
@@ -166,26 +166,17 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			NewMailer(),
 		}
 		for j, appConfig := range this.AppsConfigs {
-			appUrl, err := url.Parse(appConfig.URI)
-			if err == nil {
-				appType := MailerApplicationType(appUrl.Scheme)
-				if mailerConstruct, ok := mailerConstructs[appType]; ok {
-					if appConfig.Handlers == 0 {
-						appConfig.Handlers = 1
-					}
-					for i := 0; i < appConfig.Handlers; i++ {
-						app := mailerConstruct()
-						app.SetId(j * appConfig.Handlers + i)
-						app.SetPrivateKey(privateKey)
-						app.Init(appConfig)
-						Info("create mailer app#%d", app.GetId())
-						this.apps = append(this.apps, app)
-					}
-				} else {
-					Warn("mailer application with type %s not found", appType)
-				}
-			} else {
-				FailExitWithErr(err)
+			if appConfig.Handlers == 0 {
+				appConfig.Handlers = 1
+			}
+			for i := 0; i < appConfig.Handlers; i++ {
+				app := NewBaseMailerApplication()
+				app.SetId(j * appConfig.Handlers + i)
+				app.SetPrivateKey(privateKey)
+				app.SetDkimSelector(this.DkimSelector)
+				app.Init(appConfig)
+				Info("create mailer app#%d", app.GetId())
+				this.apps = append(this.apps, app)
 			}
 		}
 		event.MailersCount = len(this.apps)
@@ -271,64 +262,57 @@ type MailerApplication interface {
 	MessagesCountByHostname(string) int64
 	SetPrivateKey([]byte)
 	Channel() chan *SendEvent
-	PrepareMail(message *MailMessage)
-	CreateDkim(message *MailMessage)
-	Send(event *SendEvent)
-	IsValidMessage(message *MailMessage) bool
+	PrepareMail(*MailMessage)
+	CreateDkim(*MailMessage)
+	Send(*SendEvent)
+	IsValidMessage(*MailMessage) bool
+	SetDkimSelector(string)
 }
 
-type MailerApplicationType string
-
-const (
-	MAILER_APPLICATION_TYPE_MTA  MailerApplicationType = "mta"
-	MAILER_APPLICATION_TYPE_SMTP                       = "smtp"
-	MAILER_APPLICATION_TYPE_LOCAL                      = "local"
-)
-
 var (
-	mailerConstructs = map[MailerApplicationType]func() MailerApplication {
-		MAILER_APPLICATION_TYPE_MTA  : NewMtaMailerApplication,
-//		MAILER_APPLICATION_TYPE_SMTP : NewSmtpMailerApplication,
-//		MAILER_APPLICATION_TYPE_LOCAL: NewLocalMailerApplication,
-	}
+	CRLF = []byte("\r\n")
 )
 
-type AbstractMailerApplication struct {
+type BaseMailerApplication struct {
 	id             int
 	messagesCounts map[string]int64
 	events         chan *SendEvent
 	config         *MailerApplicationConfig
 	uri            *url.URL
-	multipleSend   bool
 	privateKey     []byte
+	hostname       string
+	dkimSelector   string
 }
 
-func (this *AbstractMailerApplication) GetId() int {
+func NewBaseMailerApplication() MailerApplication {
+	return new(BaseMailerApplication)
+}
+
+func (this *BaseMailerApplication) GetId() int {
 	return this.id
 }
 
-func (this *AbstractMailerApplication) SetId(id int) {
+func (this *BaseMailerApplication) SetId(id int) {
 	this.id = id
 }
 
-func (this *AbstractMailerApplication) MessagesCountByHostname(hostname string) int64 {
+func (this *BaseMailerApplication) MessagesCountByHostname(hostname string) int64 {
 	if _, ok := this.messagesCounts[hostname]; !ok {
 		this.messagesCounts[hostname] = 0
 	}
 	return this.messagesCounts[hostname]
 }
 
-func (this *AbstractMailerApplication) SetPrivateKey(privateKey []byte) {
+func (this *BaseMailerApplication) SetPrivateKey(privateKey []byte) {
 	this.privateKey = privateKey
 }
 
-func (this *AbstractMailerApplication) Channel() chan *SendEvent {
+func (this *BaseMailerApplication) Channel() chan *SendEvent {
 	return this.events
 }
 
-func (this *AbstractMailerApplication) Init(config *MailerApplicationConfig) {
+func (this *BaseMailerApplication) Init(config *MailerApplicationConfig) {
 	var err error
-	this.multipleSend = false
 	this.config = config
 	this.messagesCounts = make(map[string]int64)
 	this.events = make(chan *SendEvent)
@@ -336,11 +320,11 @@ func (this *AbstractMailerApplication) Init(config *MailerApplicationConfig) {
 	if err == nil {
 		Debug("url parsed %v", this.uri)
 	} else {
-		FailExit("can't parse url %s", config.URI)
+		FailExitWithErr(err)
 	}
 }
 
-func (this *AbstractMailerApplication) IncrMessagesCountByHostname(hostname string) {
+func (this *BaseMailerApplication) IncrMessagesCountByHostname(hostname string) {
 	if _, ok := this.messagesCounts[hostname]; ok {
 		this.messagesCounts[hostname]++
 	} else {
@@ -348,68 +332,18 @@ func (this *AbstractMailerApplication) IncrMessagesCountByHostname(hostname stri
 	}
 }
 
-func (this *AbstractMailerApplication) IsValidMessage(message *MailMessage) bool {
+func (this *BaseMailerApplication) IsValidMessage(message *MailMessage) bool {
 	return emailRegexp.MatchString(message.Envelope) && emailRegexp.MatchString(message.Recipient)
 }
 
-func (this *AbstractMailerApplication) returnMessageToQueueWithErr(message *MailMessage, err error) {
+func (this *BaseMailerApplication) returnMessageToQueueWithErr(message *MailMessage, err error) {
 	message.Done <- false
-	Warn("mailer#%d error - %v\n%s", this.id, err, debug.Stack())
+	Warn("mailer#%d error - %v", this.id, err)
 }
 
-//func (this *AbstractMailerApplication) send(client *smtp.Client, message *MailMessage) {
-//	err := client.Mail(message.Envelope)
-//	if err == nil {
-//		Debug("MAIL FROM: %s", message.Envelope)
-//		err = client.Rcpt(message.Recipient)
-//		if err == nil {
-//			Debug("RCPT TO: %s", message.Recipient)
-//			wc, err := client.Data()
-//			if err == nil {
-//				Debug("DATA")
-//				_, err = fmt.Fprintf(wc, message.Body)
-//				if err == nil {
-////					Debug("%s", message.Body)
-//					err = wc.Close()
-//					if err == nil {
-//						Debug(".")
-//						if this.multipleSend {
-//							err = client.Reset()
-//						} else {
-//							err = client.Quit()
-//						}
-//						if err == nil {
-//							if this.multipleSend {
-//								Debug("RSET")
-//							} else {
-//								Debug("QUIT")
-//							}
-//							Info("mailer#%d send mail#%d to mta", this.id, message.Id)
-////							this.messagesCounts[message.HostnameTo]--
-//							message.Done <- true
-//						} else {
-//							this.returnMessageToQueueWithErr(message, err)
-//						}
-//					} else {
-//						this.returnMessageToQueueWithErr(message, err)
-//					}
-//				} else {
-//					this.returnMessageToQueueWithErr(message, err)
-//				}
-//			} else {
-//				this.returnMessageToQueueWithErr(message, err)
-//			}
-//		} else {
-//			this.returnMessageToQueueWithErr(message, err)
-//		}
-//	} else {
-//		this.returnMessageToQueueWithErr(message, err)
-//	}
-//}
-
-func (this *AbstractMailerApplication) PrepareMail(message *MailMessage) {
-	var head, body string
-	parts := strings.SplitN(message.Body, "\r\n\r\n", 2);
+func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
+	var head, body []byte
+	parts := bytes.SplitN(message.Body, append(CRLF, CRLF...), 2);
 	if len(parts) == 2 {
 		head = parts[0]
 		body = parts[1]
@@ -418,10 +352,10 @@ func (this *AbstractMailerApplication) PrepareMail(message *MailMessage) {
 	}
 
 	preparedHeaders := make(map[string]string)
-	rawHeaders := strings.Split(head, "\r\n")
+	rawHeaders := bytes.Split(head, CRLF)
 	for _, rawHeader := range rawHeaders {
 		var key, value string
-		rawHeaderParts := strings.Split(rawHeader, ":")
+		rawHeaderParts := strings.Split(string(rawHeader), ":")
 		key = strings.TrimSpace(rawHeaderParts[0])
 		if len(rawHeaderParts) == 2 {
 			value = strings.TrimSpace(rawHeaderParts[1])
@@ -440,23 +374,27 @@ func (this *AbstractMailerApplication) PrepareMail(message *MailMessage) {
 		buf.WriteString(key)
 		buf.WriteString(": ")
 		buf.WriteString(value)
-		buf.WriteString("\r\n")
+		buf.Write(CRLF)
 	}
-	message.Body = fmt.Sprintf("%s\r\n%s\r\n", buf.String(), body)
+	buf.Write(CRLF)
+	buf.Write(body)
+	buf.Write(CRLF)
+	message.Body = buf.Bytes()
 }
 
-func (this *AbstractMailerApplication) CreateDkim(message *MailMessage) {
-	conf, err := dkim.NewConf(message.HostnameFrom, "dkim")
+func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
+	conf, err := dkim.NewConf(message.HostnameFrom, this.dkimSelector)
 	if err != nil {
 		WarnWithErr(err)
 	}
 	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
+	conf[dkim.AUIDKey] = message.Envelope
 	conf[dkim.TimestampKey] = fmt.Sprint(message.CreatedDate.Unix())
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
-		signed, err := signer.Sign([]byte(message.Body))
+		signed, err := signer.Sign(message.Body)
 		if err == nil {
-			message.Body = string(signed)
+			message.Body = signed
 		} else {
 			WarnWithErr(err)
 		}
@@ -465,76 +403,7 @@ func (this *AbstractMailerApplication) CreateDkim(message *MailMessage) {
 	}
 }
 
-//type SmtpMailerApplication struct {
-//	AbstractMailerApplication
-//	auth smtp.Auth
-//}
-//
-//func NewSmtpMailerApplication() MailerApplication {
-//	return new(SmtpMailerApplication)
-//}
-//
-//func (this *SmtpMailerApplication) Init(config *MailerApplicationConfig) {
-//	this.AbstractMailerApplication.Init(config)
-//	if len(config.Username) > 0 && len(config.Password) > 0 {
-//		hostname, _, err := net.SplitHostPort(this.uri.Host)
-//		if err == nil {
-//			this.auth = smtp.PlainAuth("", config.Username, config.Password, hostname)
-//		} else {
-//			WarnWithErr(err)
-//		}
-//	}
-//}
-//
-//func (this *SmtpMailerApplication) Send(message *MailMessage) {
-//	Info("smtp mailer#%d receive mail#%d", this.id, message.Id)
-//	client, err := smtp.Dial(this.uri.Host)
-//	if err == nil {
-//		this.send(client, message)
-//	} else {
-//		this.returnMessageToQueueWithErr(message, err)
-//	}
-//}
-
-//type LocalMailerApplication struct {
-//	AbstractMailerApplication
-//}
-//
-//func NewLocalMailerApplication() MailerApplication {
-//	return new(LocalMailerApplication)
-//}
-//
-//func (this *LocalMailerApplication) Send(message *MailMessage) {
-//	Info("local mailer#%d receive mail#%d", this.id, message.Id)
-//	client, err := smtp.Dial(this.uri.Host)
-//	if err == nil {
-//		this.send(client, message)
-//	} else {
-//		this.returnMessageToQueueWithErr(message, err)
-//	}
-//}
-
-type MtaMailerApplication struct {
-	AbstractMailerApplication
-	hostname string
-}
-
-func NewMtaMailerApplication() MailerApplication {
-	return new(MtaMailerApplication)
-}
-
-func (this *MtaMailerApplication) Init(config *MailerApplicationConfig) {
-	this.AbstractMailerApplication.Init(config)
-	this.multipleSend = true
-	hostname, _, err := net.SplitHostPort(this.uri.Host)
-	if err == nil {
-		this.hostname = hostname
-	} else {
-		WarnWithErr(err)
-	}
-}
-
-func (this *MtaMailerApplication) Send(event *SendEvent) {
+func (this *BaseMailerApplication) Send(event *SendEvent) {
 	client := event.Client.client
 	Debug("mailer#%d receive message#%d", this.id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", this.id, event.Client.Id)
@@ -548,10 +417,10 @@ func (this *MtaMailerApplication) Send(event *SendEvent) {
 			wc, err := client.Data()
 			if err == nil {
 				Debug("mailer#%d send command DATA", this.id)
-				_, err = fmt.Fprintf(wc, event.Message.Body)
+				_, err = wc.Write(event.Message.Body)
 				if err == nil {
-//					Debug("%s", event.Message.Body)
 					err = wc.Close()
+					Debug("%s", string(event.Message.Body))
 					if err == nil {
 						Debug("mailer#%d send command .", this.id)
 						err = client.Reset()
@@ -579,4 +448,8 @@ func (this *MtaMailerApplication) Send(event *SendEvent) {
 		this.returnMessageToQueueWithErr(event.Message, err)
 	}
 	event.Client.Status = SMTP_CLIENT_STATUS_WAITING
+}
+
+func (this *BaseMailerApplication) SetDkimSelector(dkimSelector string) {
+	this.dkimSelector = dkimSelector
 }

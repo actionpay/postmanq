@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"math/rand"
 	"sync"
+	"encoding/base64"
+	"strings"
+	"time"
 )
 
 func main() {
@@ -10924,19 +10927,30 @@ func main() {
 	}
 	log.Printf("got Channel")
 
-//	messageCount := 1
-	messageCount := 1000
+	messageCount := 1
+//	messageCount := 1000
 
 	group := new(sync.WaitGroup)
 	group.Add(messageCount)
 	for i := 0; i < messageCount; i++ {
 		go func() {
+			message = message[:rand.Intn(len(message) / 5)]
+			parts := strings.Split(message, " ")
+			rand.Seed(time.Now().UnixNano())
+			for i := range parts {
+				j := rand.Intn(i + 1)
+				parts[i], parts[j] = parts[j], parts[i]
+			}
 			json, err := json.Marshal(map[string]string{
-				"envelope": "robot@actionpay.ru",
-//				"envelope": "robot@adnwb.ru",
-				"recipient": "apmail@adonweb.ru",
-//				"recipient": "asolomonoff@gmail.com",
-				"body": message[:rand.Intn(len(message) / 10)],
+//				"envelope": "robot@actionpay.ru",
+				"envelope": "robot@adnwb.ru",
+//				"envelope": "asolomonoff@gmail.com",
+//				"recipient": "apmail@adonweb.ru",
+				"recipient": "asolomonoff@gmail.com",
+//				"recipient": "check-auth@verifier.port25.com",
+//				"recipient": "byorty@yandex.ru",
+//				"recipient": "byorty@mail.ru",
+				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
 			})
 			if err = channel.Publish(
 				"postmanq",   // publish to an exchange

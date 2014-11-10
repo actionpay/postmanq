@@ -1,5 +1,5 @@
 #logLevel: info # debug|info|warning|error, по умолчанию warning
-logLevel: warning
+logLevel: debug
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
 #  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
@@ -14,7 +14,7 @@ consumers:
         # по умолчанию пустая строка
         routing: outbox
         # количество обработчиков очереди, по умолчанию 1
-        handlers: 10
+        handlers: 20
 #      - # если указано name, тогда обменник и очередь именуются одинаково
 #        name: second
 #  - uri: amqp://guest:guest@192.168.0.1:5672/path1
@@ -23,6 +23,7 @@ consumers:
 #      - exchange: fourth
 #        queue: fourth
 
+dkimSelector: mail
 privateKey: /home/solomonov/postmanq/src/github.com/byorty/postmanq/postmanq_rsa
 mailers:
 #  - uri: smtp://username:password@host:25
