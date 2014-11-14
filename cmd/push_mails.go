@@ -7,9 +7,10 @@ import (
 	"encoding/json"
 	"math/rand"
 	"sync"
-	"encoding/base64"
 	"strings"
 	"time"
+	"regexp"
+	"encoding/base64"
 )
 
 func main() {
@@ -10910,8 +10911,7 @@ func main() {
 понимает  и  сейчас  с проклятьями потребует объяснений, почему
 его, массаракш, оторвали от работы, задурили голову  Странником
 и  заставляют  как мальчишку торчать среди цветочков уже второй
-час подряд.
-                     Комарово-Ленинград 1967 -- 1968`
+час подряд. Комарово-Ленинград 1967 -- 1968`
 	amqpURI := "amqp://guest:guest@10.1.0.1:5672/postmanq"
 	log.Println("dialing ", amqpURI)
 	connection, err := amqp.Dial(amqpURI)
@@ -10930,38 +10930,48 @@ func main() {
 	messageCount := 1
 //	messageCount := 1000
 
+	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
+	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
+
 	group := new(sync.WaitGroup)
 	group.Add(messageCount)
 	for i := 0; i < messageCount; i++ {
 		go func() {
-			message = message[:rand.Intn(len(message) / 5)]
-			parts := strings.Split(message, " ")
 			rand.Seed(time.Now().UnixNano())
-			for i := range parts {
-				j := rand.Intn(i + 1)
-				parts[i], parts[j] = parts[j], parts[i]
+			message = message[:rand.Intn(len(message))]
+			message = clearRegexp.ReplaceAllString(message, " ")
+			message = whiteSpaceRegexp.ReplaceAllString(message, " ")
+
+			parts := strings.Split(message, " ")
+			for x := range parts {
+				j := rand.Intn(x + 1)
+				parts[x], parts[j] = parts[j], parts[x]
 			}
 			json, err := json.Marshal(map[string]string{
 //				"envelope": "robot@actionpay.ru",
-				"envelope": "robot@adnwb.ru",
+				"envelope": "robotron@adnwb.ru",
 //				"envelope": "asolomonoff@gmail.com",
 //				"recipient": "apmail@adonweb.ru",
-				"recipient": "asolomonoff@gmail.com",
-//				"recipient": "check-auth@verifier.port25.com",
-//				"recipient": "byorty@yandex.ru",
+//				"recipient": "asolomonoff@gmail.com",
+				"recipient": "byorty@yandex.ru",
 //				"recipient": "byorty@mail.ru",
-				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
+//				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
+				"body": strings.Join(parts, " "),
+//				"body": base64.StdEncoding.EncodeToString([]byte("hello world")),
+//				"body": base64.StdEncoding.EncodeToString([]byte("привет мир")),
 			})
+			encoded := base64.StdEncoding.EncodeToString(json)
 			if err = channel.Publish(
-				"postmanq",   // publish to an exchange
-				"outbox",     // routing to 0 or more queues
+//				"postmanq",   // publish to an exchange
+				"postmanq.dlx.minute",   // publish to an exchange
+				"",     // routing to 0 or more queues
 				false,        // mandatory
 				false,        // immediate
 				amqp.Publishing{
 					Headers:         amqp.Table{},
 					ContentType:     "text/plain",
 					ContentEncoding: "",
-					Body:            json,
+					Body:            []byte(encoded),
 					DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
 					Priority:        0,              // 0-9
 						// a bunch of application/implementation-specific fields

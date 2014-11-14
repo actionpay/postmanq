@@ -10,8 +10,6 @@ import (
 	"time"
 	"errors"
 	"bytes"
-	"crypto/sha1"
-	"io"
 	"github.com/eaigner/dkim"
 	"io/ioutil"
 	"sync/atomic"
@@ -25,12 +23,9 @@ var (
 		"MIME-Version"             : getMimeVersion,
 		"From"                     : getFrom,
 		"To"                       : getTo,
-		"Reply-To"                 : getReplyTo,
 		"Date"                     : getDate,
 		"Subject"                  : getSubject,
 		"Content-Type"             : getContentType,
-		"Content-Transfer-Encoding": getContentTransferEncoding,
-		"Message-ID"               : getMessageId,
 	}
 	mailsCount int64
 	mailer     *Mailer
@@ -52,16 +47,12 @@ func getTo(message *MailMessage) string {
 	return message.Recipient
 }
 
-func getReplyTo(message *MailMessage) string {
-	return message.Envelope
-}
-
 func getDate(message *MailMessage) string {
-	return fmt.Sprintf("%s (PDT)", message.CreatedDate.Format(time.RFC1123Z))
+	return fmt.Sprintf("%s", message.CreatedDate.Format(time.RFC1123Z))
 }
 
 func getSubject(message *MailMessage) string {
-	return "=?utf-8?B?No subject?="
+	return "No subject"
 }
 
 func getContentType(message *MailMessage) string {
@@ -72,22 +63,17 @@ func getContentTransferEncoding(message *MailMessage) string {
 	return "7bit"
 }
 
-func getMessageId(message *MailMessage) string {
-	hash := sha1.New()
-	io.WriteString(hash, string(message.Body))
-	return fmt.Sprintf("%x.%d@%s", hash.Sum(nil), time.Now().UnixNano(), message.HostnameFrom)
-}
-
 type MailMessage struct {
 	Id           int64
 	Envelope     string        `json:"envelope"`
 	Recipient    string        `json:"recipient"`
-	Body         []byte        `json:"body"`
+	Body         string        `json:"body"`
 	Delivery     amqp.Delivery
 	Done         chan bool
 	HostnameFrom string
 	HostnameTo   string
 	CreatedDate  time.Time
+	AttemptCount int 		   `json:"attemptCount"`
 }
 
 func (this *MailMessage) Init() {
@@ -146,16 +132,11 @@ func (this *Mailer) OnInit(event *InitEvent) {
 		}
 		dkim.StdSignableHeaders = []string{
 			"Return-Path",
-			"MIME-Version",
 			"From",
 			"To",
-			"Reply-To",
 			"Date",
 			"Subject",
 			"Content-Type",
-			"Content-Transfer-Encoding",
-			"Message-ID",
-			dkim.SignatureHeaderKey,
 		}
 		Info("init mailers apps...")
 		this.mutex = new(sync.Mutex)
@@ -270,7 +251,7 @@ type MailerApplication interface {
 }
 
 var (
-	CRLF = []byte("\r\n")
+	CRLF = "\r\n"
 )
 
 type BaseMailerApplication struct {
@@ -342,8 +323,8 @@ func (this *BaseMailerApplication) returnMessageToQueueWithErr(message *MailMess
 }
 
 func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
-	var head, body []byte
-	parts := bytes.SplitN(message.Body, append(CRLF, CRLF...), 2);
+	var head, body string
+	parts := strings.SplitN(message.Body, CRLF + CRLF, 2);
 	if len(parts) == 2 {
 		head = parts[0]
 		body = parts[1]
@@ -352,10 +333,10 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 	}
 
 	preparedHeaders := make(map[string]string)
-	rawHeaders := bytes.Split(head, CRLF)
+	rawHeaders := strings.Split(head, CRLF)
 	for _, rawHeader := range rawHeaders {
 		var key, value string
-		rawHeaderParts := strings.Split(string(rawHeader), ":")
+		rawHeaderParts := strings.Split(rawHeader, ":")
 		key = strings.TrimSpace(rawHeaderParts[0])
 		if len(rawHeaderParts) == 2 {
 			value = strings.TrimSpace(rawHeaderParts[1])
@@ -374,12 +355,12 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 		buf.WriteString(key)
 		buf.WriteString(": ")
 		buf.WriteString(value)
-		buf.Write(CRLF)
+		buf.WriteString(CRLF)
 	}
-	buf.Write(CRLF)
-	buf.Write(body)
-	buf.Write(CRLF)
-	message.Body = buf.Bytes()
+	buf.WriteString(CRLF)
+	buf.WriteString(body)
+	buf.WriteString(CRLF)
+	message.Body = buf.String()
 }
 
 func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
@@ -388,13 +369,11 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 		WarnWithErr(err)
 	}
 	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
-	conf[dkim.AUIDKey] = message.Envelope
-	conf[dkim.TimestampKey] = fmt.Sprint(message.CreatedDate.Unix())
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
-		signed, err := signer.Sign(message.Body)
+		signed, err := signer.Sign([]byte(message.Body))
 		if err == nil {
-			message.Body = signed
+			message.Body = string(signed)
 		} else {
 			WarnWithErr(err)
 		}
@@ -417,10 +396,10 @@ func (this *BaseMailerApplication) Send(event *SendEvent) {
 			wc, err := client.Data()
 			if err == nil {
 				Debug("mailer#%d send command DATA", this.id)
-				_, err = wc.Write(event.Message.Body)
+				_, err = fmt.Fprint(wc, event.Message.Body)
 				if err == nil {
 					err = wc.Close()
-					Debug("%s", string(event.Message.Body))
+					Debug("%s", event.Message.Body)
 					if err == nil {
 						Debug("mailer#%d send command .", this.id)
 						err = client.Reset()

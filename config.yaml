@@ -4,15 +4,18 @@ logLevel: debug
 consumers:
 #  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
   - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
+#  - uri: amqp://guest:guest@127.0.0.1:5672/sale
     bindings:
       - # имя обменника
         exchange: postmanq
+#        exchange: amqp.mailerq.message.exchange
         # имя очереди
         queue: postmanq
-        # direct|fanout|topic, по умолчанию direct
-        type: direct
+#        queue: amqp.mailerq.message.queue
+        # direct|fanout|topic, по умолчанию fanout
+        # type: direct
         # по умолчанию пустая строка
-        routing: outbox
+        # routing: outbox
         # количество обработчиков очереди, по умолчанию 1
         handlers: 20
 #      - # если указано name, тогда обменник и очередь именуются одинаково
