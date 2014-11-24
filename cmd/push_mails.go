@@ -8,9 +8,9 @@ import (
 	"math/rand"
 	"sync"
 	"strings"
-	"time"
 	"regexp"
 	"encoding/base64"
+	"time"
 )
 
 func main() {
@@ -10912,7 +10912,8 @@ func main() {
 его, массаракш, оторвали от работы, задурили голову  Странником
 и  заставляют  как мальчишку торчать среди цветочков уже второй
 час подряд. Комарово-Ленинград 1967 -- 1968`
-	amqpURI := "amqp://guest:guest@10.1.0.1:5672/postmanq"
+//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
+	amqpURI := "amqp://guest:guest@127.0.0.1:5672/sale"
 	log.Println("dialing ", amqpURI)
 	connection, err := amqp.Dial(amqpURI)
 	if err != nil {
@@ -10927,8 +10928,8 @@ func main() {
 	}
 	log.Printf("got Channel")
 
-	messageCount := 1
-//	messageCount := 1000
+//	messageCount := 1
+	messageCount := 1000
 
 	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
 	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
@@ -10938,11 +10939,11 @@ func main() {
 	for i := 0; i < messageCount; i++ {
 		go func() {
 			rand.Seed(time.Now().UnixNano())
-			message = message[:rand.Intn(len(message))]
-			message = clearRegexp.ReplaceAllString(message, " ")
-			message = whiteSpaceRegexp.ReplaceAllString(message, " ")
+			partMessage := message[:rand.Intn(int(len(message) / 10))]
+			partMessage = clearRegexp.ReplaceAllString(partMessage, " ")
+			partMessage = whiteSpaceRegexp.ReplaceAllString(partMessage, " ")
 
-			parts := strings.Split(message, " ")
+			parts := strings.Split(partMessage, " ")
 			for x := range parts {
 				j := rand.Intn(x + 1)
 				parts[x], parts[j] = parts[j], parts[x]
@@ -10951,9 +10952,9 @@ func main() {
 //				"envelope": "robot@actionpay.ru",
 				"envelope": "robotron@adnwb.ru",
 //				"envelope": "asolomonoff@gmail.com",
-//				"recipient": "apmail@adonweb.ru",
+				"recipient": "apmail@adonweb.ru",
 //				"recipient": "asolomonoff@gmail.com",
-				"recipient": "byorty@yandex.ru",
+//				"recipient": "byorty@yandex.ru",
 //				"recipient": "byorty@mail.ru",
 //				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
 				"body": strings.Join(parts, " "),
@@ -10962,8 +10963,8 @@ func main() {
 			})
 			encoded := base64.StdEncoding.EncodeToString(json)
 			if err = channel.Publish(
-//				"postmanq",   // publish to an exchange
-				"postmanq.dlx.minute",   // publish to an exchange
+				"postmanq",   // publish to an exchange
+//				"postmanq.dlx.minute",   // publish to an exchange
 				"",     // routing to 0 or more queues
 				false,        // mandatory
 				false,        // immediate

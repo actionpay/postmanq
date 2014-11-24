@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"io/ioutil"
 	"time"
+	"crypto/x509"
 )
 
 const (
@@ -32,8 +33,11 @@ type Service interface {
 }
 
 type SendEvent struct {
-	Client  *SmtpClient
-	Message *MailMessage
+	Client           *SmtpClient
+	CertPool         *x509.CertPool
+	CertBytes        []byte
+	Message          *MailMessage
+	DefaultPrevented bool
 }
 
 type SendService interface {
@@ -71,6 +75,8 @@ func NewApplication() *Application {
 		app = new(Application)
 		app.services = []Service{
 			NewLogger(),
+			NewLimiter(),
+			NewConnector(),
 			NewMailer(),
 			NewConsumer(),
 		}

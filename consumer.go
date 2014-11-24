@@ -12,19 +12,42 @@ import (
 type DelayedBindingType int
 
 const (
-	DELAYED_BINDING_MINUTE      DelayedBindingType = iota + 1
+	DELAYED_BINDING_UNKNOWN     DelayedBindingType = iota
+	DELAYED_BINDING_SECOND
+	DELAYED_BINDING_MINUTE
 	DELAYED_BINDING_TEN_MINUTES
 	DELAYED_BINDING_HOUR
 	DELAYED_BINDING_SIX_HOURS
+	DELAYED_BINDING_DAY
 )
 
 var (
 	delayedBindings = map[DelayedBindingType]*Binding {
-		DELAYED_BINDING_MINUTE     : &Binding{Name: "%s.dlx.minute", QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
-//		DELAYED_BINDING_TEN_MINUTES: &Binding{Name: "%s.dlx.ten.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds())}},
-//		DELAYED_BINDING_HOUR       : &Binding{Name: "%s.dlx.hour", QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds())}},
-//		DELAYED_BINDING_SIX_HOURS  : &Binding{Name: "%s.dlx.six.hours", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds())}},
+		DELAYED_BINDING_SECOND     : &Binding{Name: "%s.dlx.second",      QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
+		DELAYED_BINDING_MINUTE     : &Binding{Name: "%s.dlx.minute",      QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
+		DELAYED_BINDING_TEN_MINUTES: &Binding{Name: "%s.dlx.ten.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
+		DELAYED_BINDING_HOUR       : &Binding{Name: "%s.dlx.hour",        QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
+		DELAYED_BINDING_SIX_HOURS  : &Binding{Name: "%s.dlx.six.hours",   QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
+		DELAYED_BINDING_DAY        : &Binding{Name: "%s.dlx.day",         QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
 	}
+
+	limitBindings = []DelayedBindingType {
+		DELAYED_BINDING_SECOND,
+		DELAYED_BINDING_MINUTE,
+		DELAYED_BINDING_HOUR,
+		DELAYED_BINDING_DAY,
+	}
+
+	limitBindingsLen = len(limitBindings)
+
+	bindingsChain = map[DelayedBindingType]DelayedBindingType {
+		DELAYED_BINDING_UNKNOWN    : DELAYED_BINDING_MINUTE,
+		DELAYED_BINDING_MINUTE     : DELAYED_BINDING_TEN_MINUTES,
+		DELAYED_BINDING_TEN_MINUTES: DELAYED_BINDING_HOUR,
+		DELAYED_BINDING_HOUR       : DELAYED_BINDING_SIX_HOURS,
+	}
+
+	consumerHandlers int
 )
 
 type Consumer struct {
@@ -62,6 +85,9 @@ func (this *Consumer) OnInit(event *InitEvent) {
 							binding.Exchange = binding.Name
 							binding.Queue = binding.Name
 						}
+						if binding.Handlers == 0 {
+							binding.Handlers = 1
+						}
 
 						this.declare(channel, binding)
 						binding.delayedBindings = make(map[DelayedBindingType]*Binding)
@@ -69,7 +95,7 @@ func (this *Consumer) OnInit(event *InitEvent) {
 							delayedBinding.Exchange = fmt.Sprintf(delayedBinding.Name, binding.Exchange)
 							delayedBinding.Queue = fmt.Sprintf(delayedBinding.Name, binding.Queue)
 							delayedBinding.QueueArgs["x-dead-letter-exchange"] = binding.Exchange
-							delayedBinding.Type = EXCHANGE_TYPE_DIRECT
+							delayedBinding.Type = binding.Type
 							this.declare(channel, delayedBinding)
 							binding.delayedBindings[delayedBindingType] = delayedBinding
 						}
@@ -80,6 +106,7 @@ func (this *Consumer) OnInit(event *InitEvent) {
 						app.binding = binding
 						app.mailersCount = event.MailersCount
 						this.apps = append(this.apps, app)
+						consumerHandlers += binding.Handlers
 						Info("create consumer app#%d", app.id)
 					}
 				} else {
@@ -222,10 +249,6 @@ func NewConsumerApplication() *ConsumerApplication {
 }
 
 func (this *ConsumerApplication) Run() {
-	if this.binding.Handlers == 0 {
-		this.binding.Handlers = 1
-	}
-
 	for i := 0; i < this.binding.Handlers; i++ {
 		go this.consume(i)
 	}
@@ -233,7 +256,11 @@ func (this *ConsumerApplication) Run() {
 
 func (this *ConsumerApplication) consume(id int) {
 	channel, err := this.connect.Channel()
-	channel.Qos(this.mailersCount / this.binding.Handlers * 3, 0, false)
+	prefetchCount := 1
+	if this.mailersCount > consumerHandlers {
+		prefetchCount = (this.mailersCount / consumerHandlers) * 2
+	}
+	channel.Qos(prefetchCount, 0, false)
 	deliveries, err := channel.Consume(
 		this.binding.Queue,    // name
 		"",                    // consumerTag,
@@ -256,11 +283,29 @@ func (this *ConsumerApplication) consume(id int) {
 						Info("consumer app#%d, handler#%d send mail#%d to mailer", this.id, id, message.Id)
 						SendMail(message)
 						done := <- message.Done
-						delivery.Ack(true)
 						if !done {
-							message.AttemptCount++
-							dlxType := DelayedBindingType(message.AttemptCount)
-							if delayedBinding, ok := this.binding.delayedBindings[dlxType]; ok {
+							Info("mail#%d not send", message.Id)
+							bindingType := DELAYED_BINDING_UNKNOWN
+
+							if message.Overlimit {
+								Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
+								for i := 0;i < limitBindingsLen;i++ {
+									if limitBindings[i] == message.BindingType {
+										bindingType = limitBindings[i]
+										break
+									}
+								}
+							} else {
+								Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+								Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
+								if chainBinding, ok := bindingsChain[message.BindingType]; ok {
+									bindingType = chainBinding
+								}
+							}
+							Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
+
+							if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
+								message.BindingType = bindingType
 								jsonMessage, err := json.Marshal(message)
 								if err == nil {
 									encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
@@ -275,13 +320,20 @@ func (this *ConsumerApplication) consume(id int) {
 											DeliveryMode:    amqp.Transient,
 										},
 									)
+									if err == nil {
+										Debug("publish fail mail#%d to exchange %s", message.Id, delayedBinding.Exchange)
+									} else {
+										Debug("can't publish fail mail#%d to exchange %s", message.Id, delayedBinding.Exchange)
+										WarnWithErr(err)
+									}
 								} else {
 									WarnWithErr(err)
 								}
 							} else {
-								Warn("unknow delayed type %v", dlxType)
+								Warn("unknow delayed type %v", bindingType)
 							}
 						}
+						delivery.Ack(true)
 						message = nil
 					} else {
 						Warn("can't unmarshal delivery body, body should be json, body is %s", string(body))

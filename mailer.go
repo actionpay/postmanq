@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"sync/atomic"
 	"sync"
+	"runtime"
 )
 
 var (
@@ -27,8 +28,9 @@ var (
 		"Subject"                  : getSubject,
 		"Content-Type"             : getContentType,
 	}
-	mailsCount int64
-	mailer     *Mailer
+	mailsCount     int64
+	mailsPerMinute int64
+	mailer         *Mailer
 )
 
 func getReturnPath(message *MailMessage) string {
@@ -64,16 +66,17 @@ func getContentTransferEncoding(message *MailMessage) string {
 }
 
 type MailMessage struct {
-	Id           int64
-	Envelope     string        `json:"envelope"`
-	Recipient    string        `json:"recipient"`
-	Body         string        `json:"body"`
-	Delivery     amqp.Delivery
-	Done         chan bool
-	HostnameFrom string
-	HostnameTo   string
-	CreatedDate  time.Time
-	AttemptCount int 		   `json:"attemptCount"`
+	Id           int64              `json:"-"`
+	Envelope     string             `json:"envelope"`
+	Recipient    string             `json:"recipient"`
+	Body         string             `json:"body"`
+	Delivery     amqp.Delivery      `json:"-"`
+	Done         chan bool          `json:"-"`
+	HostnameFrom string             `json:"-"`
+	HostnameTo   string             `json:"-"`
+	CreatedDate  time.Time          `json:"-"`
+	Overlimit    bool               `json:"-"`
+	BindingType  DelayedBindingType `json:"bindingType"`
 }
 
 func (this *MailMessage) Init() {
@@ -81,6 +84,7 @@ func (this *MailMessage) Init() {
 	this.Id = atomic.LoadInt64(&mailsCount)
 	this.Done = make(chan bool)
 	this.CreatedDate = time.Now()
+	this.Overlimit = false
 	if hostname, err := this.getHostnameFromEmail(this.Envelope); err == nil {
 		this.HostnameFrom = hostname
 	}
@@ -143,6 +147,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 		this.messages = make(chan *MailMessage)
 		this.apps = make([]MailerApplication, 0)
 		this.sendServices = []SendService{
+			NewLimiter(),
 			NewConnector(),
 			NewMailer(),
 		}
@@ -168,24 +173,46 @@ func (this *Mailer) OnInit(event *InitEvent) {
 
 func (this *Mailer) OnRun() {
 	Info("run mailers apps...")
-	go func() {
-		for message := range this.messages {
-			go this.triggerSendEvent(message)
+	go this.showMailsPerMinute()
+	Debug("CPU count %d", runtime.NumCPU())
+	for _, app := range this.apps {
+		go this.runApp(app)
+	}
+	for i := 0;i < runtime.NumCPU();i++ {
+		go this.listenMessages()
+	}
+}
+
+func (this *Mailer) showMailsPerMinute() {
+	tick := time.Tick(time.Minute)
+	for {
+		select {
+		case <- tick:
+			Debug("mailers send %d mails per minute", atomic.LoadInt64(&mailsPerMinute))
+			atomic.StoreInt64(&mailsPerMinute, 0)
+			break
 		}
-	}()
-	go func() {
-		for _, app := range this.apps {
-			go this.runApp(app)
-		}
-	}()
+	}
+}
+
+func (this *Mailer) listenMessages() {
+	for message := range this.messages {
+		go this.triggerSendEvent(message)
+	}
 }
 
 func (this *Mailer) triggerSendEvent(message *MailMessage) {
 	event := new(SendEvent)
+	event.DefaultPrevented = false
 	event.Message = message
 	for _, service := range this.sendServices {
-		service.OnSend(event)
+		if event.DefaultPrevented {
+			break
+		} else {
+			service.OnSend(event)
+		}
 	}
+	event = nil
 }
 
 func (this *Mailer) runApp(app MailerApplication) {
@@ -384,7 +411,7 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 
 func (this *BaseMailerApplication) Send(event *SendEvent) {
 	client := event.Client.client
-	Debug("mailer#%d receive message#%d", this.id, event.Message.Id)
+	Debug("mailer#%d receive mail#%d", this.id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", this.id, event.Client.Id)
 
 	err := client.Mail(event.Message.Envelope)
@@ -407,6 +434,7 @@ func (this *BaseMailerApplication) Send(event *SendEvent) {
 							Debug("mailer#%d send command RSET", this.id)
 							Info("mailer#%d send mail#%d to mta", this.id, event.Message.Id)
 							this.messagesCounts[event.Message.HostnameTo]--
+							atomic.AddInt64(&mailsPerMinute, 1)
 							event.Message.Done <- true
 						} else {
 							this.returnMessageToQueueWithErr(event.Message, err)

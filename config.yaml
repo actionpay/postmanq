@@ -1,10 +1,12 @@
 #logLevel: info # debug|info|warning|error, по умолчанию warning
+#logLevel: warning
 logLevel: debug
 #output: stdout | /path/to/file, по умолчанию stdout
 consumers:
 #  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
-  - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
-#  - uri: amqp://guest:guest@127.0.0.1:5672/sale
+#  - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
+#  - uri: amqp://admin:admin0987654321@192.168.13.130:5672/postmanq
+  - uri: amqp://guest:guest@127.0.0.1:5672/sale
     bindings:
       - # имя обменника
         exchange: postmanq
@@ -17,6 +19,7 @@ consumers:
         # по умолчанию пустая строка
         # routing: outbox
         # количество обработчиков очереди, по умолчанию 1
+#        handlers: 20
         handlers: 20
 #      - # если указано name, тогда обменник и очередь именуются одинаково
 #        name: second
@@ -27,6 +30,7 @@ consumers:
 #        queue: fourth
 
 dkimSelector: mail
+#certificate: /home/solomonov/postmanq/src/github.com/byorty/postmanq/postmanq.pem
 privateKey: /home/solomonov/postmanq/src/github.com/byorty/postmanq/postmanq_rsa
 mailers:
 #  - uri: smtp://username:password@host:25
@@ -38,5 +42,20 @@ mailers:
 #    username: asolomonoff@gmail.com
 #    password: asolomonoff001
   - uri: mta://176.74.15.206:25
-    handlers: 20
+    handlers: 30
 #    handlers: 10
+
+limits:
+  gmail.com:
+    type: day # second|minute|hour|day
+    value: 2000
+  mail.ru:
+    type: second
+    value: 1
+  yandex.ru:
+    type: day
+    value: 150
+#  adonweb.ru:
+#    type: minute
+#    value: 100
+#
