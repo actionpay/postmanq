@@ -126,7 +126,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 	var privateKey []byte
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
-		Info("read private key file...")
+		Info("read private key file")
 		Debug("%s", this.PrivateKeyFilename)
 		privateKey, err = ioutil.ReadFile(this.PrivateKeyFilename)
 		if err == nil {
@@ -143,6 +143,9 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			"Content-Type",
 		}
 		Info("init mailers apps...")
+		if len(this.DkimSelector) == 0 {
+			this.DkimSelector = "mail"
+		}
 		this.mutex = new(sync.Mutex)
 		this.messages = make(chan *MailMessage)
 		this.apps = make([]MailerApplication, 0)

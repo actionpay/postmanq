@@ -8,7 +8,6 @@ import (
 	"time"
 	"crypto/x509"
 	"io/ioutil"
-//	"crypto/tls"
 	"encoding/pem"
 )
 
@@ -62,28 +61,10 @@ func (this *Connector) OnInit(event *InitEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
 		if len(this.CertFilename) > 0 {
-//			certs := x509.NewCertPool()
 			pemBytes, err := ioutil.ReadFile(this.CertFilename)
 			if err == nil {
 				pemBlock, _ := pem.Decode(pemBytes)
 				this.certBytes = pemBlock.Bytes
-//				if err == nil {
-//					certBytes, err := x509.ParseCertificate(pemBlock.Bytes)
-//					if err == nil {
-//						this.certBytes = certBytes
-//					} else {
-//						WarnWithErr(err)
-//					}
-//				} else {
-//					WarnWithErr(err)
-//				}
-
-//				if certs.AppendCertsFromPEM(pemBytes) {
-//					Debug("certificate is loaded")
-//					this.certPool = certs
-//				} else {
-//					Debug("certificate is not loaded")
-//				}
 			} else {
 				FailExitWithErr(err)
 			}
@@ -215,27 +196,6 @@ func (this *MxServer) createNewSmtpClient(event *SendEvent) *SmtpClient {
 		client, err := smtp.NewClient(connection, event.Message.HostnameFrom)
 		if err == nil {
 			err = client.Hello(event.Message.HostnameFrom)
-//			if len(event.CertBytes) > 0 {
-//				pool := x509.NewCertPool()
-//				cert, err := x509.ParseCertificate(event.CertBytes)
-//				if err == nil {
-//					cert.IPAddresses = this.ips
-//					cert.DNSNames = []string{this.hostname}
-//					pool.AddCert(cert)
-//					err = client.StartTLS(&tls.Config {
-//						RootCAs           : pool,
-//						ServerName        : this.hostname,
-//					})
-//					Debug("server name is %s", this.hostname)
-//					if err == nil {
-//						Debug("create tls connection...")
-//					} else {
-//						WarnWithErr(err)
-//					}
-//				} else {
-//					WarnWithErr(err)
-//				}
-//			}
 			if err == nil {
 				smtpClient = new(SmtpClient)
 				smtpClient.Id = len(this.clients) + 1

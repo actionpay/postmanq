@@ -1,53 +1,44 @@
-#logLevel: info # debug|info|warning|error, по умолчанию warning
-#logLevel: warning
+# уровень логов - debug|info|warning|error, по умолчанию warning, необязательный параметр
 logLevel: debug
-#output: stdout | /path/to/file, по умолчанию stdout
+# как будут выводиться логи, в консоль или файл
+#logOutput: stdout | /path/to/file, по умолчанию stdout, необязательный параметр
+# селектор dkim, по умолчанию mail, необязательный параметр
+dkimSelector: trololo
+# приватный ключ, публичный ключ должен быть прописан в DNS
+privateKey: /path/to/private/key_rsa
+
+# получатели писем
 consumers:
-#  - uri: amqp://guest:guest@10.1.0.1:5672/postmanq
-#  - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
-#  - uri: amqp://admin:admin0987654321@192.168.13.130:5672/postmanq
-  - uri: amqp://guest:guest@127.0.0.1:5672/sale
+  # серверы, с которых получаем письма
+  - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
     bindings:
       - # имя обменника
         exchange: postmanq
-#        exchange: amqp.mailerq.message.exchange
         # имя очереди
         queue: postmanq
-#        queue: amqp.mailerq.message.queue
-        # direct|fanout|topic, по умолчанию fanout
-        # type: direct
-        # по умолчанию пустая строка
+        # direct|fanout|topic, по умолчанию fanout, необязательный параметр
+        type: fanout
+        # по умолчанию пустая строка, необязательный параметр
         # routing: outbox
-        # количество обработчиков очереди, по умолчанию 1
-#        handlers: 20
+        # количество обработчиков очереди, по умолчанию 1, необязательный параметр
         handlers: 20
-#      - # если указано name, тогда обменник и очередь именуются одинаково
-#        name: second
-#  - uri: amqp://guest:guest@192.168.0.1:5672/path1
-#    bindings:
-#      - name: third
-#      - exchange: fourth
-#        queue: fourth
+      # - # если указано name, тогда обменник и очередь именуются одинаково
+      #  name: second
 
-dkimSelector: mail
-#certificate: /home/solomonov/postmanq/src/github.com/byorty/postmanq/postmanq.pem
-privateKey: /home/solomonov/postmanq/src/github.com/byorty/postmanq/postmanq_rsa
+# отправители писем
 mailers:
-#  - uri: smtp://username:password@host:25
-#  - uri: mta://10.222.0.1:25
-#  - uri: local://10.222.0.1:25
-#  - uri: local://88.208.2.6:25
-#    handlers: 10
-#  - uri: smtp://smtp.gmail.com:587
-#    username: asolomonoff@gmail.com
-#    password: asolomonoff001
-  - uri: mta://176.74.15.206:25
+  - # IP, с которого отправляем письма
+    uri: 176.74.15.206:25
+    # количество потоков, с которых отправляем письма
     handlers: 30
-#    handlers: 10
 
+# лимиты
 limits:
+  # хост почтовика
   gmail.com:
-    type: day # second|minute|hour|day
+    # период, за который учитываем количество отправленных писем, возможные значения - second|minute|hour|day
+    type: day
+    # максимальное количество писем, которое может быть отправлено за период
     value: 2000
   mail.ru:
     type: second
@@ -55,7 +46,3 @@ limits:
   yandex.ru:
     type: day
     value: 150
-#  adonweb.ru:
-#    type: minute
-#    value: 100
-#

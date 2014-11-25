@@ -61,7 +61,7 @@ func NewLogMessage(level LogLevel, message string, args ...interface{}) *LogMess
 
 type Logger struct {
 	LogLevelName string           `yaml:"logLevel"`
-	Output       string           `yaml:"output"`
+	Output       string           `yaml:"logOutput"`
 	level        LogLevel
 	writer       *bufio.Writer
 	messages     chan *LogMessage
