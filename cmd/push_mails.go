@@ -10928,8 +10928,8 @@ func main() {
 	}
 	log.Printf("got Channel")
 
-//	messageCount := 1
-	messageCount := 1000
+	messageCount := 1
+//	messageCount := 1000
 
 	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
 	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
