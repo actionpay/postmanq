@@ -126,11 +126,11 @@ func (this *Mailer) OnInit(event *InitEvent) {
 	var privateKey []byte
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
-		Info("read private key file")
+		Debug("read private key file")
 		Debug("%s", this.PrivateKeyFilename)
 		privateKey, err = ioutil.ReadFile(this.PrivateKeyFilename)
 		if err == nil {
-			Info("...success")
+			Debug("...success")
 		} else {
 			FailExitWithErr(err)
 		}
@@ -142,7 +142,6 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			"Subject",
 			"Content-Type",
 		}
-		Info("init mailers apps...")
 		if len(this.DkimSelector) == 0 {
 			this.DkimSelector = "mail"
 		}
@@ -164,7 +163,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 				app.SetPrivateKey(privateKey)
 				app.SetDkimSelector(this.DkimSelector)
 				app.Init(appConfig)
-				Info("create mailer app#%d", app.GetId())
+				Debug("create mailer app#%d", app.GetId())
 				this.apps = append(this.apps, app)
 			}
 		}
@@ -175,7 +174,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 }
 
 func (this *Mailer) OnRun() {
-	Info("run mailers apps...")
+	Debug("run mailers apps...")
 	go this.showMailsPerMinute()
 	Debug("CPU count %d", runtime.NumCPU())
 	for _, app := range this.apps {
@@ -414,7 +413,7 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 
 func (this *BaseMailerApplication) Send(event *SendEvent) {
 	client := event.Client.client
-	Debug("mailer#%d receive mail#%d", this.id, event.Message.Id)
+	Info("mailer#%d receive mail#%d", this.id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", this.id, event.Client.Id)
 
 	err := client.Mail(event.Message.Envelope)
@@ -435,7 +434,7 @@ func (this *BaseMailerApplication) Send(event *SendEvent) {
 						err = client.Reset()
 						if err == nil {
 							Debug("mailer#%d send command RSET", this.id)
-							Info("mailer#%d send mail#%d to mta", this.id, event.Message.Id)
+							Info("mailer#%d send mail#%d", this.id, event.Message.Id)
 							this.messagesCounts[event.Message.HostnameTo]--
 							atomic.AddInt64(&mailsPerMinute, 1)
 							event.Message.Done <- true

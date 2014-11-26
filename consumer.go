@@ -107,7 +107,7 @@ func (this *Consumer) OnInit(event *InitEvent) {
 						app.mailersCount = event.MailersCount
 						this.apps = append(this.apps, app)
 						consumerHandlers += binding.Handlers
-						Info("create consumer app#%d", app.id)
+						Debug("create consumer app#%d", app.id)
 					}
 				} else {
 					FailExitWithErr(err)
@@ -178,7 +178,7 @@ func (this *Consumer) notifyCloseError(appConfig *ConsumerApplicationConfig, clo
 	var err error
 	for closeError := range closeErrors {
 		WarnWithErr(closeError)
-		Info("close connection %s, restart...", appConfig.URI)
+		Debug("close connection %s, restart...", appConfig.URI)
 		this.finishApps()
 		this.connect, err = amqp.Dial(appConfig.URI)
 		if err == nil {
@@ -192,7 +192,7 @@ func (this *Consumer) notifyCloseError(appConfig *ConsumerApplicationConfig, clo
 }
 
 func (this *Consumer) OnRun() {
-	Info("run consumers apps...")
+	Debug("run consumers apps...")
 	for _, app := range this.apps {
 		app.connect = this.connect
 		go app.Run()
@@ -200,7 +200,7 @@ func (this *Consumer) OnRun() {
 }
 
 func (this *Consumer) OnFinish(event *FinishEvent) {
-	Info("stop consumers apps...")
+	Debug("stop consumers apps...")
 	this.finishApps()
 	event.Group.Done()
 }
@@ -271,7 +271,7 @@ func (this *ConsumerApplication) consume(id int) {
 		nil,                   // arguments
 	)
 	if err == nil {
-		Info("run consumer app#%d, handler#%d", this.id, id)
+		Debug("run consumer app#%d, handler#%d", this.id, id)
 		go func() {
 			for delivery := range deliveries {
 				body, err := base64.StdEncoding.DecodeString(string(delivery.Body))
@@ -280,7 +280,14 @@ func (this *ConsumerApplication) consume(id int) {
 					err = json.Unmarshal(body, message)
 					if err == nil {
 						message.Init()
-						Info("consumer app#%d, handler#%d send mail#%d to mailer", this.id, id, message.Id)
+						Info(
+							"consumer app#%d, handler#%d send mail#%d: envelope - %s, recipient - %s to mailer",
+							this.id,
+							id,
+							message.Id,
+							message.Envelope,
+							message.Recipient,
+						)
 						SendMail(message)
 						done := <- message.Done
 						if !done {
