@@ -12,6 +12,10 @@ import (
 type DelayedBindingType int
 
 const (
+	FAIL_BINDING = "%s.fail"
+)
+
+const (
 	DELAYED_BINDING_UNKNOWN     DelayedBindingType = iota
 	DELAYED_BINDING_SECOND
 	DELAYED_BINDING_MINUTE
@@ -99,6 +103,12 @@ func (this *Consumer) OnInit(event *InitEvent) {
 							this.declare(channel, delayedBinding)
 							binding.delayedBindings[delayedBindingType] = delayedBinding
 						}
+						failBinding := new(Binding)
+						failBinding.Exchange = fmt.Sprintf(FAIL_BINDING, binding.Exchange)
+						failBinding.Queue = fmt.Sprintf(FAIL_BINDING, binding.Queue)
+						failBinding.Type = binding.Type
+						this.declare(channel, failBinding)
+						binding.failBinding = failBinding
 
 						appsCount++
 						app := NewConsumerApplication()
@@ -226,6 +236,7 @@ type Binding struct {
 	Routing         string       					`yaml:"routing"`
 	Handlers        int                             `yaml:"handlers"`
 	delayedBindings map[DelayedBindingType]*Binding
+	failBinding     *Binding
 }
 
 type ExchangeType string
@@ -292,52 +303,91 @@ func (this *ConsumerApplication) consume(id int) {
 						done := <- message.Done
 						if !done {
 							Info("mail#%d not send", message.Id)
-							bindingType := DELAYED_BINDING_UNKNOWN
+							if message.Error == nil {
+								bindingType := DELAYED_BINDING_UNKNOWN
 
-							if message.Overlimit {
-								Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
-								for i := 0;i < limitBindingsLen;i++ {
-									if limitBindings[i] == message.BindingType {
-										bindingType = limitBindings[i]
-										break
+								if message.Overlimit {
+									Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
+									for i := 0;i < limitBindingsLen;i++ {
+										if limitBindings[i] == message.BindingType {
+											bindingType = limitBindings[i]
+											break
+										}
+									}
+								} else {
+									Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+									Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
+									if chainBinding, ok := bindingsChain[message.BindingType]; ok {
+										bindingType = chainBinding
 									}
 								}
-							} else {
-								Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
-								Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
-								if chainBinding, ok := bindingsChain[message.BindingType]; ok {
-									bindingType = chainBinding
-								}
-							}
-							Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
+								Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
 
-							if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
-								message.BindingType = bindingType
+								if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
+									message.BindingType = bindingType
+									jsonMessage, err := json.Marshal(message)
+									if err == nil {
+										encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
+										err = channel.Publish(
+											delayedBinding.Exchange,
+											delayedBinding.Routing,
+											false,
+											false,
+											amqp.Publishing{
+												ContentType : "text/plain",
+												Body        : []byte(encodedMessage),
+												DeliveryMode: amqp.Transient,
+											},
+										)
+										if err == nil {
+											Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
+										} else {
+											Debug("can't publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
+											WarnWithErr(err)
+										}
+									} else {
+										WarnWithErr(err)
+									}
+								} else {
+									Warn("unknow delayed type %v", bindingType)
+								}
+							} else {
+								failBinding := this.binding.failBinding
 								jsonMessage, err := json.Marshal(message)
 								if err == nil {
 									encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
 									err = channel.Publish(
-										delayedBinding.Exchange,
-										delayedBinding.Routing,
+										failBinding.Exchange,
+										failBinding.Routing,
 										false,
 										false,
 										amqp.Publishing{
-											ContentType:     "text/plain",
-											Body:            []byte(encodedMessage),
-											DeliveryMode:    amqp.Transient,
+											ContentType : "text/plain",
+											Body        : []byte(encodedMessage),
+											DeliveryMode: amqp.Transient,
 										},
 									)
 									if err == nil {
-										Debug("publish fail mail#%d to exchange %s", message.Id, delayedBinding.Exchange)
+										Debug(
+											"reason is %s with code %d, publish fail mail#%d to queue %s",
+											message.Error.Message,
+											message.Error.Code,
+											message.Id,
+											this.binding.failBinding.Queue,
+										)
 									} else {
-										Debug("can't publish fail mail#%d to exchange %s", message.Id, delayedBinding.Exchange)
+										Debug(
+											"can't publish fail mail#%d with error %s and code %d to queue %s",
+											message.Id,
+											message.Error.Message,
+											message.Error.Code,
+											failBinding.Queue,
+										)
 										WarnWithErr(err)
 									}
 								} else {
 									WarnWithErr(err)
 								}
-							} else {
-								Warn("unknow delayed type %v", bindingType)
 							}
 						}
 						delivery.Ack(true)

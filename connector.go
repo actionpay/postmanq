@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"encoding/pem"
 	"crypto/tls"
+	"sort"
 )
 
 const (
@@ -66,16 +67,6 @@ func (this *Connector) OnInit(event *InitEvent) {
 			if err == nil {
 				pemBlock, _ := pem.Decode(pemBytes)
 				this.certBytes = pemBlock.Bytes
-//				if err == nil {
-//					certBytes, err := x509.ParseCertificate(pemBlock.Bytes)
-//					if err == nil {
-//						this.certBytes = certBytes
-//					} else {
-//						WarnWithErr(err)
-//					}
-//				} else {
-//					WarnWithErr(err)
-//				}
 			} else {
 				FailExitWithErr(err)
 			}
@@ -112,60 +103,65 @@ func (this *Connector) OnSend(event *SendEvent) {
 }
 
 func (this *Connector) lookupMxServers(hostname string) {
-	Debug("look up mx domains for %s...", hostname)
+	Debug("lookup mx domains for %s...", hostname)
 	mxs, err := net.LookupMX(hostname)
 	if err == nil {
 		mailServer := new(MailServer)
 		mailServer.mxServers = make([]*MxServer, len(mxs))
 		for i, mx := range mxs {
-			Debug("receive mx domain %s for %s", mx.Host, hostname)
+			mxHostname := mx.Host
+			mxHostnameLen := len(mxHostname)
+			if mxHostname[mxHostnameLen - 1:mxHostnameLen] == "." {
+				mxHostname = mxHostname[:mxHostnameLen - 1]
+			}
+			Debug("lookup mx domain %s for %s", mxHostname, hostname)
 			mxServer := new(MxServer)
-			mxServer.hostname = mx.Host
+			mxServer.hostname = mxHostname
 			mxServer.maxConnections = UNLIMITED_CONNECTION_COUNT
 			mxServer.ips = make([]net.IP, 0)
+			mxServer.dnsNames = make([]string, 0)
 			mxServer.clients = make([]*SmtpClient, 0)
-			ips, err := net.LookupIP(mx.Host)
+			ips, err := net.LookupIP(mxHostname)
 			if err == nil {
 				for _, ip := range ips {
-					Debug("receive ip %s for %s", ip.String(), hostname)
-					if len(mxServer.ips) == 0 {
+					Debug("lookup ip %s for %s", ip.String(), hostname)
+					existsIpsLen := len(mxServer.ips)
+					index := sort.Search(existsIpsLen, func(i int) bool {
+						return mxServer.ips[i].Equal(ip)
+					})
+					if existsIpsLen == 0 || (index == -1 && existsIpsLen > 0) {
 						mxServer.ips = append(mxServer.ips, ip)
-					} else {
-						for _ ,existsIp := range mxServer.ips {
-							if !ip.Equal(existsIp) {
-								mxServer.ips = append(mxServer.ips, ip)
-							}
-						}
 					}
-
-
+				}
+				for _, ip := range mxServer.ips {
 					addrs, err := net.LookupAddr(ip.String())
 					if err == nil {
-						Debug("addrs - %v", addrs)
-					} else {
-						WarnWithErr(err)
-					}
-
-					cname, err := net.LookupCNAME(ip.String())
-					if err == nil {
-						Debug("cname - %v", cname)
-					} else {
-						WarnWithErr(err)
-					}
-
-					nses, err := net.LookupNS(ip.String())
-					if err == nil {
-						for _, ns := range nses {
-							Debug("ns - %v", ns)
+						for _, addr := range addrs {
+							addrLen := len(addr)
+							if addr[addrLen - 1:addrLen] == "." {
+								addr = addr[:addrLen - 1]
+							}
+							Debug("lookup addr %s for ip %s", addr, ip.String())
+							existsDnsNamesLen := len(mxServer.dnsNames)
+							index := sort.Search(existsDnsNamesLen, func(i int) bool {
+								return mxServer.dnsNames[i] == addr
+							})
+							if existsDnsNamesLen == 0 || (index == -1 && existsDnsNamesLen > 0) {
+								if mxServer.hostname != addr && len(mxServer.realServerName) == 0 {
+									mxServer.realServerName = addr
+								}
+								mxServer.dnsNames = append(mxServer.dnsNames, addr)
+							}
 						}
 					} else {
 						WarnWithErr(err)
 					}
-
-
 				}
 			} else {
 				WarnWithErr(err)
+			}
+			if len(mxServer.realServerName) == 0 {
+				mxServer.realServerName = mxServer.hostname
 			}
 			mailServer.mxServers[i] = mxServer
 		}
@@ -209,7 +205,9 @@ type MxServer struct {
 	hostname       string
 	maxConnections int
 	ips            []net.IP
+	dnsNames       []string
 	clients        []*SmtpClient
+	realServerName string
 }
 
 func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
@@ -227,7 +225,7 @@ func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
 }
 
 func (this *MxServer) createNewSmtpClient(event *SendEvent) *SmtpClient {
-	Debug("create smtp client for %s...", this.hostname)
+	Debug("create smtp client for %s", this.hostname)
 	var smtpClient *SmtpClient
 	connection, err := net.Dial("tcp", net.JoinHostPort(this.hostname, "25"))
 	if err == nil {
@@ -239,15 +237,14 @@ func (this *MxServer) createNewSmtpClient(event *SendEvent) *SmtpClient {
 				cert, err := x509.ParseCertificate(event.CertBytes)
 				if err == nil {
 					cert.IPAddresses = this.ips
-					cert.DNSNames = []string{this.hostname}
+					cert.DNSNames = this.dnsNames
 					pool.AddCert(cert)
 					err = client.StartTLS(&tls.Config {
-						RootCAs           : pool,
-						ServerName        : this.hostname,
+						ClientCAs         : pool,
+						ServerName        : this.realServerName,
 					})
-					Debug("server name is %s", this.hostname)
 					if err == nil {
-						Debug("create tls connection...")
+						Debug("tls connection created")
 					} else {
 						WarnWithErr(err)
 					}

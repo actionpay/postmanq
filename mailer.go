@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"sync"
 	"runtime"
+	"strconv"
 )
 
 var (
@@ -65,6 +66,11 @@ func getContentTransferEncoding(message *MailMessage) string {
 	return "7bit"
 }
 
+type MailError struct {
+	Message string `json:"message"`
+	Code    int    `json:"code"`
+}
+
 type MailMessage struct {
 	Id           int64              `json:"-"`
 	Envelope     string             `json:"envelope"`
@@ -77,6 +83,7 @@ type MailMessage struct {
 	CreatedDate  time.Time          `json:"-"`
 	Overlimit    bool               `json:"-"`
 	BindingType  DelayedBindingType `json:"bindingType"`
+	Error        *MailError         `json:"error"`
 }
 
 func (this *MailMessage) Init() {
@@ -347,6 +354,13 @@ func (this *BaseMailerApplication) IsValidMessage(message *MailMessage) bool {
 }
 
 func (this *BaseMailerApplication) returnMessageToQueueWithErr(message *MailMessage, err error) {
+	parts := strings.Split(err.Error(), " ")
+	if len(parts) > 0 {
+		code, e := strconv.Atoi(parts[0])
+		if e == nil && (500 <= code && code <= 600) {
+			message.Error = &MailError{strings.Join(parts[1:], " "), code}
+		}
+	}
 	message.Done <- false
 	Warn("mailer#%d error - %v", this.id, err)
 }
