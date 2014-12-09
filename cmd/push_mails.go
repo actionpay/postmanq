@@ -10951,12 +10951,20 @@ func main() {
 			json, err := json.Marshal(map[string]string{
 //				"envelope": "robot@actionpay.ru",
 				"envelope": "robotron@adnwb.ru",
-//				"envelope": "asolomonoff@gmail.com",
+//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
+
 //				"recipient": "apmail@adonweb.ru",
-				"recipient": "abrakadabra-simsalabim@adonweb.ru",
 //				"recipient": "asolomonoff@gmail.com",
 //				"recipient": "byorty@yandex.ru",
 //				"recipient": "byorty@mail.ru",
+//				"recipient": "byorty@fastmail.com",
+//				"recipient": "byorty@outlook.com",
+//				"recipient": "byorty@qip.ru",
+
+//				"recipient": "byorty@sibnet.ru",
+				"recipient": "byorty@bigmir.net",
+//				"recipient": "byorty@rambler.ru",
+
 //				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
 				"body": strings.Join(parts, " "),
 //				"body": base64.StdEncoding.EncodeToString([]byte("hello world")),

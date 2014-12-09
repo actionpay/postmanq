@@ -38,6 +38,7 @@ type SendEvent struct {
 	CertBytes        []byte
 	Message          *MailMessage
 	DefaultPrevented bool
+	CreateDate       time.Time
 }
 
 type SendService interface {

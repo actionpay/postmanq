@@ -1,0 +1,41 @@
+Certificate Request:
+    Data:
+        Version: 0 (0x0)
+        Subject: C=RU, ST=Russia, L=Moscow, O=PostmanQ, OU=IT, CN=Solomonov Alexey/emailAddress=byorty@mail.ru
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (1024 bit)
+                Modulus:
+                    00:cb:f6:cb:60:73:95:de:f5:0c:11:d9:fb:56:87:
+                    fe:32:22:49:d8:13:28:fa:02:0e:03:76:1c:ab:ea:
+                    b3:d3:80:a6:17:3a:46:3d:ac:75:36:c6:8a:fb:be:
+                    51:55:21:c0:41:aa:63:d3:2e:dd:0a:b9:5d:6e:0d:
+                    92:bd:c7:f1:a2:f6:07:c7:ae:6c:c2:a5:36:f6:09:
+                    ce:17:db:b6:90:4a:71:bb:30:88:a6:6d:9c:15:b2:
+                    21:5f:d9:8e:27:8e:e1:25:61:16:61:66:3c:d3:4c:
+                    0d:60:00:94:ce:96:48:0c:71:81:84:f4:f4:20:6e:
+                    44:de:bd:e9:b7:ed:7d:c4:13
+                Exponent: 65537 (0x10001)
+        Attributes:
+            a0:00
+    Signature Algorithm: sha1WithRSAEncryption
+         c4:46:f3:38:4e:9f:e9:0c:ec:cc:01:38:d5:c4:32:96:df:c4:
+         99:99:63:74:c9:0b:38:13:e8:38:56:7e:47:fc:3d:74:97:9f:
+         7f:53:63:18:ad:09:7a:d4:96:19:dc:91:de:fa:e0:ac:2e:64:
+         aa:4d:bb:1d:d7:56:ff:99:48:3b:96:54:fc:ca:c7:51:f7:e1:
+         9a:34:20:90:4b:83:85:d3:85:53:68:27:29:9a:1d:71:d6:de:
+         20:4a:78:9d:96:8e:39:74:c9:8e:5b:db:4f:42:46:3f:a4:3d:
+         05:02:9e:61:47:a3:c2:08:d4:f8:f6:d5:be:37:58:f6:a1:4b:
+         5f:01
+-----BEGIN CERTIFICATE REQUEST-----
+MIIByjCCATMCAQAwgYkxCzAJBgNVBAYTAlJVMQ8wDQYDVQQIDAZSdXNzaWExDzAN
+BgNVBAcMBk1vc2NvdzERMA8GA1UECgwIUG9zdG1hblExCzAJBgNVBAsMAklUMRkw
+FwYDVQQDDBBTb2xvbW9ub3YgQWxleGV5MR0wGwYJKoZIhvcNAQkBFg5ieW9ydHlA
+bWFpbC5ydTCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEAy/bLYHOV3vUMEdn7
+Vof+MiJJ2BMo+gIOA3Ycq+qz04CmFzpGPax1NsaK+75RVSHAQapj0y7dCrldbg2S
+vcfxovYHx65swqU29gnOF9u2kEpxuzCIpm2cFbIhX9mOJ47hJWEWYWY800wNYACU
+zpZIDHGBhPT0IG5E3r3pt+19xBMCAwEAAaAAMA0GCSqGSIb3DQEBBQUAA4GBAMRG
+8zhOn+kM7MwBONXEMpbfxJmZY3TJCzgT6DhWfkf8PXSXn39TYxitCXrUlhnckd76
+4KwuZKpNux3XVv+ZSDuWVPzKx1H34Zo0IJBLg4XThVNoJymaHXHW3iBKeJ2Wjjl0
+yY5b209CRj+kPQUCnmFHo8II1Pj21b43WPahS18B
+-----END CERTIFICATE REQUEST-----

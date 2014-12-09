@@ -11,11 +11,16 @@ import (
 	"encoding/pem"
 	"crypto/tls"
 	"sort"
+	"errors"
+	"fmt"
+	"strings"
+	"regexp"
 )
 
 const (
 	UNLIMITED_CONNECTION_COUNT = -1
-	CONNECTION_TIMEOUT = 30 * time.Second
+	CONNECTION_TIMEOUT         = 30 * time.Second
+	RECEIVE_CONNECTION_TIMEOUT = 5 * time.Second
 )
 
 var (
@@ -115,22 +120,27 @@ func (this *Connector) lookupMxServers(hostname string) {
 				mxHostname = mxHostname[:mxHostnameLen - 1]
 			}
 			Debug("lookup mx domain %s for %s", mxHostname, hostname)
+			mxHostnameParts := strings.Split(mxHostname, ".")
+			mxARecord := strings.Join(mxHostnameParts[len(mxHostnameParts) - 2:], ".")
 			mxServer := new(MxServer)
 			mxServer.hostname = mxHostname
 			mxServer.maxConnections = UNLIMITED_CONNECTION_COUNT
 			mxServer.ips = make([]net.IP, 0)
-			mxServer.dnsNames = make([]string, 0)
 			mxServer.clients = make([]*SmtpClient, 0)
+			mxServer.useTLS = true
 			ips, err := net.LookupIP(mxHostname)
 			if err == nil {
 				for _, ip := range ips {
-					Debug("lookup ip %s for %s", ip.String(), hostname)
-					existsIpsLen := len(mxServer.ips)
-					index := sort.Search(existsIpsLen, func(i int) bool {
-						return mxServer.ips[i].Equal(ip)
-					})
-					if existsIpsLen == 0 || (index == -1 && existsIpsLen > 0) {
-						mxServer.ips = append(mxServer.ips, ip)
+					ip = ip.To4()
+					if ip != nil {
+						Debug("lookup mx ip %s for %s", ip.String(), hostname)
+						existsIpsLen := len(mxServer.ips)
+						index := sort.Search(existsIpsLen, func(i int) bool {
+							return mxServer.ips[i].Equal(ip)
+						})
+						if existsIpsLen == 0 || (index == -1 && existsIpsLen > 0) {
+							mxServer.ips = append(mxServer.ips, ip)
+						}
 					}
 				}
 				for _, ip := range mxServer.ips {
@@ -141,16 +151,17 @@ func (this *Connector) lookupMxServers(hostname string) {
 							if addr[addrLen - 1:addrLen] == "." {
 								addr = addr[:addrLen - 1]
 							}
-							Debug("lookup addr %s for ip %s", addr, ip.String())
-							existsDnsNamesLen := len(mxServer.dnsNames)
-							index := sort.Search(existsDnsNamesLen, func(i int) bool {
-								return mxServer.dnsNames[i] == addr
-							})
-							if existsDnsNamesLen == 0 || (index == -1 && existsDnsNamesLen > 0) {
-								if mxServer.hostname != addr && len(mxServer.realServerName) == 0 {
-									mxServer.realServerName = addr
+							if net.ParseIP(addr) == nil {
+								Debug("lookup addr %s for ip %s", addr, ip.String())
+								if len(mxServer.realServerName) == 0 {
+									hostnameMatched, _ := regexp.MatchString(hostname, mxServer.hostname)
+									addrMatched, _ := regexp.MatchString(mxARecord, addr)
+									if hostnameMatched && !addrMatched {
+										mxServer.realServerName = addr
+									} else if !hostnameMatched && addrMatched || !hostnameMatched && !addrMatched {
+										mxServer.realServerName = mxServer.hostname
+									}
 								}
-								mxServer.dnsNames = append(mxServer.dnsNames, addr)
 							}
 						}
 					} else {
@@ -163,6 +174,7 @@ func (this *Connector) lookupMxServers(hostname string) {
 			if len(mxServer.realServerName) == 0 {
 				mxServer.realServerName = mxServer.hostname
 			}
+			Debug("real server name %s", mxServer.realServerName)
 			mailServer.mxServers[i] = mxServer
 		}
 		mailServer.lastIndex = len(mailServer.mxServers) - 1
@@ -180,7 +192,7 @@ type MailServer struct {
 func (this *MailServer) findSmtpClient(event *SendEvent) {
 	var targetSmtpClient *SmtpClient
 	mxServersIndex := 0
-	for targetSmtpClient == nil {
+	for targetSmtpClient == nil && time.Now().Sub(event.CreateDate) <= RECEIVE_CONNECTION_TIMEOUT {
 		mxServer := this.mxServers[mxServersIndex]
 		mxServer.findFreeSmtpServers(&targetSmtpClient)
 		if targetSmtpClient == nil && mxServer.maxConnections == UNLIMITED_CONNECTION_COUNT {
@@ -192,7 +204,12 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 			mxServersIndex++
 		}
 	}
-	event.Client = targetSmtpClient
+	if targetSmtpClient == nil {
+		event.DefaultPrevented = true
+		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't find free connection for mail#%d", event.Message.Id)))
+	} else {
+		event.Client = targetSmtpClient
+	}
 }
 
 func (this *MailServer) closeConnections(now time.Time) {
@@ -205,9 +222,9 @@ type MxServer struct {
 	hostname       string
 	maxConnections int
 	ips            []net.IP
-	dnsNames       []string
 	clients        []*SmtpClient
 	realServerName string
+	useTLS         bool
 }
 
 func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
@@ -232,31 +249,28 @@ func (this *MxServer) createNewSmtpClient(event *SendEvent) *SmtpClient {
 		client, err := smtp.NewClient(connection, event.Message.HostnameFrom)
 		if err == nil {
 			err = client.Hello(event.Message.HostnameFrom)
-			if len(event.CertBytes) > 0 {
-				pool := x509.NewCertPool()
-				cert, err := x509.ParseCertificate(event.CertBytes)
-				if err == nil {
-					cert.IPAddresses = this.ips
-					cert.DNSNames = this.dnsNames
-					pool.AddCert(cert)
-					err = client.StartTLS(&tls.Config {
-						ClientCAs         : pool,
-						ServerName        : this.realServerName,
-					})
-					if err == nil {
-						Debug("tls connection created")
-					} else {
-						WarnWithErr(err)
-					}
-				} else {
-					WarnWithErr(err)
-				}
-			}
 			if err == nil {
+				if len(event.CertBytes) > 0 && this.useTLS {
+					pool := x509.NewCertPool()
+					cert, err := x509.ParseCertificate(event.CertBytes)
+					if err == nil {
+						cert.IPAddresses = this.ips
+						pool.AddCert(cert)
+						err = client.StartTLS(&tls.Config {
+							ClientCAs : pool,
+							ServerName: this.realServerName,
+						})
+						if err != nil {
+							this.dontUseTLS(err)
+						}
+					} else {
+						this.dontUseTLS(err)
+					}
+				}
 				smtpClient = new(SmtpClient)
 				smtpClient.Id = len(this.clients) + 1
 				smtpClient.connection = connection
-				smtpClient.client = client
+				smtpClient.Worker = client
 				smtpClient.createDate = time.Now()
 				smtpClient.Status = SMTP_CLIENT_STATUS_WORKING
 				this.clients = append(this.clients, smtpClient)
@@ -285,7 +299,7 @@ func (this *MxServer) closeConnections(now time.Time) {
 	for i, smtpClient := range this.clients {
 		if smtpClient.Status == SMTP_CLIENT_STATUS_WAITING && now.Sub(smtpClient.createDate) >= CONNECTION_TIMEOUT {
 			smtpClient.Status = SMTP_CLIENT_STATUS_DISCONNECTED
-			err := smtpClient.client.Close()
+			err := smtpClient.Worker.Close()
 			if err != nil {
 				WarnWithErr(err)
 			}
@@ -301,6 +315,11 @@ func (this *MxServer) closeConnections(now time.Time) {
 	}
 }
 
+func (this *MxServer) dontUseTLS(err error) {
+	this.useTLS = false
+	WarnWithErr(err)
+}
+
 type SmtpClientStatus int
 
 const (
@@ -312,7 +331,7 @@ const (
 type SmtpClient struct {
 	Id         int
 	connection net.Conn
-	client     *smtp.Client
+	Worker     *smtp.Client
 	createDate time.Time
 	Status     SmtpClientStatus
 }

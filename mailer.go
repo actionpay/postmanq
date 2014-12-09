@@ -84,6 +84,7 @@ type MailMessage struct {
 	Overlimit    bool               `json:"-"`
 	BindingType  DelayedBindingType `json:"bindingType"`
 	Error        *MailError         `json:"error"`
+	App          MailerApplication `json:"-"`
 }
 
 func (this *MailMessage) Init() {
@@ -214,6 +215,7 @@ func (this *Mailer) triggerSendEvent(message *MailMessage) {
 	event := new(SendEvent)
 	event.DefaultPrevented = false
 	event.Message = message
+	event.CreateDate = time.Now()
 	for _, service := range this.sendServices {
 		if event.DefaultPrevented {
 			break
@@ -261,6 +263,22 @@ func (this *Mailer) OnFinish(event *FinishEvent) {
 
 func SendMail(message *MailMessage) {
 	mailer.messages <- message
+}
+
+func ReturnMail(message *MailMessage, err error) {
+	parts := strings.Split(err.Error(), " ")
+	if len(parts) > 0 {
+		code, e := strconv.Atoi(parts[0])
+		if e == nil && (500 <= code && code <= 600) {
+			message.Error = &MailError{strings.Join(parts[1:], " "), code}
+		}
+	}
+	message.Done <- false
+	if message.App == nil {
+		WarnWithErr(err)
+	} else {
+		Warn("mailer#%d error - %v", message.App.GetId(), err)
+	}
 }
 
 type MailerApplicationConfig struct {
@@ -353,18 +371,6 @@ func (this *BaseMailerApplication) IsValidMessage(message *MailMessage) bool {
 	return emailRegexp.MatchString(message.Envelope) && emailRegexp.MatchString(message.Recipient)
 }
 
-func (this *BaseMailerApplication) returnMessageToQueueWithErr(message *MailMessage, err error) {
-	parts := strings.Split(err.Error(), " ")
-	if len(parts) > 0 {
-		code, e := strconv.Atoi(parts[0])
-		if e == nil && (500 <= code && code <= 600) {
-			message.Error = &MailError{strings.Join(parts[1:], " "), code}
-		}
-	}
-	message.Done <- false
-	Warn("mailer#%d error - %v", this.id, err)
-}
-
 func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 	var head, body string
 	parts := strings.SplitN(message.Body, CRLF + CRLF, 2);
@@ -426,17 +432,18 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 }
 
 func (this *BaseMailerApplication) Send(event *SendEvent) {
-	client := event.Client.client
+	event.Message.App = this
+	worker := event.Client.Worker
 	Info("mailer#%d receive mail#%d", this.id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", this.id, event.Client.Id)
 
-	err := client.Mail(event.Message.Envelope)
+	err := worker.Mail(event.Message.Envelope)
 	if err == nil {
 		Debug("mailer#%d send command MAIL FROM: %s", this.id, event.Message.Envelope)
-		err = client.Rcpt(event.Message.Recipient)
+		err = worker.Rcpt(event.Message.Recipient)
 		if err == nil {
 			Debug("mailer#%d send command RCPT TO: %s", this.id, event.Message.Recipient)
-			wc, err := client.Data()
+			wc, err := worker.Data()
 			if err == nil {
 				Debug("mailer#%d send command DATA", this.id)
 				_, err = fmt.Fprint(wc, event.Message.Body)
@@ -445,7 +452,7 @@ func (this *BaseMailerApplication) Send(event *SendEvent) {
 					Debug("%s", event.Message.Body)
 					if err == nil {
 						Debug("mailer#%d send command .", this.id)
-						err = client.Reset()
+						err = worker.Reset()
 						if err == nil {
 							Debug("mailer#%d send command RSET", this.id)
 							Info("mailer#%d send mail#%d", this.id, event.Message.Id)
@@ -453,22 +460,22 @@ func (this *BaseMailerApplication) Send(event *SendEvent) {
 							atomic.AddInt64(&mailsPerMinute, 1)
 							event.Message.Done <- true
 						} else {
-							this.returnMessageToQueueWithErr(event.Message, err)
+							ReturnMail(event.Message, err)
 						}
 					} else {
-						this.returnMessageToQueueWithErr(event.Message, err)
+						ReturnMail(event.Message, err)
 					}
 				} else {
-					this.returnMessageToQueueWithErr(event.Message, err)
+					ReturnMail(event.Message, err)
 				}
 			} else {
-				this.returnMessageToQueueWithErr(event.Message, err)
+				ReturnMail(event.Message, err)
 			}
 		} else {
-			this.returnMessageToQueueWithErr(event.Message, err)
+			ReturnMail(event.Message, err)
 		}
 	} else {
-		this.returnMessageToQueueWithErr(event.Message, err)
+		ReturnMail(event.Message, err)
 	}
 	event.Client.Status = SMTP_CLIENT_STATUS_WAITING
 }
