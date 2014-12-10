@@ -10960,10 +10960,15 @@ func main() {
 //				"recipient": "byorty@fastmail.com",
 //				"recipient": "byorty@outlook.com",
 //				"recipient": "byorty@qip.ru",
-
 //				"recipient": "byorty@sibnet.ru",
-				"recipient": "byorty@bigmir.net",
-//				"recipient": "byorty@rambler.ru",
+//				"recipient": "byorty@tut.by",
+//				"recipient": "asolomonoff@yahoo.com",
+//				"recipient": "byorty@nextmail.ru",
+
+
+
+//				"recipient": "byorty@bigmir.net",
+				"recipient": "byorty@rambler.ru",
 
 //				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
 				"body": strings.Join(parts, " "),

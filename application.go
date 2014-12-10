@@ -36,6 +36,7 @@ type SendEvent struct {
 	Client           *SmtpClient
 	CertPool         *x509.CertPool
 	CertBytes        []byte
+	CertBytesLen     int
 	Message          *MailMessage
 	DefaultPrevented bool
 	CreateDate       time.Time

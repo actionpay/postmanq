@@ -35,6 +35,7 @@ type Connector struct {
 	ticker             *time.Ticker
 	certPool           *x509.CertPool
 	certBytes          []byte
+	certBytesLen       int
 }
 
 func NewConnector() *Connector {
@@ -72,6 +73,7 @@ func (this *Connector) OnInit(event *InitEvent) {
 			if err == nil {
 				pemBlock, _ := pem.Decode(pemBytes)
 				this.certBytes = pemBlock.Bytes
+				this.certBytesLen = len(this.certBytes)
 			} else {
 				FailExitWithErr(err)
 			}
@@ -97,6 +99,7 @@ func (this *Connector) OnSend(event *SendEvent) {
 		event.CertPool = this.certPool
 	}
 	event.CertBytes = this.certBytes
+	event.CertBytesLen = this.certBytesLen
 	hostname := event.Message.HostnameTo
 	if _, ok := this.mailServers[hostname]; !ok {
 		this.lookupMxServers(hostname)
@@ -196,7 +199,11 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 		mxServer := this.mxServers[mxServersIndex]
 		mxServer.findFreeSmtpServers(&targetSmtpClient)
 		if targetSmtpClient == nil && mxServer.maxConnections == UNLIMITED_CONNECTION_COUNT {
-			targetSmtpClient = mxServer.createNewSmtpClient(event)
+			Debug("create smtp client for %s", mxServer.hostname)
+			mxServer.createNewSmtpClient(event, &targetSmtpClient, mxServer.createTLSSmtpClient)
+			if targetSmtpClient != nil {
+				break
+			}
 		}
 		if mxServersIndex == this.lastIndex {
 			mxServersIndex = 0
@@ -241,40 +248,14 @@ func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
 	Debug("free smtp clients not found for %s", this.hostname)
 }
 
-func (this *MxServer) createNewSmtpClient(event *SendEvent) *SmtpClient {
-	Debug("create smtp client for %s", this.hostname)
-	var smtpClient *SmtpClient
+func (this *MxServer) createNewSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, callback func(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client)) {
 	connection, err := net.Dial("tcp", net.JoinHostPort(this.hostname, "25"))
 	if err == nil {
 		client, err := smtp.NewClient(connection, event.Message.HostnameFrom)
 		if err == nil {
 			err = client.Hello(event.Message.HostnameFrom)
 			if err == nil {
-				if len(event.CertBytes) > 0 && this.useTLS {
-					pool := x509.NewCertPool()
-					cert, err := x509.ParseCertificate(event.CertBytes)
-					if err == nil {
-						cert.IPAddresses = this.ips
-						pool.AddCert(cert)
-						err = client.StartTLS(&tls.Config {
-							ClientCAs : pool,
-							ServerName: this.realServerName,
-						})
-						if err != nil {
-							this.dontUseTLS(err)
-						}
-					} else {
-						this.dontUseTLS(err)
-					}
-				}
-				smtpClient = new(SmtpClient)
-				smtpClient.Id = len(this.clients) + 1
-				smtpClient.connection = connection
-				smtpClient.Worker = client
-				smtpClient.createDate = time.Now()
-				smtpClient.Status = SMTP_CLIENT_STATUS_WORKING
-				this.clients = append(this.clients, smtpClient)
-				Debug("smtp client#%d created for %s", smtpClient.Id, this.hostname)
+				callback(event, ptrSmtpClient, connection, client)
 			} else {
 				client.Quit()
 				this.updateMaxConnections(err)
@@ -286,7 +267,45 @@ func (this *MxServer) createNewSmtpClient(event *SendEvent) *SmtpClient {
 	} else {
 		this.updateMaxConnections(err)
 	}
-	return smtpClient
+}
+
+func (this *MxServer) createTLSSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
+	if event.CertBytesLen > 0 && this.useTLS {
+		pool := x509.NewCertPool()
+		cert, err := x509.ParseCertificate(event.CertBytes)
+		if err == nil {
+			cert.IPAddresses = this.ips
+			pool.AddCert(cert)
+			err = client.StartTLS(&tls.Config {
+				ClientCAs : pool,
+				ServerName: this.realServerName,
+			})
+			if err == nil {
+				this.createSmtpClient(ptrSmtpClient, connection, client)
+			} else {
+				this.dontUseTLS(err)
+				client.Quit()
+				this.createNewSmtpClient(event, ptrSmtpClient, this.createPlainSmtpClient)
+			}
+		} else {
+			this.dontUseTLS(err)
+		}
+	}
+}
+
+func (this *MxServer) createPlainSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
+	this.createSmtpClient(ptrSmtpClient, connection, client)
+}
+
+func (this *MxServer) createSmtpClient(ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
+	(*ptrSmtpClient) = new(SmtpClient)
+	(*ptrSmtpClient).Id = len(this.clients) + 1
+	(*ptrSmtpClient).connection = connection
+	(*ptrSmtpClient).Worker = client
+	(*ptrSmtpClient).createDate = time.Now()
+	(*ptrSmtpClient).Status = SMTP_CLIENT_STATUS_WORKING
+	this.clients = append(this.clients, (*ptrSmtpClient))
+	Debug("smtp client#%d created for %s", (*ptrSmtpClient).Id, this.hostname)
 }
 
 func (this *MxServer) updateMaxConnections(err error) {
