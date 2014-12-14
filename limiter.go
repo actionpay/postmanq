@@ -49,7 +49,7 @@ func (this *Limiter) OnInit(event *InitEvent) {
 
 func (this *Limiter) OnRun() {}
 
-func (this *Limiter) OnFinish(event *FinishEvent) {}
+func (this *Limiter) OnFinish() {}
 
 func (this *Limiter) OnSend(event *SendEvent) {
 	this.mutex.Lock()

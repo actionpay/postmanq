@@ -9,17 +9,18 @@ import (
 	"encoding/base64"
 )
 
-type DelayedBindingType int
-
 const (
 	FAIL_BINDING = "%s.fail"
 )
+
+type DelayedBindingType int
 
 const (
 	DELAYED_BINDING_UNKNOWN     DelayedBindingType = iota
 	DELAYED_BINDING_SECOND
 	DELAYED_BINDING_MINUTE
 	DELAYED_BINDING_TEN_MINUTES
+	DELAYED_BINDING_THIRTY_MINUTES
 	DELAYED_BINDING_HOUR
 	DELAYED_BINDING_SIX_HOURS
 	DELAYED_BINDING_DAY
@@ -27,12 +28,13 @@ const (
 
 var (
 	delayedBindings = map[DelayedBindingType]*Binding {
-		DELAYED_BINDING_SECOND     : &Binding{Name: "%s.dlx.second",      QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
-		DELAYED_BINDING_MINUTE     : &Binding{Name: "%s.dlx.minute",      QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
-		DELAYED_BINDING_TEN_MINUTES: &Binding{Name: "%s.dlx.ten.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
-		DELAYED_BINDING_HOUR       : &Binding{Name: "%s.dlx.hour",        QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
-		DELAYED_BINDING_SIX_HOURS  : &Binding{Name: "%s.dlx.six.hours",   QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
-		DELAYED_BINDING_DAY        : &Binding{Name: "%s.dlx.day",         QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
+		DELAYED_BINDING_SECOND        : &Binding{Name: "%s.dlx.second",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
+		DELAYED_BINDING_MINUTE        : &Binding{Name: "%s.dlx.minute",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
+		DELAYED_BINDING_TEN_MINUTES   : &Binding{Name: "%s.dlx.ten.minutes",    QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
+		DELAYED_BINDING_THIRTY_MINUTES: &Binding{Name: "%s.dlx.thirty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
+		DELAYED_BINDING_HOUR          : &Binding{Name: "%s.dlx.hour",           QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
+		DELAYED_BINDING_SIX_HOURS     : &Binding{Name: "%s.dlx.six.hours",      QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
+		DELAYED_BINDING_DAY           : &Binding{Name: "%s.dlx.day",            QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
 	}
 
 	limitBindings = []DelayedBindingType {
@@ -210,10 +212,9 @@ func (this *Consumer) OnRun() {
 	}
 }
 
-func (this *Consumer) OnFinish(event *FinishEvent) {
+func (this *Consumer) OnFinish() {
 	Debug("stop consumers apps...")
 	this.finishApps()
-	event.Group.Done()
 }
 
 func (this *Consumer) finishApps() {
@@ -353,41 +354,48 @@ func (this *ConsumerApplication) consume(id int) {
 									Warn("unknow delayed type %v", bindingType)
 								}
 							} else {
-								failBinding := this.binding.failBinding
-								jsonMessage, err := json.Marshal(message)
-								if err == nil {
-									encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
-									err = channel.Publish(
-										failBinding.Exchange,
-										failBinding.Routing,
-										false,
-										false,
-										amqp.Publishing{
+								var failBinding *Binding
+								if message.Error.Code >= 500 && message.Error.Code <= 600 {
+									failBinding = this.binding.failBinding
+								} else if message.Error.Code == 451 {
+									failBinding = delayedBindings[DELAYED_BINDING_THIRTY_MINUTES]
+								}
+								if failBinding != nil {
+									jsonMessage, err := json.Marshal(message)
+									if err == nil {
+										encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
+										err = channel.Publish(
+											failBinding.Exchange,
+											failBinding.Routing,
+											false,
+											false,
+											amqp.Publishing{
 											ContentType : "text/plain",
 											Body        : []byte(encodedMessage),
 											DeliveryMode: amqp.Transient,
 										},
-									)
-									if err == nil {
-										Debug(
-											"reason is %s with code %d, publish fail mail#%d to queue %s",
-											message.Error.Message,
-											message.Error.Code,
-											message.Id,
-											this.binding.failBinding.Queue,
 										)
+										if err == nil {
+											Debug(
+												"reason is %s with code %d, publish fail mail#%d to queue %s",
+												message.Error.Message,
+												message.Error.Code,
+												message.Id,
+												this.binding.failBinding.Queue,
+											)
+										} else {
+											Debug(
+												"can't publish fail mail#%d with error %s and code %d to queue %s",
+												message.Id,
+												message.Error.Message,
+												message.Error.Code,
+												failBinding.Queue,
+											)
+											WarnWithErr(err)
+										}
 									} else {
-										Debug(
-											"can't publish fail mail#%d with error %s and code %d to queue %s",
-											message.Id,
-											message.Error.Message,
-											message.Error.Code,
-											failBinding.Queue,
-										)
 										WarnWithErr(err)
 									}
-								} else {
-									WarnWithErr(err)
 								}
 							}
 						}

@@ -96,9 +96,8 @@ func (this *Logger) OnInit(event *InitEvent) {
 
 func (this *Logger) OnRun() {}
 
-func (this *Logger) OnFinish(event *FinishEvent) {
+func (this *Logger) OnFinish() {
 	close(this.messages)
-	event.Group.Done()
 }
 
 func (this *Logger) start() {

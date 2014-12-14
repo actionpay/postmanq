@@ -1,7 +1,6 @@
 package postmanq
 
 import (
-	"sync"
 	"runtime"
 	"io/ioutil"
 	"time"
@@ -16,65 +15,75 @@ var (
 	app *Application
 )
 
+// Событие инициализации. Вызывается после регистрации сервисов и содержит данные для настройки сервисов.
 type InitEvent struct {
-	Data         []byte
-	MailersCount int
+	Data         []byte // данные с настройками каждого сервиса
+	MailersCount int    // количество потоков, отправляющих письма
 }
 
-type FinishEvent struct {
-	Group *sync.WaitGroup
-}
-
+// Программа отправки почты получилась довольно сложной, т.к. она выполняет обработку и отправку писем,
+// работает с диском и с сетью, ведет логирование и проверяет ограничения перед отправкой.
+// Из - за такого насыщенного функционала, было принято решение разбить программу на логические части - сервисы.
+// Сервис - это модуль программы, отвечающий за выполнение одной конкретной задачи, например логирование.
+// Сервис может сам выполнять эту задачу, либо управлять выполнением задачи.
+// Сервисы взаимодействуют через события.
 type Service interface {
 	OnRegister()
 	OnInit(*InitEvent)
 	OnRun()
-	OnFinish(*FinishEvent)
+	OnFinish()
 }
 
-type SendEvent struct {
-	Client           *SmtpClient
-	CertPool         *x509.CertPool
-	CertBytes        []byte
-	CertBytesLen     int
-	Message          *MailMessage
-	DefaultPrevented bool
-	CreateDate       time.Time
-}
-
+// Сервис, участвующий в отправке письма.
 type SendService interface {
 	OnSend(*SendEvent)
 }
 
+// Событие отправки письма
+type SendEvent struct {
+	Client           *SmtpClient    // объект, содержащий подключение и клиент для отправки писем
+	CertPool         *x509.CertPool // пул сертификатов
+	CertBytes        []byte         // для каждого почтового сервиса необходим подписывать сертификат, поэтому в событии храним сырые данные сертификата
+	CertBytesLen     int            // длина сертификата, по если длина больше 0, тогда пытаемся отправлять письма через TLS
+	Message          *MailMessage   // само письмо, полученное из очереди
+	DefaultPrevented bool           // флаг, сигнализирующий обрабатывать ли событие
+	CreateDate       time.Time      // дата создания необходима при получении подключения к почтовому сервису
+}
+
+// тип гловального события приложения
 type ApplicationEventKind int
 
 const (
-	APPLICATION_EVENT_KIND_REGISTER ApplicationEventKind = iota
-	APPLICATION_EVENT_KIND_INIT
-	APPLICATION_EVENT_KIND_RUN
-	APPLICATION_EVENT_KIND_FINISH
+	APPLICATION_EVENT_KIND_REGISTER ApplicationEventKind = iota // событие регистрации сервисов
+	APPLICATION_EVENT_KIND_INIT                                 // событие инициализации сервисов
+	APPLICATION_EVENT_KIND_RUN                                  // событие запуска сервисов
+	APPLICATION_EVENT_KIND_FINISH                               // событие завершения сервисов
 )
 
+// событие приложения
 type ApplicationEvent struct {
 	kind ApplicationEventKind
 }
 
+// создает событие с указанным типом
 func NewApplicationEvent(kind ApplicationEventKind) *ApplicationEvent {
 	return &ApplicationEvent{kind: kind}
 }
 
+// приложение
 type Application struct {
-	ConfigFilename string
-	services       []Service
-	servicesCount  int
-	events         chan *ApplicationEvent
-	done           chan bool
-	handlers       map[ApplicationEventKind]func()
+	ConfigFilename string                          // путь до конфигурационного файла
+	services       []Service                       // сервисы приложения
+	events         chan *ApplicationEvent          // канал событий приложения
+	done           chan bool                       // флаг, сигнализирующий окончание работы приложения
+	handlers       map[ApplicationEventKind]func() // обработчики событий приложения
 }
 
+// создает приложение
 func NewApplication() *Application {
 	if app == nil {
 		app = new(Application)
+		// инициализируем сервисы приложения
 		app.services = []Service{
 			NewLogger(),
 			NewLimiter(),
@@ -82,9 +91,11 @@ func NewApplication() *Application {
 			NewMailer(),
 			NewConsumer(),
 		}
-		app.servicesCount = len(app.services)
+		// создаем каналы для событий
 		app.events = make(chan *ApplicationEvent, 4)
+		// и ожидания окончания программы
 		app.done = make(chan bool)
+		// устанавливаем обработчики для событий
 		app.handlers = map[ApplicationEventKind]func(){
 			APPLICATION_EVENT_KIND_REGISTER: app.registerServices,
 			APPLICATION_EVENT_KIND_INIT    : app.initServices,
@@ -95,19 +106,26 @@ func NewApplication() *Application {
 	return app
 }
 
+// регистрирует сервисы приложения
 func (this *Application) registerServices() {
 	for _, service := range this.services {
 		service.OnRegister()
 	}
+	// отсылаем событие инициализации
 	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
 }
 
+// инициализирует сервисы приложения
 func (this *Application) initServices() {
+	// проверяем, установлен ли конфигурационный файл
 	if len(this.ConfigFilename) > 0 && this.ConfigFilename != EXAMPLE_CONFIG_YAML {
+		// пытаемся прочитать конфигурационный файл
 		bytes, err := ioutil.ReadFile(this.ConfigFilename)
 		if err == nil {
+			// создаем событие инициализации
 			event := new(InitEvent)
 			event.Data = bytes
+			// и оповещаем сервисы
 			for _, service := range this.services {
 				service.OnInit(event)
 			}
@@ -120,24 +138,22 @@ func (this *Application) initServices() {
 	}
 }
 
+// запускает приложения
 func (this *Application) runServices() {
 	for _, service := range this.services {
 		go service.OnRun()
 	}
 }
 
+// останавливает приложения
 func (this *Application) finishServices() {
-	event := new(FinishEvent)
-	event.Group = new(sync.WaitGroup)
-	event.Group.Add(this.servicesCount)
 	for _, service := range this.services {
-		go service.OnFinish(event)
+		service.OnFinish()
 	}
-	event.Group.Wait()
-	time.Sleep(time.Second)
 	this.done <- true
 }
 
+// запускает и контролирует работу всего приложения
 func (this *Application) Run() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	go func() {

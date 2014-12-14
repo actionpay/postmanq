@@ -10928,8 +10928,8 @@ func main() {
 	}
 	log.Printf("got Channel")
 
-	messageCount := 1
-//	messageCount := 1000
+//	messageCount := 1
+	messageCount := 1000
 
 	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
 	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
@@ -10951,9 +10951,9 @@ func main() {
 			json, err := json.Marshal(map[string]string{
 //				"envelope": "robot@actionpay.ru",
 				"envelope": "robotron@adnwb.ru",
-//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
 
-//				"recipient": "apmail@adonweb.ru",
+//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
+				"recipient": "apmail@adonweb.ru",
 //				"recipient": "asolomonoff@gmail.com",
 //				"recipient": "byorty@yandex.ru",
 //				"recipient": "byorty@mail.ru",
@@ -10964,11 +10964,16 @@ func main() {
 //				"recipient": "byorty@tut.by",
 //				"recipient": "asolomonoff@yahoo.com",
 //				"recipient": "byorty@nextmail.ru",
+//				"recipient": "byorty@rambler.ru",
+//				"recipient": "solomonov@km.ru",
+//				"recipient": "byorty@zmail.ru",
+//				"recipient": "byorty@meta.ua",
+//				"recipient": "byorty@e1.ru",
 
-
+//				"recipient": "byorty@inet.ua",
 
 //				"recipient": "byorty@bigmir.net",
-				"recipient": "byorty@rambler.ru",
+//				"recipient": "byorty@chat.ru",
 
 //				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
 				"body": strings.Join(parts, " "),

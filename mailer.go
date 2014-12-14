@@ -257,9 +257,7 @@ func (this *Mailer) OnSend(event *SendEvent) {
 	this.mutex.Unlock()
 }
 
-func (this *Mailer) OnFinish(event *FinishEvent) {
-	event.Group.Done()
-}
+func (this *Mailer) OnFinish() {}
 
 func SendMail(message *MailMessage) {
 	mailer.messages <- message
@@ -269,7 +267,7 @@ func ReturnMail(message *MailMessage, err error) {
 	parts := strings.Split(err.Error(), " ")
 	if len(parts) > 0 {
 		code, e := strconv.Atoi(parts[0])
-		if e == nil && (500 <= code && code <= 600) {
+		if e == nil {
 			message.Error = &MailError{strings.Join(parts[1:], " "), code}
 		}
 	}
