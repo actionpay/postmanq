@@ -10939,7 +10939,7 @@ func main() {
 	for i := 0; i < messageCount; i++ {
 		go func() {
 			rand.Seed(time.Now().UnixNano())
-			partMessage := message[:rand.Intn(int(len(message) / 10))]
+			partMessage := message[:rand.Intn(int(len(message) / 25))]
 			partMessage = clearRegexp.ReplaceAllString(partMessage, " ")
 			partMessage = whiteSpaceRegexp.ReplaceAllString(partMessage, " ")
 

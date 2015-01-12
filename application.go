@@ -28,7 +28,6 @@ type InitEvent struct {
 // Сервис может сам выполнять эту задачу, либо управлять выполнением задачи.
 // Сервисы взаимодействуют через события.
 type Service interface {
-	OnRegister()
 	OnInit(*InitEvent)
 	OnRun()
 	OnFinish()
@@ -54,10 +53,9 @@ type SendEvent struct {
 type ApplicationEventKind int
 
 const (
-	APPLICATION_EVENT_KIND_REGISTER ApplicationEventKind = iota // событие регистрации сервисов
-	APPLICATION_EVENT_KIND_INIT                                 // событие инициализации сервисов
-	APPLICATION_EVENT_KIND_RUN                                  // событие запуска сервисов
-	APPLICATION_EVENT_KIND_FINISH                               // событие завершения сервисов
+	APPLICATION_EVENT_KIND_INIT   ApplicationEventKind = iota // событие инициализации сервисов
+	APPLICATION_EVENT_KIND_RUN                                // событие запуска сервисов
+	APPLICATION_EVENT_KIND_FINISH                             // событие завершения сервисов
 )
 
 // событие приложения
@@ -97,22 +95,12 @@ func NewApplication() *Application {
 		app.done = make(chan bool)
 		// устанавливаем обработчики для событий
 		app.handlers = map[ApplicationEventKind]func(){
-			APPLICATION_EVENT_KIND_REGISTER: app.registerServices,
 			APPLICATION_EVENT_KIND_INIT    : app.initServices,
 			APPLICATION_EVENT_KIND_RUN     : app.runServices,
 			APPLICATION_EVENT_KIND_FINISH  : app.finishServices,
 		}
 	}
 	return app
-}
-
-// регистрирует сервисы приложения
-func (this *Application) registerServices() {
-	for _, service := range this.services {
-		service.OnRegister()
-	}
-	// отсылаем событие инициализации
-	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
 }
 
 // инициализирует сервисы приложения
@@ -167,6 +155,6 @@ func (this *Application) Run() {
 		}
 		close(this.events)
 	}()
-	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_REGISTER)
+	this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
 	<- this.done
 }
