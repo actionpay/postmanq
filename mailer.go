@@ -221,7 +221,7 @@ func (this *Mailer) showMailsPerMinute() {
 	for {
 		select {
 		case <- tick:
-			Info("mailers send %d mails per minute", atomic.LoadInt64(&mailsPerMinute))
+			Debug("mailers send %d mails per minute", atomic.LoadInt64(&mailsPerMinute))
 			atomic.StoreInt64(&mailsPerMinute, 0)
 			break
 		}
