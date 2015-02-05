@@ -27,7 +27,7 @@ PostmanQ разбирает одну или несколько очередей 
         {
             "envelope": "sender@mail.foo",
             "recipient": "recipient@mail.foo",
-            "body": "письмо с заголовками и содержимым"
+            "body": "письмо с заголовками и содержимым в base64"
         }
     
 6. PostmanQ забирает письмо из очереди.

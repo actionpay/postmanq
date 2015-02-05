@@ -526,7 +526,7 @@ func (this *BaseMailerApplication) Send(event *SendEvent) {
 				_, err = fmt.Fprint(wc, event.Message.Body)
 				if err == nil {
 					err = wc.Close()
-//					Debug("%s", event.Message.Body)
+					Debug("%s", event.Message.Body)
 					if err == nil {
 						Debug("mailer#%d send command .", this.id)
 						// стараемся слать письма через уже созданное соединение,
