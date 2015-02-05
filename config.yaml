@@ -10,6 +10,9 @@ dkimSelector: trololo
 # приватный ключ, публичный ключ должен быть прописан в DNS
 privateKey: /path/to/private/key_rsa
 
+# сертификат, используется для создания TLS соединений
+certificate: /path/to/cert
+
 # получатели писем
 consumers:
 
