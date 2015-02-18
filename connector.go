@@ -135,6 +135,10 @@ func (this *Connector) OnSend(event *SendEvent) {
 	if mailServer, ok := this.mailServers[hostname]; ok {
 		mailServer.findSmtpClient(event)
 	}
+	if event.Client == nil || (event.Client != nil && event.Client.Worker == nil) {
+		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't find connection for %s", event.Message.Recipient)))
+		event.DefaultPrevented = true
+	}
 	this.mutex.Unlock()
 }
 
