@@ -472,9 +472,18 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 			preparedHeaders[key] = fun(message)
 		}
 	}
-	// собираемписьмо заново
-	buf := new(bytes.Buffer)
+
+	orderedHeaders := make(map[string]string)
+	for key, _ := range defaultHeaders {
+		orderedHeaders[key] = preparedHeaders[key]
+		delete(preparedHeaders, key)
+	}
 	for key, value := range preparedHeaders {
+		orderedHeaders[key] = value
+	}
+	// собираем письмо заново
+	buf := new(bytes.Buffer)
+	for key, value := range orderedHeaders {
 		buf.WriteString(key)
 		buf.WriteString(": ")
 		buf.WriteString(value)
