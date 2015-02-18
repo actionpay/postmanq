@@ -268,7 +268,7 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 		searchDuration = time.Now().Sub(event.CreateDate)
 	}
 	// если соединение не найдено, ругаемся, отменяем отправку письма
-	if targetSmtpClient == nil {
+	if targetSmtpClient == nil && (targetSmtpClient != nil && targetSmtpClient.Worker == nil) {
 		event.DefaultPrevented = true
 		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't find free connection for mail#%d", event.Message.Id)))
 	} else {

@@ -539,7 +539,7 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 		signed, err := signer.Sign([]byte(message.Body))
 		if err == nil {
 			message.Body = string(signed)
-			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
+//			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
 		} else {
 			WarnWithErr(err)
 		}
