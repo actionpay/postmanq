@@ -332,9 +332,10 @@ func (this *ConsumerApplication) consume(id int) {
 		Debug("run consumer app#%d, handler#%d", this.id, id)
 		go func() {
 			for delivery := range deliveries {
+				body, err := base64.StdEncoding.DecodeString(string(delivery.Body))
 				if err == nil {
 					message := new(MailMessage)
-					err = json.Unmarshal(delivery.Body, message)
+					err = json.Unmarshal(body, message)
 					if err == nil {
 						// инициализируем параметры письма
 						message.Init()
@@ -472,7 +473,7 @@ func (this *ConsumerApplication) consume(id int) {
 						delivery.Ack(true)
 						message = nil
 					} else {
-						Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
+						Warn("can't unmarshal delivery body, body should be json, body is %s", string(body))
 					}
 				} else {
 					Warn("can't decode delivery body, body should be base64 decoded, body is %s", string(delivery.Body))
