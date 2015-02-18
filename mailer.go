@@ -504,7 +504,7 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 	defer lib.Close()
 
 	dkim, status := lib.NewSigner(
-		this.privateKey,
+		string(this.privateKey),
 		this.dkimSelector,
 		message.HostnameFrom,
 		opendkim.CanonRELAXED,
