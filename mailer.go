@@ -516,7 +516,7 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 		if dkim == nil {
 			Warn("can't create dkim")
 		} else {
-			signed, err := dkim.Sign(bytes.NewBuffer(message.Body))
+			signed, err := dkim.Sign(bytes.NewBufferString(message.Body))
 			if err == nil {
 				message.Body = string(signed)
 			} else {
