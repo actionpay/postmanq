@@ -28,9 +28,9 @@ var (
 //		"MIME-Version"             : getMimeVersion,
 		"From"                     : getFrom,
 		"To"                       : getTo,
-		"Date"                     : getDate,
+//		"Date"                     : getDate,
 		"Subject"                  : getSubject,
-		"Content-Type"             : getContentType,
+//		"Content-Type"             : getContentType,
 	}
 	// используется для создания id письма, удобно для отладки
 	mailsCount     int64
@@ -493,7 +493,7 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 	buf.WriteString(CRLF)
 	message.Body = buf.String()
 
-	Debug("\n\n++ prepared ++\n\n   %v   \n\n++++\n\n", message.Body)
+	Debug("\n\n++ prepared ++\n\n%v\n\n++++\n\n", message.Body)
 }
 
 // создает DKIM
@@ -502,13 +502,13 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 	if err != nil {
 		WarnWithErr(err)
 	}
-	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
+//	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
 		signed, err := signer.Sign([]byte(message.Body))
 		if err == nil {
 			message.Body = string(signed)
-			Debug("\n\n-- signed --\n\n   %v   \n\n----\n\n", message.Body)
+			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
 		} else {
 			WarnWithErr(err)
 		}
