@@ -475,7 +475,7 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 
 	// собираем письмо заново
 	buf := new(bytes.Buffer)
-	for key, _ := range defaultHeaders {
+	for _, key := range dkim.StdSignableHeaders {
 		buf.WriteString(key)
 		buf.WriteString(": ")
 		buf.WriteString(preparedHeaders[key])
