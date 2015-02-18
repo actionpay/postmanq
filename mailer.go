@@ -10,8 +10,8 @@ import (
 	"time"
 	"errors"
 	"bytes"
-//	"github.com/eaigner/dkim"
-	"github.com/eaigner/opendkim"
+	"github.com/eaigner/dkim"
+//	"github.com/eaigner/opendkim"
 	"io/ioutil"
 	"sync/atomic"
 	"sync"
@@ -500,52 +500,52 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 // создает DKIM
 func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 
-	lib := opendkim.Init()
-	defer lib.Close()
-
-	dkim, status := lib.NewSigner(
-		string(this.privateKey),
-		this.dkimSelector,
-		message.HostnameFrom,
-		opendkim.CanonRELAXED,
-		opendkim.CanonRELAXED,
-		opendkim.SignRSASHA1,
-		-1,
-	)
-	if status == opendkim.StatusOK {
-		if dkim == nil {
-			Warn("can't create dkim")
-		} else {
-			signed, err := dkim.Sign(bytes.NewBufferString(message.Body))
-			if err == nil {
-				message.Body = string(signed)
-			} else {
-				WarnWithErr(err)
-			}
-		}
-	} else {
-		Warn("dkim error status %v", status)
-	}
-
-
-
-//	conf, err := dkim.NewConf(message.HostnameFrom, this.dkimSelector)
-//	if err != nil {
-//		WarnWithErr(err)
-//	}
-//	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
-//	signer, err := dkim.New(conf, this.privateKey)
-//	if err == nil {
-//		signed, err := signer.Sign([]byte(message.Body))
-//		if err == nil {
-//			message.Body = string(signed)
-//			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
+//	lib := opendkim.Init()
+//	defer lib.Close()
+//
+//	dkim, status := lib.NewSigner(
+//		string(this.privateKey),
+//		this.dkimSelector,
+//		message.HostnameFrom,
+//		opendkim.CanonRELAXED,
+//		opendkim.CanonRELAXED,
+//		opendkim.SignRSASHA1,
+//		-1,
+//	)
+//	if status == opendkim.StatusOK {
+//		if dkim == nil {
+//			Warn("can't create dkim")
 //		} else {
-//			WarnWithErr(err)
+//			signed, err := dkim.Sign(bytes.NewBufferString(message.Body))
+//			if err == nil {
+//				message.Body = string(signed)
+//			} else {
+//				WarnWithErr(err)
+//			}
 //		}
 //	} else {
-//		WarnWithErr(err)
+//		Warn("dkim error status %v", status)
 //	}
+
+
+
+	conf, err := dkim.NewConf(message.HostnameFrom, this.dkimSelector)
+	if err != nil {
+		WarnWithErr(err)
+	}
+	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
+	signer, err := dkim.New(conf, this.privateKey)
+	if err == nil {
+		signed, err := signer.Sign([]byte(message.Body))
+		if err == nil {
+			message.Body = string(signed)
+			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
+		} else {
+			WarnWithErr(err)
+		}
+	} else {
+		WarnWithErr(err)
+	}
 
 }
 
