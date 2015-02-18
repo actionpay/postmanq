@@ -216,11 +216,9 @@ func (this *Consumer) notifyCloseError(appConfig *ConsumerApplicationConfig, clo
 					app.connect = connect
 				}
 				this.reconnect(connect, appConfig)
-			} else {
-
 			}
 		} else {
-			FailExitWithErr(err)
+//			FailExitWithErr(err)
 		}
 	}
 }
