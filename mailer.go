@@ -24,8 +24,8 @@ var (
 	// минимальные набор заголовков, который должен быть в письме
 	// если какого-нибудь заголовка не будет в письме, отправитель создаст заголовок со значением по умолчанию
 	defaultHeaders = map[string]func(*MailMessage) string {
-		"Return-Path"              : getReturnPath,
-		"MIME-Version"             : getMimeVersion,
+//		"Return-Path"              : getReturnPath,
+//		"MIME-Version"             : getMimeVersion,
 		"From"                     : getFrom,
 		"To"                       : getTo,
 		"Date"                     : getDate,
@@ -502,11 +502,11 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 	if err != nil {
 		WarnWithErr(err)
 	}
+	conf[dkim.FieldsKey] = dkim.StdSignableHeaders
 	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
 		signed, err := signer.Sign([]byte(message.Body))
-		Debug("%v", message.Body)
 		if err == nil {
 			message.Body = string(signed)
 			Debug("\n\n-- signed --\n\n   %v   \n\n----\n\n", message.Body)
