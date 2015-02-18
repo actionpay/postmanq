@@ -502,7 +502,6 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 	if err != nil {
 		WarnWithErr(err)
 	}
-	conf[dkim.FieldsKey] = dkim.StdSignableHeaders
 	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
