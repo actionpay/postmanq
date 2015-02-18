@@ -332,7 +332,7 @@ func (this *ConsumerApplication) consume(id int) {
 		Debug("run consumer app#%d, handler#%d", this.id, id)
 		go func() {
 			for delivery := range deliveries {
-				body, err := string(delivery.Body)
+				body := string(delivery.Body)
 				if err == nil {
 					message := new(MailMessage)
 					err = json.Unmarshal(body, message)
