@@ -472,7 +472,7 @@ func (this *ConsumerApplication) consume(id int) {
 						delivery.Ack(true)
 						message = nil
 					} else {
-						Warn("can't unmarshal delivery body, body should be json, body is %s", string(body))
+						Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
 					}
 				} else {
 					Warn("can't decode delivery body, body should be base64 decoded, body is %s", string(delivery.Body))
