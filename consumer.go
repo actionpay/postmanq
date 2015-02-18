@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-	"encoding/base64"
 )
 
 const (
@@ -332,151 +331,142 @@ func (this *ConsumerApplication) consume(id int) {
 		Debug("run consumer app#%d, handler#%d", this.id, id)
 		go func() {
 			for delivery := range deliveries {
-				body, err := base64.StdEncoding.DecodeString(string(delivery.Body))
+				message := new(MailMessage)
+				err = json.Unmarshal(delivery.Body, message)
 				if err == nil {
-					message := new(MailMessage)
-					err = json.Unmarshal(body, message)
-					if err == nil {
-						// инициализируем параметры письма
-						message.Init()
-						Info(
-							"consumer app#%d, handler#%d send mail#%d: envelope - %s, recipient - %s to mailer",
-							this.id,
-							id,
-							message.Id,
-							message.Envelope,
-							message.Recipient,
-						)
-						// отправляем письмо отправителям
-						SendMail(message)
-						// и ждем, что ответит отправитель
-						// во время ожидания поток блокируется
-						// если этого не сделать, тогда невозможно будет подтвердить получение сообщения из очереди
-						done := <- message.Done
-						if !done {
-							Info("mail#%d not send", message.Id)
-							// если ошибки нет, значит во время отправки письма случилась некритическая ошибка
-							// например не удалось получить свободное соединение или обрыв соединения или не подписался сертификат
-							// перекладываем в отложенную очередь
-							if message.Error == nil {
-								bindingType := DELAYED_BINDING_UNKNOWN
-								// если превышен лимит отправления писем для почтового сервиса
-								// ищем ту очередь, в которую нужно положить письмо
-								if message.Overlimit {
-									Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
-									for i := 0;i < limitBindingsLen;i++ {
-										if limitBindings[i] == message.BindingType {
-											bindingType = limitBindings[i]
-											break
-										}
+					// инициализируем параметры письма
+					message.Init()
+					Info(
+						"consumer app#%d, handler#%d send mail#%d: envelope - %s, recipient - %s to mailer",
+						this.id,
+						id,
+						message.Id,
+						message.Envelope,
+						message.Recipient,
+					)
+					// отправляем письмо отправителям
+					SendMail(message)
+					// и ждем, что ответит отправитель
+					// во время ожидания поток блокируется
+					// если этого не сделать, тогда невозможно будет подтвердить получение сообщения из очереди
+					done := <- message.Done
+					if !done {
+						Info("mail#%d not send", message.Id)
+						// если ошибки нет, значит во время отправки письма случилась некритическая ошибка
+						// например не удалось получить свободное соединение или обрыв соединения или не подписался сертификат
+						// перекладываем в отложенную очередь
+						if message.Error == nil {
+							bindingType := DELAYED_BINDING_UNKNOWN
+							// если превышен лимит отправления писем для почтового сервиса
+							// ищем ту очередь, в которую нужно положить письмо
+							if message.Overlimit {
+								Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
+								for i := 0;i < limitBindingsLen;i++ {
+									if limitBindings[i] == message.BindingType {
+										bindingType = limitBindings[i]
+										break
 									}
-								} else {
-									Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
-									Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
-									// если нам просто не удалось письмо, берем следующую очередь из цепочки
-									if chainBinding, ok := bindingsChain[message.BindingType]; ok {
-										bindingType = chainBinding
-									}
-								}
-								Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
-
-								// получаем очередь, проверяем, что она реально есть
-								// а что? а вдруг нет)
-								if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
-									message.BindingType = bindingType
-									jsonMessage, err := json.Marshal(message)
-									if err == nil {
-										// преобразовываем письмо в строку
-										encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
-										// кладем в очередь
-										err = channel.Publish(
-											delayedBinding.Exchange,
-											delayedBinding.Routing,
-											false,
-											false,
-											amqp.Publishing{
-												ContentType : "text/plain",
-												Body        : []byte(encodedMessage),
-												DeliveryMode: amqp.Transient,
-											},
-										)
-										if err == nil {
-											Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
-										} else {
-											Debug("can't publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
-											WarnWithErr(err)
-										}
-									} else {
-										WarnWithErr(err)
-									}
-								} else {
-									Warn("unknow delayed type %v", bindingType)
 								}
 							} else {
-								// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
-								// или получили какую то ошибку от почтового сервиса, что он не может
-								// отправить письмо указанному адресату или выполнить какую то команду
-								var failBinding *Binding
-								// если ошибка связана с невозможностью отправить письмо адресату
-								// перекладываем письмо в очередь для плохих писем
-								// и пусть отправители сами с ними разбираются
-								if message.Error.Code >= 500 && message.Error.Code <= 600 {
-									failBinding = this.binding.failBinding
-								} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
-									failBinding = delayedBindings[DELAYED_BINDING_THIRTY_MINUTES]
+								Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+								Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
+								// если нам просто не удалось письмо, берем следующую очередь из цепочки
+								if chainBinding, ok := bindingsChain[message.BindingType]; ok {
+									bindingType = chainBinding
 								}
-								// если очередь для ошибок нашлась
-								if failBinding != nil {
-									jsonMessage, err := json.Marshal(message)
-									if err == nil {
-										// преобразовываем письмо в строку
-										encodedMessage := base64.StdEncoding.EncodeToString(jsonMessage)
-										// кладем в очередь
-										err = channel.Publish(
-											failBinding.Exchange,
-											failBinding.Routing,
-											false,
-											false,
-											amqp.Publishing{
+							}
+							Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
+
+							// получаем очередь, проверяем, что она реально есть
+							// а что? а вдруг нет)
+							if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
+								message.BindingType = bindingType
+								jsonMessage, err := json.Marshal(message)
+								if err == nil {
+									// кладем в очередь
+									err = channel.Publish(
+										delayedBinding.Exchange,
+										delayedBinding.Routing,
+										false,
+										false,
+										amqp.Publishing{
 											ContentType : "text/plain",
-											Body        : []byte(encodedMessage),
+											Body        : []byte(jsonMessage),
 											DeliveryMode: amqp.Transient,
 										},
-										)
-										if err == nil {
-											Debug(
-												"reason is %s with code %d, publish fail mail#%d to queue %s",
-												message.Error.Message,
-												message.Error.Code,
-												message.Id,
-												this.binding.failBinding.Queue,
-											)
-										} else {
-											Debug(
-												"can't publish fail mail#%d with error %s and code %d to queue %s",
-												message.Id,
-												message.Error.Message,
-												message.Error.Code,
-												failBinding.Queue,
-											)
-											WarnWithErr(err)
-										}
+									)
+									if err == nil {
+										Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
 									} else {
+										Debug("can't publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
 										WarnWithErr(err)
 									}
+								} else {
+									WarnWithErr(err)
+								}
+							} else {
+								Warn("unknow delayed type %v", bindingType)
+							}
+						} else {
+							// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
+							// или получили какую то ошибку от почтового сервиса, что он не может
+							// отправить письмо указанному адресату или выполнить какую то команду
+							var failBinding *Binding
+							// если ошибка связана с невозможностью отправить письмо адресату
+							// перекладываем письмо в очередь для плохих писем
+							// и пусть отправители сами с ними разбираются
+							if message.Error.Code >= 500 && message.Error.Code <= 600 {
+								failBinding = this.binding.failBinding
+							} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
+								failBinding = delayedBindings[DELAYED_BINDING_THIRTY_MINUTES]
+							}
+							// если очередь для ошибок нашлась
+							if failBinding != nil {
+								jsonMessage, err := json.Marshal(message)
+								if err == nil {
+									// кладем в очередь
+									err = channel.Publish(
+										failBinding.Exchange,
+										failBinding.Routing,
+										false,
+										false,
+										amqp.Publishing{
+											ContentType : "text/plain",
+											Body        : []byte(jsonMessage),
+											DeliveryMode: amqp.Transient,
+										},
+									)
+									if err == nil {
+										Debug(
+											"reason is %s with code %d, publish fail mail#%d to queue %s",
+											message.Error.Message,
+											message.Error.Code,
+											message.Id,
+											this.binding.failBinding.Queue,
+										)
+									} else {
+										Debug(
+											"can't publish fail mail#%d with error %s and code %d to queue %s",
+											message.Id,
+											message.Error.Message,
+											message.Error.Code,
+											failBinding.Queue,
+										)
+										WarnWithErr(err)
+									}
+								} else {
+									WarnWithErr(err)
 								}
 							}
 						}
-						// всегда подтверждаем получение сообщения
-						// даже если во время отправки письма возникли ошибки,
-						// мы уже положили это письмо в другую очередь
-						delivery.Ack(true)
-						message = nil
-					} else {
-						Warn("can't unmarshal delivery body, body should be json, body is %s", string(body))
 					}
+					// всегда подтверждаем получение сообщения
+					// даже если во время отправки письма возникли ошибки,
+					// мы уже положили это письмо в другую очередь
+					delivery.Ack(true)
+					message = nil
 				} else {
-					Warn("can't decode delivery body, body should be base64 decoded, body is %s", string(delivery.Body))
+					Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
 				}
 			}
 		}()
