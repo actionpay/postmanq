@@ -135,10 +135,6 @@ func (this *Connector) OnSend(event *SendEvent) {
 	if mailServer, ok := this.mailServers[hostname]; ok {
 		mailServer.findSmtpClient(event)
 	}
-	if event.Client == nil || (event.Client != nil && event.Client.Worker == nil) {
-		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't find connection for %s", event.Message.Recipient)))
-		event.DefaultPrevented = true
-	}
 	this.mutex.Unlock()
 }
 
@@ -246,8 +242,9 @@ type MailServer struct {
 func (this *MailServer) findSmtpClient(event *SendEvent) {
 	var targetSmtpClient *SmtpClient
 	mxServersIndex := 0
+	searchDuration := time.Now().Sub(event.CreateDate)
 	// ищем соединение 5 секунд, пока не найдем первое свободное
-	for targetSmtpClient == nil && time.Now().Sub(event.CreateDate) <= RECEIVE_CONNECTION_TIMEOUT {
+	for targetSmtpClient == nil && searchDuration <= RECEIVE_CONNECTION_TIMEOUT {
 		mxServer := this.mxServers[mxServersIndex]
 		// сначала пытаемся найти уже открытое свободное соединение
 		mxServer.findFreeSmtpServers(&targetSmtpClient)
@@ -268,6 +265,7 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 		} else {
 			mxServersIndex++
 		}
+		searchDuration = time.Now().Sub(event.CreateDate)
 	}
 	// если соединение не найдено, ругаемся, отменяем отправку письма
 	if targetSmtpClient == nil {
