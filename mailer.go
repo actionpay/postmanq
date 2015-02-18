@@ -492,6 +492,8 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 	buf.WriteString(body)
 	buf.WriteString(CRLF)
 	message.Body = buf.String()
+
+	Debug("\n\n++ prepared ++\n\n   %v   \n\n++++\n\n", message.Body)
 }
 
 // создает DKIM
@@ -504,8 +506,10 @@ func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
 		signed, err := signer.Sign([]byte(message.Body))
+		Debug("%v", message.Body)
 		if err == nil {
 			message.Body = string(signed)
+			Debug("\n\n-- signed --\n\n   %v   \n\n----\n\n", message.Body)
 		} else {
 			WarnWithErr(err)
 		}
