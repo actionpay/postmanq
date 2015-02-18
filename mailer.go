@@ -10,7 +10,8 @@ import (
 	"time"
 	"errors"
 	"bytes"
-	"github.com/eaigner/dkim"
+//	"github.com/eaigner/dkim"
+	"github.com/eaigner/opendkim"
 	"io/ioutil"
 	"sync/atomic"
 	"sync"
@@ -156,10 +157,10 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			FailExitWithErr(err)
 		}
 		// указываем заголовки для DKIM
-		dkim.StdSignableHeaders = make([]string, 0)
-		for key, _ := range defaultHeaders {
-			dkim.StdSignableHeaders = append(dkim.StdSignableHeaders, key)
-		}
+//		dkim.StdSignableHeaders = make([]string, 0)
+//		for key, _ := range defaultHeaders {
+//			dkim.StdSignableHeaders = append(dkim.StdSignableHeaders, key)
+//		}
 		// если не задан селектор, устанавливаем селектор по умолчанию
 		if len(this.DkimSelector) == 0 {
 			this.DkimSelector = "mail"
@@ -475,13 +476,13 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 
 	// собираем письмо заново
 	buf := new(bytes.Buffer)
-	for _, key := range dkim.StdSignableHeaders {
-		buf.WriteString(key)
-		buf.WriteString(": ")
-		buf.WriteString(preparedHeaders[key])
-		buf.WriteString(CRLF)
-		delete(preparedHeaders, key)
-	}
+//	for _, key := range dkim.StdSignableHeaders {
+//		buf.WriteString(key)
+//		buf.WriteString(": ")
+//		buf.WriteString(preparedHeaders[key])
+//		buf.WriteString(CRLF)
+//		delete(preparedHeaders, key)
+//	}
 	for key, value := range preparedHeaders {
 		buf.WriteString(key)
 		buf.WriteString(": ")
@@ -498,23 +499,54 @@ func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 
 // создает DKIM
 func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
-	conf, err := dkim.NewConf(message.HostnameFrom, this.dkimSelector)
-	if err != nil {
-		WarnWithErr(err)
-	}
-//	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
-	signer, err := dkim.New(conf, this.privateKey)
-	if err == nil {
-		signed, err := signer.Sign([]byte(message.Body))
-		if err == nil {
-			message.Body = string(signed)
-			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
+
+	lib := opendkim.Init()
+	defer lib.Close()
+
+	dkim, status := lib.NewSigner(
+		this.privateKey,
+		this.dkimSelector,
+		message.HostnameFrom,
+		opendkim.CanonRELAXED,
+		opendkim.CanonRELAXED,
+		opendkim.SignRSASHA1,
+		-1,
+	)
+	if status == opendkim.StatusOK {
+		if dkim == nil {
+			Warn("can't create dkim")
 		} else {
-			WarnWithErr(err)
+			signed, err := dkim.Sign(bytes.NewBuffer(message.Body))
+			if err == nil {
+				message.Body = string(signed)
+			} else {
+				WarnWithErr(err)
+			}
 		}
 	} else {
-		WarnWithErr(err)
+		Warn("dkim error status %v", status)
 	}
+
+
+
+//	conf, err := dkim.NewConf(message.HostnameFrom, this.dkimSelector)
+//	if err != nil {
+//		WarnWithErr(err)
+//	}
+//	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
+//	signer, err := dkim.New(conf, this.privateKey)
+//	if err == nil {
+//		signed, err := signer.Sign([]byte(message.Body))
+//		if err == nil {
+//			message.Body = string(signed)
+//			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
+//		} else {
+//			WarnWithErr(err)
+//		}
+//	} else {
+//		WarnWithErr(err)
+//	}
+
 }
 
 // отправляет письмо, если возникает ошибка при выполнении какой либо команды, возвращает письмо обратно в очередь
