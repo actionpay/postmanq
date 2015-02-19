@@ -346,8 +346,6 @@ type MailerApplication interface {
 	Channel() chan *SendEvent
 	// проверяет заголовки письма, при необходимости добавляет заголовки со значениями по умолчанию
 	PrepareMail(*MailMessage)
-	// создает DKIM
-	CreateDkim(*MailMessage)
 	// отправляет письмо
 	Send(*SendEvent)
 	// проверяет формат адресов отправителя и получателя
