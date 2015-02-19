@@ -242,7 +242,7 @@ type MailServer struct {
 func (this *MailServer) findSmtpClient(event *SendEvent) {
 	var targetSmtpClient *SmtpClient
 	mxServersIndex := 0
-	searchDuration := time.Now().Sub(event.CreateDate)
+	var searchDuration time.Duration = 0
 	// ищем соединение 5 секунд, пока не найдем первое свободное
 	for targetSmtpClient == nil && searchDuration <= RECEIVE_CONNECTION_TIMEOUT {
 		mxServer := this.mxServers[mxServersIndex]
@@ -268,7 +268,7 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 		searchDuration = time.Now().Sub(event.CreateDate)
 	}
 	// если соединение не найдено, ругаемся, отменяем отправку письма
-	if targetSmtpClient == nil && (targetSmtpClient != nil && targetSmtpClient.Worker == nil) {
+	if targetSmtpClient == nil || (targetSmtpClient != nil && targetSmtpClient.Worker == nil) {
 		event.DefaultPrevented = true
 		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't find free connection for mail#%d", event.Message.Id)))
 	} else {

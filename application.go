@@ -138,6 +138,7 @@ func (this *Application) finishServices() {
 	for _, service := range this.services {
 		service.OnFinish()
 	}
+	time.Sleep(2 * time.Second)
 	this.done <- true
 }
 

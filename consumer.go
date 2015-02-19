@@ -464,6 +464,18 @@ func (this *ConsumerApplication) consume(id int) {
 					delivery.Ack(true)
 					message = nil
 				} else {
+					err = channel.Publish(
+						this.binding.failBinding.Exchange,
+						this.binding.failBinding.Routing,
+						false,
+						false,
+						amqp.Publishing{
+							ContentType : "text/plain",
+							Body        : delivery.Body,
+							DeliveryMode: amqp.Transient,
+						},
+					)
+					delivery.Ack(true)
 					Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
 				}
 			}

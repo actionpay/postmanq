@@ -9,9 +9,7 @@ import (
 	"fmt"
 	"time"
 	"errors"
-	"bytes"
-	"github.com/eaigner/dkim"
-//	"github.com/eaigner/opendkim"
+	"github.com/byorty/dkim"
 	"io/ioutil"
 	"sync/atomic"
 	"sync"
@@ -157,10 +155,11 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			FailExitWithErr(err)
 		}
 		// указываем заголовки для DKIM
-//		dkim.StdSignableHeaders = make([]string, 0)
-//		for key, _ := range defaultHeaders {
-//			dkim.StdSignableHeaders = append(dkim.StdSignableHeaders, key)
-//		}
+		dkim.StdSignableHeaders = make([]string, 0)
+		for key, _ := range defaultHeaders {
+			dkim.StdSignableHeaders = append(dkim.StdSignableHeaders, key)
+		}
+
 		// если не задан селектор, устанавливаем селектор по умолчанию
 		if len(this.DkimSelector) == 0 {
 			this.DkimSelector = "mail"
@@ -258,10 +257,8 @@ func (this *Mailer) runApp(app MailerApplication) {
 	for event := range app.Channel() {
 		// если письмо имеет нормальные адреса отправителя и получателя
 		if app.IsValidMessage(event.Message) {
-			// проверяем заголовки письма, при необходимости добавляем заголовки со значениями по умолчанию
-			app.PrepareMail(event.Message)
 			// создаем DKIM
-			app.CreateDkim(event.Message)
+			app.PrepareMail(event.Message)
 			// отправляем письмо
 			app.Send(event)
 		}
@@ -436,123 +433,35 @@ func (this *BaseMailerApplication) IsValidMessage(message *MailMessage) bool {
 	return emailRegexp.MatchString(message.Envelope) && emailRegexp.MatchString(message.Recipient)
 }
 
-// проверяет заголовки письма, при необходимости добавляет заголовки со значениями по умолчанию
-func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
-	var head, body string
-	// пытаемся получить заголовок
-	parts := strings.SplitN(message.Body, CRLF + CRLF, 2);
-	// в письме есть и заголовок и тело
-	if len(parts) == 2 {
-		head = parts[0]
-		body = parts[1]
-	} else { // заголовок не нашелся
-		body = parts[0]
-	}
-	// подготовленные заголовки
-	preparedHeaders := make(map[string]string)
-	// сырые заголовки
-	rawHeaders := strings.Split(head, CRLF)
-	// проверяем сырые заголовки
-	for _, rawHeader := range rawHeaders {
-		var key, value string
-		rawHeaderParts := strings.Split(rawHeader, ":")
-		key = strings.TrimSpace(rawHeaderParts[0])
-		if len(rawHeaderParts) == 2 {
-			value = strings.TrimSpace(rawHeaderParts[1])
-		}
-		// если есть и ключ и значение
-		// делаем из сырового заголовка подготовленный
-		if len(key) > 0 && len(value) > 0 {
-			preparedHeaders[key] = value
-		}
-	}
-	// проверяем подготовленные заголовки
-	for key, fun := range defaultHeaders {
-		// если нет обязательного заголовка, добиваем значением по умолчанию
-		if _, ok := preparedHeaders[key]; !ok {
-			preparedHeaders[key] = fun(message)
-		}
-	}
-
-	// собираем письмо заново
-	buf := new(bytes.Buffer)
-//	for _, key := range dkim.StdSignableHeaders {
-//		buf.WriteString(key)
-//		buf.WriteString(": ")
-//		buf.WriteString(preparedHeaders[key])
-//		buf.WriteString(CRLF)
-//		delete(preparedHeaders, key)
-//	}
-	for key, value := range preparedHeaders {
-		buf.WriteString(key)
-		buf.WriteString(": ")
-		buf.WriteString(value)
-		buf.WriteString(CRLF)
-	}
-	buf.WriteString(CRLF)
-	buf.WriteString(body)
-	buf.WriteString(CRLF)
-	message.Body = buf.String()
-
-//	Debug("\n\n++ prepared ++\n\n%v\n\n++++\n\n", message.Body)
-}
-
 // создает DKIM
-func (this *BaseMailerApplication) CreateDkim(message *MailMessage) {
-
-//	lib := opendkim.Init()
-//	defer lib.Close()
-//
-//	dkim, status := lib.NewSigner(
-//		string(this.privateKey),
-//		this.dkimSelector,
-//		message.HostnameFrom,
-//		opendkim.CanonRELAXED,
-//		opendkim.CanonRELAXED,
-//		opendkim.SignRSASHA1,
-//		-1,
-//	)
-//	if status == opendkim.StatusOK {
-//		if dkim == nil {
-//			Warn("can't create dkim")
-//		} else {
-//			signed, err := dkim.Sign(bytes.NewBufferString(message.Body))
-//			if err == nil {
-//				message.Body = string(signed)
-//			} else {
-//				WarnWithErr(err)
-//			}
-//		}
-//	} else {
-//		Warn("dkim error status %v", status)
-//	}
-
-
-
+func (this *BaseMailerApplication) PrepareMail(message *MailMessage) {
 	conf, err := dkim.NewConf(message.HostnameFrom, this.dkimSelector)
 	if err != nil {
 		WarnWithErr(err)
 	}
+	conf[dkim.AUIDKey] = message.Envelope
 	conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
 	signer, err := dkim.New(conf, this.privateKey)
 	if err == nil {
 		signed, err := signer.Sign([]byte(message.Body))
 		if err == nil {
 			message.Body = string(signed)
-//			Debug("\n\n-- signed --\n\n%v\n\n----\n\n", message.Body)
 		} else {
 			WarnWithErr(err)
 		}
 	} else {
 		WarnWithErr(err)
 	}
-
 }
 
 // отправляет письмо, если возникает ошибка при выполнении какой либо команды, возвращает письмо обратно в очередь
 func (this *BaseMailerApplication) Send(event *SendEvent) {
 	event.Message.App = this
 	// передаем отправителю smtp клиента
+	if event.Client == nil {
+		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't create client for mailer#%d", this.id)))
+		return
+	}
 	worker := event.Client.Worker
 	Info("mailer#%d receive mail#%d", this.id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", this.id, event.Client.Id)
