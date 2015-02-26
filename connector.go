@@ -14,12 +14,15 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"math/rand"
+	"strconv"
 )
 
 const (
 	UNLIMITED_CONNECTION_COUNT = -1               // безлимитное количество соединений к почтовому сервису
 	CONNECTION_TIMEOUT         = 30 * time.Second // время ожидания неиспользуемого соединения
-	RECEIVE_CONNECTION_TIMEOUT = 5 * time.Second  // время ожидания получения соединения к почтовому сервису
+	CREATE_CONNECTION_TIMEOUT  = 5 * time.Second  // время ожидания для создания соединения к почтовому сервису
+	RECEIVE_CONNECTION_TIMEOUT = 3 * time.Second  // время ожидания для получения соединения к почтовому сервису
 )
 
 var (
@@ -36,6 +39,7 @@ type Connector struct {
 	PrivateKeyFilename string                 `yaml:"privateKey"`
 	// путь до файла с сертификатом
 	CertFilename       string                 `yaml:"certificate"`
+	Addresses          []*ConnectorAddress    `yaml:"mailers"`
 	// почтовые сервисы
 	mailServers        map[string]*MailServer
 	// семафор, необходим для создания и поиска соединений
@@ -232,6 +236,10 @@ func (this *Connector) lookupMxServers(hostname string) {
 	}
 }
 
+type ConnectorAddress struct {
+	URI string `yaml:"uri"`      // IP c портом
+}
+
 // почтовый сервис
 type MailServer struct {
 	mxServers []*MxServer // серверы почтового сервиса
@@ -243,7 +251,7 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 	var targetSmtpClient *SmtpClient
 	mxServersIndex := 0
 	var searchDuration time.Duration = 0
-	// ищем соединение 5 секунд, пока не найдем первое свободное
+	// ищем соединение 3 секунды, пока не найдем первое свободное
 	for targetSmtpClient == nil && searchDuration <= RECEIVE_CONNECTION_TIMEOUT {
 		mxServer := this.mxServers[mxServersIndex]
 		// сначала пытаемся найти уже открытое свободное соединение
@@ -255,6 +263,7 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 			// пытаемся создать новое TLS соединение
 			mxServer.createNewSmtpClient(event, &targetSmtpClient, mxServer.createTLSSmtpClient)
 			if targetSmtpClient != nil {
+				Debug("smtp client for %s not created", mxServer.hostname)
 				break
 			}
 		}
@@ -299,6 +308,7 @@ func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
 	for _, smtpClient := range this.clients {
 		if smtpClient.Status == SMTP_CLIENT_STATUS_WAITING {
 			smtpClient.modifyDate = time.Now()
+			smtpClient.connection.SetDeadline(smtpClient.modifyDate.Add(CONNECTION_TIMEOUT * 10))
 			smtpClient.Status = SMTP_CLIENT_STATUS_WORKING
 			(*targetSmtpClient) = smtpClient
 			Debug("found smtp client#%d", smtpClient.Id)
@@ -311,26 +321,56 @@ func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
 // создает новое TLS или обычное соединение
 func (this *MxServer) createNewSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, callback func(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client)) {
 	// создаем соединение
-	connection, err := net.Dial("tcp", net.JoinHostPort(this.hostname, "25"))
+	rand.Seed(time.Now().UnixNano())
+	addr := connector.Addresses[rand.Intn(len(connector.Addresses))]
+	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr.URI, this.getPort()))
 	if err == nil {
-		// создаем клиента
-		client, err := smtp.NewClient(connection, event.Message.HostnameFrom)
+		Debug("tcp address %s resolved", tcpAddr.String())
+		dialer := &net.Dialer{
+			Timeout: CREATE_CONNECTION_TIMEOUT,
+			LocalAddr: tcpAddr,
+		}
+		hostname := net.JoinHostPort(this.hostname, "25")
+		Debug("dialer dial to %s", hostname)
+		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
-			// здороваемся
-			err = client.Hello(event.Message.HostnameFrom)
+			Debug("dialer dial success to %s", hostname)
+			connection.SetDeadline(time.Now().Add(CREATE_CONNECTION_TIMEOUT))
+			// создаем клиента
+			client, err := smtp.NewClient(connection, event.Message.HostnameFrom)
 			if err == nil {
-				// создаем TLS или обычное соединение
-				callback(event, ptrSmtpClient, connection, client)
+				Debug("create client to %s", hostname)
+				connection.SetDeadline(time.Now().Add(CONNECTION_TIMEOUT * 10))
+				// здороваемся
+				err = client.Hello(event.Message.HostnameFrom)
+				if err == nil {
+					// создаем TLS или обычное соединение
+					callback(event, ptrSmtpClient, connection, client)
+				} else {
+					client.Quit()
+					this.updateMaxConnections(err)
+				}
 			} else {
-				client.Quit()
+				connection.Close()
 				this.updateMaxConnections(err)
 			}
 		} else {
-			connection.Close()
 			this.updateMaxConnections(err)
 		}
 	} else {
 		this.updateMaxConnections(err)
+	}
+}
+
+func (this *MxServer) getPort() string {
+	rand.Seed( time.Now().UTC().UnixNano())
+	min := 30000
+	max := 40000
+	port, err := net.LookupPort("tcp", strconv.Itoa(min + rand.Intn(max - min)))
+	if err == nil {
+		return strconv.Itoa(port)
+	} else {
+		return this.getPort()
 	}
 }
 

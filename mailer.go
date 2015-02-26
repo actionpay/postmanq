@@ -2,7 +2,6 @@ package postmanq
 
 import (
 	yaml "gopkg.in/yaml.v2"
-	"net/url"
 	"github.com/streadway/amqp"
 	"regexp"
 	"strings"
@@ -231,6 +230,7 @@ func (this *Mailer) showMailsPerMinute() {
 // запускает получение писем из очереди в отдельном потоке
 func (this *Mailer) listenMessages() {
 	for message := range this.messages {
+		Debug("receive message#%d from channel", message.Id)
 		// создает событие отправки письма и оповещает слушателей
 		go this.triggerSendEvent(message)
 	}
@@ -238,16 +238,18 @@ func (this *Mailer) listenMessages() {
 
 // создает событие отправки письма и оповещает слушателей
 func (this *Mailer) triggerSendEvent(message *MailMessage) {
+	Debug("create send event for message#%d", message.Id)
 	event := new(SendEvent)
 	event.DefaultPrevented = false
 	event.Message = message
 	event.CreateDate = time.Now()
-	for _, service := range this.sendServices {
+	for i, service := range this.sendServices {
 		if event.DefaultPrevented {
 			break
 		} else {
 			service.OnSend(event)
 		}
+		Debug("service#%d handle send event for message#%d", i, message.Id)
 	}
 	event = nil
 }
@@ -313,18 +315,17 @@ func ReturnMail(message *MailMessage, err error) {
 			message.Error = &MailError{strings.Join(parts[1:], " "), code}
 		}
 	}
+	if message.App == nil {
+		Warn("mail#%d sending error - %v", message.Id, err)
+	} else {
+		Warn("mailer#%d mail#%d sending error - %v", message.App.GetId(), message.Id, err)
+	}
 	// отпускаем поток получателя сообщений из очереди
 	message.Done <- false
-	if message.App == nil {
-		WarnWithErr(err)
-	} else {
-		Warn("mailer#%d error - %v", message.App.GetId(), err)
-	}
 }
 
 // настройки отправителя
 type MailerApplicationConfig struct {
-	URI      string        `yaml:"uri"`      // IP c портом
 	Handlers int           `yaml:"handlers"` // количество потоков, которые будут отправлять письма с одного IP
 }
 
@@ -364,7 +365,6 @@ type BaseMailerApplication struct {
 	messagesCounts map[string]int64
 	events         chan *SendEvent
 	config         *MailerApplicationConfig
-	uri            *url.URL
 	privateKey     []byte
 	hostname       string
 	dkimSelector   string
@@ -405,16 +405,9 @@ func (this *BaseMailerApplication) Channel() chan *SendEvent {
 
 //инициализирует отправителя
 func (this *BaseMailerApplication) Init(config *MailerApplicationConfig) {
-	var err error
 	this.config = config
 	this.messagesCounts = make(map[string]int64)
 	this.events = make(chan *SendEvent)
-	this.uri, err = url.Parse(config.URI)
-	if err == nil {
-		Debug("url parsed %v", this.uri)
-	} else {
-		FailExitWithErr(err)
-	}
 }
 
 // увеличивает количество отправленных писем по домену
