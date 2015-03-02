@@ -9,6 +9,7 @@ import (
 
 const (
 	EXAMPLE_CONFIG_YAML = "/path/to/config/file.yaml"
+	DEFAULT_WORKERS_COUNT = runtime.NumCPU()
 )
 
 var (
@@ -26,16 +27,10 @@ type InitEvent struct {
 // Из - за такого насыщенного функционала, было принято решение разбить программу на логические части - сервисы.
 // Сервис - это модуль программы, отвечающий за выполнение одной конкретной задачи, например логирование.
 // Сервис может сам выполнять эту задачу, либо управлять выполнением задачи.
-// Сервисы взаимодействуют через события.
 type Service interface {
 	OnInit(*InitEvent)
 	OnRun()
 	OnFinish()
-}
-
-// Сервис, участвующий в отправке письма.
-type SendService interface {
-	OnSend(*SendEvent)
 }
 
 // Событие отправки письма
@@ -89,16 +84,16 @@ func NewApplication() *Application {
 			NewMailer(),
 			NewConsumer(),
 		}
-		// создаем каналы для событий
-		app.events = make(chan *ApplicationEvent, 4)
-		// и ожидания окончания программы
-		app.done = make(chan bool)
 		// устанавливаем обработчики для событий
 		app.handlers = map[ApplicationEventKind]func(){
 			APPLICATION_EVENT_KIND_INIT    : app.initServices,
 			APPLICATION_EVENT_KIND_RUN     : app.runServices,
 			APPLICATION_EVENT_KIND_FINISH  : app.finishServices,
 		}
+		// создаем каналы для событий
+		app.events = make(chan *ApplicationEvent, len(app.handlers))
+		// и ожидания окончания программы
+		app.done = make(chan bool)
 	}
 	return app
 }
@@ -119,7 +114,7 @@ func (this *Application) initServices() {
 			}
 			this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_RUN)
 		} else {
-			FailExitWithErr(err)
+			FailExit("can't read configuration file, error -  %v", err)
 		}
 	} else {
 		FailExit("configuration file not found")
@@ -144,7 +139,7 @@ func (this *Application) finishServices() {
 
 // запускает и контролирует работу всего приложения
 func (this *Application) Run() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(DEFAULT_WORKERS_COUNT)
 	go func() {
 		for {
 			select {

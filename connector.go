@@ -16,13 +16,20 @@ import (
 	"regexp"
 	"math/rand"
 	"strconv"
+	"strings"
 )
 
 const (
-	UNLIMITED_CONNECTION_COUNT = -1               // безлимитное количество соединений к почтовому сервису
-	CONNECTION_TIMEOUT         = 30 * time.Second // время ожидания неиспользуемого соединения
-	CREATE_CONNECTION_TIMEOUT  = 5 * time.Second  // время ожидания для создания соединения к почтовому сервису
-	RECEIVE_CONNECTION_TIMEOUT = 3 * time.Second  // время ожидания для получения соединения к почтовому сервису
+	MIN_PORT = 30000
+	MAX_PORT = 50000
+	UNLIMITED_CONNECTION_COUNT = -1                     // безлимитное количество соединений к почтовому сервису
+	RECEIVE_CONNECTION_TIMEOUT = 10 * time.Second       // время ожидания для получения соединения к почтовому сервису
+	SLEEP_TIMEOUT              = 100 * time.Millisecond
+	HELLO_TIMEOUT              = 5 * time.Minute
+	MAIL_TIMEOUT               = 5 * time.Minute
+	RCPT_TIMEOUT               = 5 * time.Minute
+	DATA_TIMEOUT               = 10 * time.Minute
+	WAITING_TIMEOUT            = 30 * time.Second
 )
 
 var (
@@ -35,11 +42,14 @@ var (
 // Если доверить управление подключениями отправляющим потокам, тогда это затруднит общее управление подключениями.
 // Поэтому создание подключений и предоставление имеющихся подключений отправляющим потокам вынесено в отдельный сервис.
 type Connector struct {
+	ConnectorsCount    int                    `yaml:"workers"`
 	// путь до файла с закрытым ключом
 	PrivateKeyFilename string                 `yaml:"privateKey"`
 	// путь до файла с сертификатом
 	CertFilename       string                 `yaml:"certificate"`
-	Addresses          []*ConnectorAddress    `yaml:"mailers"`
+	// ip с которых будем рассылать письма
+	Addresses          []string               `yaml:"ips"`
+	addressesLen       int
 	// почтовые сервисы
 	mailServers        map[string]*MailServer
 	// семафор, необходим для создания и поиска соединений
@@ -52,6 +62,7 @@ type Connector struct {
 	certBytes          []byte
 	// длина сертификата
 	certBytesLen       int
+	events             chan *SendEvent
 }
 
 // создает новый сервис соединений
@@ -64,8 +75,7 @@ func NewConnector() *Connector {
 		// создаем таймер
 		connector.ticker = time.NewTicker(11 * time.Second)
 		connector.certBytes = []byte{}
-		// запускаем проверку открытых соединений
-		go connector.checkConnections()
+		connector.events = make(chan *SendEvent)
 	}
 	return connector
 }
@@ -73,14 +83,12 @@ func NewConnector() *Connector {
 // по срабатыванию таймера, просматривает все соединения к почтовым сервисам
 // и закрывает те, которые висят дольше 30 секунд
 func (this *Connector) checkConnections() {
-	Debug("check opened smtp connections...")
 	for now := range this.ticker.C {
 		go this.closeConnections(now)
 	}
 }
 
 func (this *Connector) closeConnections(now time.Time) {
-	Debug("check opened smtp connections...")
 	for _, mailServer := range this.mailServers {
 		// закрываем соединения к каждого почтового сервиса
 		go mailServer.closeConnections(now)
@@ -101,63 +109,112 @@ func (this *Connector) OnInit(event *InitEvent) {
 				// и считаем его длину, чтобы не делать это при создании каждого сертификата
 				this.certBytesLen = len(this.certBytes)
 			} else {
-				FailExitWithErr(err)
+				FailExit("connector can't read certificate, error - %v", err)
 			}
 		} else {
 			Debug("certificate is not defined")
 		}
+		this.addressesLen = len(this.Addresses)
+		if this.addressesLen == 0 {
+			FailExit("ips should be defined")
+		}
+		if this.ConnectorsCount == 0 {
+			this.ConnectorsCount = DEFAULT_WORKERS_COUNT
+		}
 	} else {
-		FailExitWithErr(err)
+		FailExit("connector can't unmarshal config, error - %v", err)
 	}
 }
 
-func (this *Connector) OnRun() {}
-
-// завершает работу сервиса соединений
-func (this *Connector) OnFinish() {
-	// останавливаем таймер
-	this.ticker.Stop()
-	// закрываем все соединения
-	this.closeConnections(time.Now().Add(time.Minute))
+func (this *Connector) OnRun() {
+	// запускаем проверку открытых соединений
+	go connector.checkConnections()
+	for i := 0;i < this.ConnectorsCount; i++ {
+		go this.createConnections(i + 1)
+	}
 }
 
-// при отправке письма ищет созданное подключение для отправке письма или создает новое
-func (this *Connector) OnSend(event *SendEvent) {
-	this.mutex.Lock()
+func (this *Connector) createConnections(id int) {
+	for event := range this.events {
+		this.doConnection(id, event)
+	}
+}
+
+func (this *Connector) doConnection(id int, event *SendEvent) {
+	Debug("connector#%d open connection for mail#%d", id, event.Message.Id)
 	if this.certPool != nil {
 		event.CertPool = this.certPool
 	}
 	// передаем событию сертификат и его длину
 	event.CertBytes = this.certBytes
 	event.CertBytesLen = this.certBytesLen
-	hostname := event.Message.HostnameTo
+
 	// если это новый почтовый сервис, собираем информацию о его серверах
-	if _, ok := this.mailServers[hostname]; !ok {
-		this.lookupMxServers(hostname)
-	}
-	// пытаемся найти свободное подключения для отправки письма
-	if mailServer, ok := this.mailServers[hostname]; ok {
-		mailServer.findSmtpClient(event)
+	this.mutex.Lock()
+	if _, ok := this.mailServers[event.Message.HostnameTo]; !ok {
+		Debug("connector#%d create mail server for %s", id, event.Message.HostnameTo)
+		this.mailServers[event.Message.HostnameTo] = &MailServer{
+			status: MAIL_SERVER_LOOKUP,
+			connectorId: id,
+		}
 	}
 	this.mutex.Unlock()
+	goto connectToMailServer
+
+connectToMailServer:
+	mailServer := this.mailServers[event.Message.HostnameTo]
+	switch mailServer.status {
+	case MAIL_SERVER_LOOKUP:
+		if mailServer.connectorId == id {
+			Debug("connector#%d look up mail server %s", id, event.Message.HostnameTo)
+			this.lookupMxServers(id, event.Message.HostnameTo)
+			goto connectToMailServer
+		} else {
+			goto waitLookup
+		}
+		return
+	case MAIL_SERVER_SUCCESS:
+		mailServer.findSmtpClient(id, event)
+		if event.Client == nil || (event.Client != nil && event.Client.Worker == nil) {
+			ReturnMail(event.Message, errors.New(fmt.Sprintf("511 connector#%d can't find free connection", id, event.Message.Id)))
+		} else {
+			mailer.events <- event
+		}
+		return
+	case MAIL_SERVER_ERROR:
+		ReturnMail(
+			event.Message,
+			errors.New(fmt.Sprintf("511 connector#%d can't lookup %s", id, event.Message.HostnameTo, event.Message.Id)),
+		)
+		return
+	}
+
+waitLookup:
+	Debug("connector#%d wait ending look up mail server %s...", id, event.Message.HostnameTo)
+	time.Sleep(SLEEP_TIMEOUT)
+	goto connectToMailServer
+}
+
+// завершает работу сервиса соединений
+func (this *Connector) OnFinish() {
+	close(this.events)
+	// останавливаем таймер
+	this.ticker.Stop()
+	// закрываем все соединения
+	this.closeConnections(time.Now().Add(time.Minute))
 }
 
 // собирает информацию о серверах почтового сервиса
-func (this *Connector) lookupMxServers(hostname string) {
-	Debug("lookup mx domains for %s...", hostname)
+func (this *Connector) lookupMxServers(id int, hostname string) {
+	Debug("connector#%d look up mx domains for %s...", id, hostname)
+	mailServer := this.mailServers[hostname]
 	// ищем почтовые сервера для домена
 	mxs, err := net.LookupMX(hostname)
 	if err == nil {
-		mailServer := new(MailServer)
 		mailServer.mxServers = make([]*MxServer, len(mxs))
 		for i, mx := range mxs {
-			mxHostname := mx.Host
-			mxHostnameLen := len(mxHostname)
-			// домен получаем с точкой на конце, убираем ее
-			if mxHostname[mxHostnameLen - 1:mxHostnameLen] == "." {
-				mxHostname = mxHostname[:mxHostnameLen - 1]
-			}
-			Debug("lookup mx domain %s for %s", mxHostname, hostname)
+			mxHostname := strings.TrimRight(mx.Host, ".")
+			Debug("connector#%d look up mx domain %s for %s", id, mxHostname, hostname)
 			mxServer := new(MxServer)
 			mxServer.hostname = mxHostname
 			// по умолчанию создаем с безлимитным количеством соединений, т.к. мы не знаем заранее об ограничениях почтовых сервисов
@@ -173,7 +230,7 @@ func (this *Connector) lookupMxServers(hostname string) {
 					// берем только IPv4
 					ip = ip.To4()
 					if ip != nil {
-						Debug("lookup mx ip %s for %s", ip.String(), hostname)
+						Debug("connector#%d look up ip %s for %s", id, ip.String(), mxHostname)
 						existsIpsLen := len(mxServer.ips)
 						index := sort.Search(existsIpsLen, func(i int) bool {
 							return mxServer.ips[i].Equal(ip)
@@ -193,14 +250,11 @@ func (this *Connector) lookupMxServers(hostname string) {
 					addrs, err := net.LookupAddr(ip.String())
 					if err == nil {
 						for _, addr := range addrs {
-							addrLen := len(addr)
 							// адрес получаем с точкой на конце, убираем ее
-							if addr[addrLen - 1:addrLen] == "." {
-								addr = addr[:addrLen - 1]
-							}
+							addr = strings.TrimRight(addr, ".")
 							// отсекаем адрес, если это IP
 							if net.ParseIP(addr) == nil {
-								Debug("lookup addr %s for ip %s", addr, ip.String())
+								Debug("connector#%d look up addr %s for ip %s", id, addr, ip.String())
 								if len(mxServer.realServerName) == 0 {
 									// пытаем найти домен почтового сервера в домене почты
 									hostnameMatched, _ := regexp.MatchString(hostname, mxServer.hostname)
@@ -217,53 +271,62 @@ func (this *Connector) lookupMxServers(hostname string) {
 							}
 						}
 					} else {
-						WarnWithErr(err)
+						Warn("connector#%d can't look up addr for ip %s", id, ip.String())
 					}
 				}
 			} else {
-				WarnWithErr(err)
+				Warn("connector#%d can't look up ips for mx %s", id, mxHostname)
 			}
 			if len(mxServer.realServerName) == 0 { // если безвыходная ситуация
 				mxServer.realServerName = mxServer.hostname
 			}
-			Debug("real server name %s", mxServer.realServerName)
+			Debug("connector#%d look up detect real server name %s", id, mxServer.realServerName)
 			mailServer.mxServers[i] = mxServer
 		}
 		mailServer.lastIndex = len(mailServer.mxServers) - 1
-		this.mailServers[hostname] = mailServer
+		mailServer.status = MAIL_SERVER_SUCCESS
+		Debug("connector#%d look up %s success", id, hostname)
 	} else {
-		WarnWithErr(err)
+		mailServer.status = MAIL_SERVER_ERROR
+		Warn("connector#%d can't look up mx domains for %s", id, hostname)
 	}
 }
 
-type ConnectorAddress struct {
-	URI string `yaml:"uri"`      // IP c портом
-}
+type MailServerStatus int
+
+const (
+	MAIL_SERVER_LOOKUP MailServerStatus = iota
+	MAIL_SERVER_SUCCESS
+	MAIL_SERVER_ERROR
+)
 
 // почтовый сервис
 type MailServer struct {
-	mxServers []*MxServer // серверы почтового сервиса
-	lastIndex int         //
+	mxServers   []*MxServer      // серверы почтового сервиса
+	lastIndex   int              // индекс последнего почтового сервиса
+	connectorId int              // номер потока, собирающего информацию о почтовом сервисе
+	status      MailServerStatus // статус, говорящий о том, собранали ли информация о почтовом сервисе
 }
 
 // ищет свободное для отправки соединение
-func (this *MailServer) findSmtpClient(event *SendEvent) {
+func (this *MailServer) findSmtpClient(id int, event *SendEvent) {
+	Debug("connector#%d find free connection for mail#%d", id, event.Message.Id)
 	var targetSmtpClient *SmtpClient
 	mxServersIndex := 0
 	var searchDuration time.Duration = 0
-	// ищем соединение 3 секунды, пока не найдем первое свободное
+	// ищем соединение 10 секунд, пока не найдем первое свободное
 	for targetSmtpClient == nil && searchDuration <= RECEIVE_CONNECTION_TIMEOUT {
 		mxServer := this.mxServers[mxServersIndex]
 		// сначала пытаемся найти уже открытое свободное соединение
-		mxServer.findFreeSmtpServers(&targetSmtpClient)
+		mxServer.findFreeSmtpServers(id, &targetSmtpClient)
 		// если нет свободных соединений и мы не знаем, есть ли ограничение на количество соединений
 		// пытаемся открыть новое соединение к почтовому сервису
 		if targetSmtpClient == nil && mxServer.maxConnections == UNLIMITED_CONNECTION_COUNT {
-			Debug("create smtp client for %s", mxServer.hostname)
+			Debug("connector#%d not found free connection for mail#%d, create new connection", id, event.Message.Id)
 			// пытаемся создать новое TLS соединение
-			mxServer.createNewSmtpClient(event, &targetSmtpClient, mxServer.createTLSSmtpClient)
+			mxServer.createNewSmtpClient(id, event, &targetSmtpClient, mxServer.createTLSSmtpClient)
 			if targetSmtpClient != nil {
-				Debug("smtp client for %s not created", mxServer.hostname)
+				Debug("connector#%d can't create connection for mail#%d", id, event.Message.Id)
 				break
 			}
 		}
@@ -276,13 +339,7 @@ func (this *MailServer) findSmtpClient(event *SendEvent) {
 		}
 		searchDuration = time.Now().Sub(event.CreateDate)
 	}
-	// если соединение не найдено, ругаемся, отменяем отправку письма
-	if targetSmtpClient == nil || (targetSmtpClient != nil && targetSmtpClient.Worker == nil) {
-		event.DefaultPrevented = true
-		ReturnMail(event.Message, errors.New(fmt.Sprintf("can't find free connection for mail#%d", event.Message.Id)))
-	} else {
-		event.Client = targetSmtpClient
-	}
+	event.Client = targetSmtpClient
 }
 
 // закрывает соединения почтового сервиса
@@ -303,70 +360,69 @@ type MxServer struct {
 }
 
 // ищет свободное соединение
-func (this *MxServer) findFreeSmtpServers(targetSmtpClient **SmtpClient) {
-	Debug("search free smtp clients for %s...", this.hostname)
+func (this *MxServer) findFreeSmtpServers(id int, targetSmtpClient **SmtpClient) {
 	for _, smtpClient := range this.clients {
 		if smtpClient.Status == SMTP_CLIENT_STATUS_WAITING {
-			smtpClient.modifyDate = time.Now()
-			smtpClient.connection.SetDeadline(smtpClient.modifyDate.Add(CONNECTION_TIMEOUT * 10))
+			smtpClient.SetTimeout(MAIL_TIMEOUT)
 			smtpClient.Status = SMTP_CLIENT_STATUS_WORKING
 			(*targetSmtpClient) = smtpClient
-			Debug("found smtp client#%d", smtpClient.Id)
+			Debug("connector%d found smtp client#%d", id, smtpClient.Id)
 			break
 		}
 	}
-	Debug("free smtp clients not found for %s", this.hostname)
 }
 
 // создает новое TLS или обычное соединение
-func (this *MxServer) createNewSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, callback func(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client)) {
+func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClient **SmtpClient, callback func(id int, event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client)) {
 	// создаем соединение
 	rand.Seed(time.Now().UnixNano())
-	addr := connector.Addresses[rand.Intn(len(connector.Addresses))]
-	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr.URI, this.getPort()))
+	addr := connector.Addresses[rand.Intn(connector.addressesLen)]
+	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr, this.getPort()))
 	if err == nil {
-		Debug("tcp address %s resolved", tcpAddr.String())
+		Debug("connector#%d resolve tcp address %s", id, tcpAddr.String())
 		dialer := &net.Dialer{
-			Timeout: CREATE_CONNECTION_TIMEOUT,
+			Timeout: HELLO_TIMEOUT,
 			LocalAddr: tcpAddr,
 		}
 		hostname := net.JoinHostPort(this.hostname, "25")
-		Debug("dialer dial to %s", hostname)
+		Debug("connector#%d dial to %s", id, hostname)
 		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
-			Debug("dialer dial success to %s", hostname)
-			connection.SetDeadline(time.Now().Add(CREATE_CONNECTION_TIMEOUT))
+			Debug("connector#%d dialed to %s", id, hostname)
+			connection.SetDeadline(time.Now().Add(HELLO_TIMEOUT))
 			// создаем клиента
+			Debug("connector#%d create client to %s", id, event.Message.HostnameFrom)
 			client, err := smtp.NewClient(connection, event.Message.HostnameFrom)
 			if err == nil {
-				Debug("create client to %s", hostname)
-				connection.SetDeadline(time.Now().Add(CONNECTION_TIMEOUT * 10))
+				Debug("connector#%d created client to %s", id, event.Message.HostnameFrom)
 				// здороваемся
 				err = client.Hello(event.Message.HostnameFrom)
 				if err == nil {
 					// создаем TLS или обычное соединение
-					callback(event, ptrSmtpClient, connection, client)
+					if this.useTLS {
+						this.useTLS, _ = client.Extension("STARTTLS")
+					}
+					Debug("connector#%d use TLS %v", id, this.useTLS)
+					callback(id, event, ptrSmtpClient, connection, client)
 				} else {
 					client.Quit()
-					this.updateMaxConnections(err)
+					this.updateMaxConnections(id, err)
 				}
 			} else {
 				connection.Close()
-				this.updateMaxConnections(err)
+				this.updateMaxConnections(id, err)
 			}
 		} else {
-			this.updateMaxConnections(err)
+			this.updateMaxConnections(id, err)
 		}
 	} else {
-		this.updateMaxConnections(err)
+		this.updateMaxConnections(id, err)
 	}
 }
 
 func (this *MxServer) getPort() string {
 	rand.Seed( time.Now().UTC().UnixNano())
-	min := 30000
-	max := 40000
-	port, err := net.LookupPort("tcp", strconv.Itoa(min + rand.Intn(max - min)))
+	port, err := net.LookupPort("tcp", strconv.Itoa(MIN_PORT + rand.Intn(MAX_PORT - MIN_PORT)))
 	if err == nil {
 		return strconv.Itoa(port)
 	} else {
@@ -375,7 +431,7 @@ func (this *MxServer) getPort() string {
 }
 
 // создает новое TLS соединение к почтовому серверу
-func (this *MxServer) createTLSSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
+func (this *MxServer) createTLSSmtpClient(id int, event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
 	// если есть какие данные о сертификате и к серверу можно создать TLS соединение
 	if event.CertBytesLen > 0 && this.useTLS {
 		pool := x509.NewCertPool()
@@ -392,7 +448,7 @@ func (this *MxServer) createTLSSmtpClient(event *SendEvent, ptrSmtpClient **Smtp
 			})
 			// если все нормально, создаем клиента
 			if err == nil {
-				this.createSmtpClient(ptrSmtpClient, connection, client)
+				this.createSmtpClient(id, ptrSmtpClient, connection, client)
 			} else { // если не удалось создать TLS соединение
 				// говорим, что не надо больше создавать TLS соединение
 				this.dontUseTLS(err)
@@ -401,24 +457,24 @@ func (this *MxServer) createTLSSmtpClient(event *SendEvent, ptrSmtpClient **Smtp
 				// после неудачной попытке создать TLS соединение
 				client.Quit()
 				// создаем обычное соединие
-				this.createNewSmtpClient(event, ptrSmtpClient, this.createPlainSmtpClient)
+				this.createNewSmtpClient(id, event, ptrSmtpClient, this.createPlainSmtpClient)
 			}
 		} else {
 			this.dontUseTLS(err)
-			this.createSmtpClient(ptrSmtpClient, connection, client)
+			this.createPlainSmtpClient(id, event, ptrSmtpClient, connection, client)
 		}
 	} else {
-		this.createSmtpClient(ptrSmtpClient, connection, client)
+		this.createPlainSmtpClient(id, event, ptrSmtpClient, connection, client)
 	}
 }
 
 // создает новое соединие к почтовому серверу
-func (this *MxServer) createPlainSmtpClient(event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
-	this.createSmtpClient(ptrSmtpClient, connection, client)
+func (this *MxServer) createPlainSmtpClient(id int, event *SendEvent, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
+	this.createSmtpClient(id, ptrSmtpClient, connection, client)
 }
 
 // создает нового клиента почтового сервера
-func (this *MxServer) createSmtpClient(ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
+func (this *MxServer) createSmtpClient(id int, ptrSmtpClient **SmtpClient, connection net.Conn, client *smtp.Client) {
 	(*ptrSmtpClient) = new(SmtpClient)
 	(*ptrSmtpClient).Id = len(this.clients) + 1
 	(*ptrSmtpClient).connection = connection
@@ -426,22 +482,21 @@ func (this *MxServer) createSmtpClient(ptrSmtpClient **SmtpClient, connection ne
 	(*ptrSmtpClient).modifyDate = time.Now()
 	(*ptrSmtpClient).Status = SMTP_CLIENT_STATUS_WORKING
 	this.clients = append(this.clients, (*ptrSmtpClient))
-	Debug("smtp client#%d created for %s", (*ptrSmtpClient).Id, this.hostname)
+	Debug("connector#%d create smtp client#%d for %s", id, (*ptrSmtpClient).Id, this.hostname)
 }
 
 // обновляет количество максимальных соединений
 // пишет в лог количество максимальных соединений и ошибку, возникшую при попытке открыть новое соединение
-func (this *MxServer) updateMaxConnections(err error) {
+func (this *MxServer) updateMaxConnections(id int, err error) {
 	this.maxConnections = len(this.clients)
-	Debug("max %d smtp clients for %s, wait...", this.maxConnections, this.hostname)
-	WarnWithErr(err)
+	Warn("connector#%d detect max %d open connections for %s, error - %v", id, this.maxConnections, this.hostname, err)
 }
 
 // закрывает свои собственные соединения
 func (this *MxServer) closeConnections(now time.Time) {
 	for i, smtpClient := range this.clients {
 		// если соединение свободно и висит в таком статусе дольше 30 секунд, закрываем соединение
-		if smtpClient.Status == SMTP_CLIENT_STATUS_WAITING && now.Sub(smtpClient.modifyDate) >= CONNECTION_TIMEOUT {
+		if smtpClient.Status == SMTP_CLIENT_STATUS_WAITING && now.Sub(smtpClient.modifyDate) >= WAITING_TIMEOUT {
 			smtpClient.Status = SMTP_CLIENT_STATUS_DISCONNECTED
 			err := smtpClient.Worker.Close()
 			if err != nil {
@@ -485,4 +540,9 @@ type SmtpClient struct {
 	Worker     *smtp.Client     // реальный smtp клиент
 	modifyDate time.Time        // дата создания или изменения статуса клиента
 	Status     SmtpClientStatus // статус
+}
+
+func (this *SmtpClient) SetTimeout(timeout time.Duration) {
+	this.modifyDate = time.Now()
+	this.connection.SetDeadline(this.modifyDate.Add(timeout))
 }

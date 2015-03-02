@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"runtime"
 )
 
 const (
@@ -57,9 +58,8 @@ var (
 		DELAYED_BINDING_MINUTE     : DELAYED_BINDING_TEN_MINUTES,
 		DELAYED_BINDING_TEN_MINUTES: DELAYED_BINDING_HOUR,
 		DELAYED_BINDING_HOUR       : DELAYED_BINDING_SIX_HOURS,
+		DELAYED_BINDING_SIX_HOURS  : DELAYED_BINDING_UNKNOWN,
 	}
-
-	consumerHandlers int
 )
 
 // сервис, отвечающий за объявление очередей и получение писем из очереди
@@ -101,9 +101,9 @@ func (this *Consumer) OnInit(event *InitEvent) {
 							binding.Exchange = binding.Name
 							binding.Queue = binding.Name
 						}
-						// по умолчанию очередь разбирает один поток
+						// по умолчанию очередь разбирают столько рутин сколько ядер
 						if binding.Handlers == 0 {
-							binding.Handlers = 1
+							binding.Handlers = DEFAULT_WORKERS_COUNT
 						}
 
 						// объявляем очередь
@@ -129,7 +129,6 @@ func (this *Consumer) OnInit(event *InitEvent) {
 						appsCount++
 						app := NewConsumerApplication(appsCount, connect, binding, event.MailersCount)
 						apps[i] = app
-						consumerHandlers += binding.Handlers
 						Debug("create consumer app#%d", app.id)
 					}
 					this.connections[appConfig.URI] = connect
@@ -137,14 +136,14 @@ func (this *Consumer) OnInit(event *InitEvent) {
 					// слушаем закрытие соединения
 					this.reconnect(connect, appConfig)
 				} else {
-					FailExitWithErr(err)
+					FailExit("consumer can't get channel to %s, error - %v", appConfig.URI, err)
 				}
 			} else {
-				FailExitWithErr(err)
+				FailExit("consumer can't connect to %s, error - %v", appConfig.URI, err)
 			}
 		}
 	} else {
-		FailExitWithErr(err)
+		FailExit("consumer can't unmarshal config, error - %v", err)
 	}
 }
 
@@ -163,7 +162,7 @@ func (this *Consumer) declare(channel *amqp.Channel, binding *Binding) {
 	if err == nil {
 		Debug("declared exchange - %s", binding.Exchange)
 	} else {
-		FailExitWithErr(err)
+		FailExit("consumer can't declare exchange %s, error - %v", binding.Exchange, err)
 	}
 
 	Debug("declaring queue - %s", binding.Queue)
@@ -178,7 +177,7 @@ func (this *Consumer) declare(channel *amqp.Channel, binding *Binding) {
 	if err == nil {
 		Debug("declared queue - %s", binding.Queue)
 	} else {
-		FailExitWithErr(err)
+		FailExit("consumer can't declare queue %s, error - %v", binding.Queue, err)
 	}
 
 	Debug("binding to exchange key - \"%s\"", binding.Routing)
@@ -192,7 +191,7 @@ func (this *Consumer) declare(channel *amqp.Channel, binding *Binding) {
 	if err == nil {
 		Debug("queue %s bind to exchange %s", binding.Queue, binding.Exchange)
 	} else {
-		FailExitWithErr(err)
+		FailExit("consumer can't bind queue %s to exchange %s, error - %v", binding.Queue, binding.Exchange, err)
 	}
 }
 
@@ -205,8 +204,7 @@ func (this *Consumer) reconnect(connect *amqp.Connection, appConfig *ConsumerApp
 // слушает закрытие соединения
 func (this *Consumer) notifyCloseError(appConfig *ConsumerApplicationConfig, closeErrors chan *amqp.Error) {
 	for closeError := range closeErrors {
-		WarnWithErr(closeError)
-		Debug("close connection %s, restart...", appConfig.URI)
+		Warn("close connection %s with error - %v, restart...", appConfig.URI, closeError)
 		connect, err := amqp.Dial(appConfig.URI)
 		if err == nil {
 			this.connections[appConfig.URI] = connect
@@ -217,8 +215,9 @@ func (this *Consumer) notifyCloseError(appConfig *ConsumerApplicationConfig, clo
 				}
 				this.reconnect(connect, appConfig)
 			}
+			Debug("consumer reconnected to amqp server %s", appConfig.URI)
 		} else {
-//			FailExitWithErr(err)
+			Warn("consumer can't reconnected to amqp server %s with error - %v", appConfig.URI, err)
 		}
 	}
 }
@@ -265,7 +264,7 @@ type Binding struct {
 	QueueArgs       amqp.Table                                        // аргументы очереди
 	Type            ExchangeType 					`yaml:"type"`     // тип точки обмена
 	Routing         string       					`yaml:"routing"`  // ключ маршрутизации
-	Handlers        int                             `yaml:"handlers"` // количество потоков, разбирающих очередь
+	Handlers        int                             `yaml:"workers"`  // количество потоков, разбирающих очередь
 	delayedBindings map[DelayedBindingType]*Binding                   // отложенные очереди
 	failBinding     *Binding                                          // очередь для 500-ых ошибок
 }
@@ -308,14 +307,10 @@ func (this *ConsumerApplication) Run() {
 // получает сообщения из очереди
 func (this *ConsumerApplication) consume(id int) {
 	channel, err := this.connect.Channel()
-	prefetchCount := 1
-	if this.mailersCount > consumerHandlers {
-		prefetchCount = (this.mailersCount / consumerHandlers) * 3
-	}
-	// выбираем из очереди больше сообщений чем на самом деле есть отправителей
+	// выбираем из очереди сообщения с запасом
 	// это нужно для того, чтобы после отправки письма новое уже было готово к отправке
-	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в оперативку
-	channel.Qos(prefetchCount, 0, false)
+	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
+	channel.Qos(this.binding.Handlers * 2, 0, false)
 	deliveries, err := channel.Consume(
 		this.binding.Queue,    // name
 		"",                    // consumerTag,
@@ -396,14 +391,13 @@ func (this *ConsumerApplication) consume(id int) {
 									if err == nil {
 										Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
 									} else {
-										Debug("can't publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
-										WarnWithErr(err)
+										Warn("can't publish fail mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
 									}
 								} else {
-									WarnWithErr(err)
+									Warn("can't marshal mail#%d to json", message.Id)
 								}
 							} else {
-								Warn("unknow delayed type %v", bindingType)
+								Warn("unknow delayed type %v for mail#%d", bindingType, message.Id)
 							}
 						} else {
 							// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
@@ -481,6 +475,6 @@ func (this *ConsumerApplication) consume(id int) {
 			}
 		}()
 	} else {
-		FailExitWithErr(err)
+		Warn("consumer app#%d, handler#%d can't consume queue %s", this.id, id, this.binding.Queue)
 	}
 }
