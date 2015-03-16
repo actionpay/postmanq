@@ -75,7 +75,7 @@ type Logger struct {
 }
 
 // создает новый сервис логирования
-func NewLogger() *Logger {
+func LoggerOnce() *Logger {
 	if logger == nil {
 		logger = new(Logger)
 		// инициализируем сервис с настройками по умолчанию
@@ -84,7 +84,6 @@ func NewLogger() *Logger {
 		logger.initWriter()
 		// запускаем запись логов в отдельном потоке
 		go logger.write()
-
 	}
 	return logger
 }
@@ -109,7 +108,7 @@ func (this *Logger) OnRun() {}
 
 // закрывает канал логирования
 func (this *Logger) OnFinish() {
-//	close(this.messages)
+	close(this.messages)
 }
 
 // пишет логи в вывод в отдельном потоке

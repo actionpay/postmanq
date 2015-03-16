@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-	"runtime"
+	"sync"
 )
 
 const (
@@ -19,9 +19,14 @@ type DelayedBindingType int
 const (
 	DELAYED_BINDING_UNKNOWN     DelayedBindingType = iota
 	DELAYED_BINDING_SECOND
+	DELAYED_BINDING_THIRTY_SECOND
 	DELAYED_BINDING_MINUTE
+	DELAYED_BINDING_FIVE_MINUTES
 	DELAYED_BINDING_TEN_MINUTES
+	DELAYED_BINDING_TWENTY_MINUTES
 	DELAYED_BINDING_THIRTY_MINUTES
+	DELAYED_BINDING_FORTY_MINUTES
+	DELAYED_BINDING_FYFTY_MINUTES
 	DELAYED_BINDING_HOUR
 	DELAYED_BINDING_SIX_HOURS
 	DELAYED_BINDING_DAY
@@ -31,13 +36,18 @@ var (
 	// отложенные очереди вообще
 	// письмо отправляется повторно при возниковении ошибки во время отправки
 	delayedBindings = map[DelayedBindingType]*Binding {
-		DELAYED_BINDING_SECOND        : &Binding{Name: "%s.dlx.second",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
-		DELAYED_BINDING_MINUTE        : &Binding{Name: "%s.dlx.minute",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
-		DELAYED_BINDING_TEN_MINUTES   : &Binding{Name: "%s.dlx.ten.minutes",    QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
-		DELAYED_BINDING_THIRTY_MINUTES: &Binding{Name: "%s.dlx.thirty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 30).Seconds()) * 1000}},
-		DELAYED_BINDING_HOUR          : &Binding{Name: "%s.dlx.hour",           QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
-		DELAYED_BINDING_SIX_HOURS     : &Binding{Name: "%s.dlx.six.hours",      QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
-		DELAYED_BINDING_DAY           : &Binding{Name: "%s.dlx.day",            QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
+		DELAYED_BINDING_SECOND         : &Binding{Name: "%s.dlx.second",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
+		DELAYED_BINDING_THIRTY_SECOND  : &Binding{Name: "%s.dlx.thirty.second",  QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds() * 30) * 1000}},
+		DELAYED_BINDING_MINUTE         : &Binding{Name: "%s.dlx.minute",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
+		DELAYED_BINDING_FIVE_MINUTES   : &Binding{Name: "%s.dlx.five.minutes",   QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 5).Seconds()) * 1000}},
+		DELAYED_BINDING_TEN_MINUTES    : &Binding{Name: "%s.dlx.ten.minutes",    QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
+		DELAYED_BINDING_TWENTY_MINUTES : &Binding{Name: "%s.dlx.twenty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 20).Seconds()) * 1000}},
+		DELAYED_BINDING_THIRTY_MINUTES : &Binding{Name: "%s.dlx.thirty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 30).Seconds()) * 1000}},
+		DELAYED_BINDING_FORTY_MINUTES  : &Binding{Name: "%s.dlx.forty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 40).Seconds()) * 1000}},
+		DELAYED_BINDING_FYFTY_MINUTES  : &Binding{Name: "%s.dlx.fyfty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 50).Seconds()) * 1000}},
+		DELAYED_BINDING_HOUR           : &Binding{Name: "%s.dlx.hour",           QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
+		DELAYED_BINDING_SIX_HOURS      : &Binding{Name: "%s.dlx.six.hours",      QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
+		DELAYED_BINDING_DAY            : &Binding{Name: "%s.dlx.day",            QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
 	}
 
 	// отложенные очереди для лимитов
@@ -53,12 +63,18 @@ var (
 	// цепочка очередей, используемых для повторной отправки писем
 	// в качестве ключа используется текущий тип очереди, а в качестве значения следующий
 	bindingsChain = map[DelayedBindingType]DelayedBindingType {
-		DELAYED_BINDING_UNKNOWN    : DELAYED_BINDING_SECOND,
-		DELAYED_BINDING_SECOND     : DELAYED_BINDING_MINUTE,
-		DELAYED_BINDING_MINUTE     : DELAYED_BINDING_TEN_MINUTES,
-		DELAYED_BINDING_TEN_MINUTES: DELAYED_BINDING_HOUR,
-		DELAYED_BINDING_HOUR       : DELAYED_BINDING_SIX_HOURS,
-		DELAYED_BINDING_SIX_HOURS  : DELAYED_BINDING_UNKNOWN,
+		DELAYED_BINDING_UNKNOWN       : DELAYED_BINDING_SECOND,
+		DELAYED_BINDING_SECOND        : DELAYED_BINDING_THIRTY_SECOND,
+		DELAYED_BINDING_THIRTY_SECOND : DELAYED_BINDING_MINUTE,
+		DELAYED_BINDING_MINUTE        : DELAYED_BINDING_FIVE_MINUTES,
+		DELAYED_BINDING_FIVE_MINUTES  : DELAYED_BINDING_TEN_MINUTES,
+		DELAYED_BINDING_TEN_MINUTES   : DELAYED_BINDING_TWENTY_MINUTES,
+		DELAYED_BINDING_TWENTY_MINUTES: DELAYED_BINDING_THIRTY_MINUTES,
+		DELAYED_BINDING_THIRTY_MINUTES: DELAYED_BINDING_FORTY_MINUTES,
+		DELAYED_BINDING_FORTY_MINUTES : DELAYED_BINDING_FYFTY_MINUTES,
+		DELAYED_BINDING_FYFTY_MINUTES : DELAYED_BINDING_HOUR,
+		DELAYED_BINDING_HOUR          : DELAYED_BINDING_SIX_HOURS,
+		DELAYED_BINDING_SIX_HOURS     : DELAYED_BINDING_UNKNOWN,
 	}
 )
 
@@ -70,7 +86,7 @@ type Consumer struct {
 }
 
 // создает новый сервис
-func NewConsumer() *Consumer {
+func ConsumerOnce() *Consumer {
 	consumer := new(Consumer)
 	consumer.connections = make(map[string]*amqp.Connection)
 	consumer.appsByURI = make(map[string][]*ConsumerApplication)
@@ -103,7 +119,7 @@ func (this *Consumer) OnInit(event *InitEvent) {
 						}
 						// по умолчанию очередь разбирают столько рутин сколько ядер
 						if binding.Handlers == 0 {
-							binding.Handlers = DEFAULT_WORKERS_COUNT
+							binding.Handlers = defaultWorkersCount
 						}
 
 						// объявляем очередь
@@ -249,6 +265,58 @@ func (this *Consumer) OnFinish() {
 	}
 }
 
+func (this *Consumer) OnShowReport() {
+	ticker := time.NewTicker(time.Millisecond * 250)
+	go this.showWaiting(ticker)
+	group := new(sync.WaitGroup)
+	delta := 0
+	for _, apps := range this.appsByURI {
+		for _, app := range apps {
+			delta += app.binding.Handlers
+			for i := 0; i < app.binding.Handlers; i++ {
+				go app.consumeFailMessages(group)
+			}
+		}
+	}
+	group.Add(delta)
+	group.Wait()
+	ticker.Stop()
+	analyser.findReports([]string{})
+}
+
+func (this *Consumer) showWaiting(ticker *time.Ticker) {
+	commas := []string{
+		".  ",
+		" . ",
+		"  .",
+	}
+	i := 0
+	for {
+		<- ticker.C
+		fmt.Printf("\rgetting fail messages, please wait%s", commas[i])
+		if i == 2 {
+			i = 0
+		} else {
+			i++
+		}
+	}
+}
+
+func (this *Consumer) OnPublish() {
+	group := new(sync.WaitGroup)
+	delta := 0
+	for _, apps := range this.appsByURI {
+		for _, app := range apps {
+			delta += app.binding.Handlers
+			for i := 0; i < app.binding.Handlers; i++ {
+				go app.consumeAndPublishFailMessages(group)
+			}
+		}
+	}
+	group.Add(delta)
+	group.Wait()
+}
+
 // получатель сообщений из очереди
 type ConsumerApplicationConfig struct {
 	URI      string     `yaml:"uri"`
@@ -310,7 +378,7 @@ func (this *ConsumerApplication) consume(id int) {
 	// выбираем из очереди сообщения с запасом
 	// это нужно для того, чтобы после отправки письма новое уже было готово к отправке
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
-	channel.Qos(this.binding.Handlers * 2, 0, false)
+	channel.Qos(2, 0, false)
 	deliveries, err := channel.Consume(
 		this.binding.Queue,    // name
 		"",                    // consumerTag,
@@ -337,126 +405,92 @@ func (this *ConsumerApplication) consume(id int) {
 						message.Envelope,
 						message.Recipient,
 					)
-					// отправляем письмо отправителям
-					SendMail(message)
-					// и ждем, что ответит отправитель
+
+					event := NewSendEvent(message)
+					limiter.events <- event
+					// ждем результата,
 					// во время ожидания поток блокируется
 					// если этого не сделать, тогда невозможно будет подтвердить получение сообщения из очереди
-					done := <- message.Done
-					if !done {
-						Info("mail#%d not send", message.Id)
-						// если ошибки нет, значит во время отправки письма случилась некритическая ошибка
-						// например не удалось получить свободное соединение или обрыв соединения или не подписался сертификат
-						// перекладываем в отложенную очередь
-						if message.Error == nil {
-							bindingType := DELAYED_BINDING_UNKNOWN
-							// если превышен лимит отправления писем для почтового сервиса
-							// ищем ту очередь, в которую нужно положить письмо
-							if message.Overlimit {
-								Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
-								for i := 0;i < limitBindingsLen;i++ {
-									if limitBindings[i] == message.BindingType {
-										bindingType = limitBindings[i]
-										break
-									}
-								}
-							} else {
-								Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
-								Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
-								// если нам просто не удалось письмо, берем следующую очередь из цепочки
-								if chainBinding, ok := bindingsChain[message.BindingType]; ok {
-									bindingType = chainBinding
-								}
-							}
-							Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
-
-							// получаем очередь, проверяем, что она реально есть
-							// а что? а вдруг нет)
-							if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
-								message.BindingType = bindingType
-								jsonMessage, err := json.Marshal(message)
+					switch <- event.Result {
+					case SEND_EVENT_RESULT_ERROR:
+						// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
+						// или получили какую то ошибку от почтового сервиса, что он не может
+						// отправить письмо указанному адресату или выполнить какую то команду
+						var failBinding *Binding
+						// если ошибка связана с невозможностью отправить письмо адресату
+						// перекладываем письмо в очередь для плохих писем
+						// и пусть отправители сами с ними разбираются
+						if message.Error.Code >= 500 && message.Error.Code <= 600 {
+							failBinding = this.binding.failBinding
+						} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
+//						} else { // мы точно попали в серый список, надо повторить отправку письма попозже
+							failBinding = delayedBindings[DELAYED_BINDING_THIRTY_MINUTES]
+						}
+						// если очередь для ошибок нашлась
+						if failBinding != nil {
+							jsonMessage, err := json.Marshal(message)
+							if err == nil {
+								// кладем в очередь
+								err = channel.Publish(
+									failBinding.Exchange,
+									failBinding.Routing,
+									false,
+									false,
+									amqp.Publishing{
+										ContentType : "text/plain",
+										Body        : jsonMessage,
+										DeliveryMode: amqp.Transient,
+									},
+								)
 								if err == nil {
-									// кладем в очередь
-									err = channel.Publish(
-										delayedBinding.Exchange,
-										delayedBinding.Routing,
-										false,
-										false,
-										amqp.Publishing{
-											ContentType : "text/plain",
-											Body        : []byte(jsonMessage),
-											DeliveryMode: amqp.Transient,
-										},
+									Debug(
+										"reason is %s with code %d, publish fail mail#%d to queue %s",
+										message.Error.Message,
+										message.Error.Code,
+										message.Id,
+										this.binding.failBinding.Queue,
 									)
-									if err == nil {
-										Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
-									} else {
-										Warn("can't publish fail mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
-									}
 								} else {
-									Warn("can't marshal mail#%d to json", message.Id)
-								}
-							} else {
-								Warn("unknow delayed type %v for mail#%d", bindingType, message.Id)
-							}
-						} else {
-							// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
-							// или получили какую то ошибку от почтового сервиса, что он не может
-							// отправить письмо указанному адресату или выполнить какую то команду
-							var failBinding *Binding
-							// если ошибка связана с невозможностью отправить письмо адресату
-							// перекладываем письмо в очередь для плохих писем
-							// и пусть отправители сами с ними разбираются
-							if message.Error.Code >= 500 && message.Error.Code <= 600 {
-								failBinding = this.binding.failBinding
-							} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
-								failBinding = delayedBindings[DELAYED_BINDING_THIRTY_MINUTES]
-							}
-							// если очередь для ошибок нашлась
-							if failBinding != nil {
-								jsonMessage, err := json.Marshal(message)
-								if err == nil {
-									// кладем в очередь
-									err = channel.Publish(
-										failBinding.Exchange,
-										failBinding.Routing,
-										false,
-										false,
-										amqp.Publishing{
-											ContentType : "text/plain",
-											Body        : []byte(jsonMessage),
-											DeliveryMode: amqp.Transient,
-										},
+									Debug(
+										"can't publish fail mail#%d with error %s and code %d to queue %s",
+										message.Id,
+										message.Error.Message,
+										message.Error.Code,
+										failBinding.Queue,
 									)
-									if err == nil {
-										Debug(
-											"reason is %s with code %d, publish fail mail#%d to queue %s",
-											message.Error.Message,
-											message.Error.Code,
-											message.Id,
-											this.binding.failBinding.Queue,
-										)
-									} else {
-										Debug(
-											"can't publish fail mail#%d with error %s and code %d to queue %s",
-											message.Id,
-											message.Error.Message,
-											message.Error.Code,
-											failBinding.Queue,
-										)
-										WarnWithErr(err)
-									}
-								} else {
 									WarnWithErr(err)
 								}
+							} else {
+								WarnWithErr(err)
 							}
 						}
+					case SEND_EVENT_RESULT_DELAY:
+						bindingType := DELAYED_BINDING_UNKNOWN
+						Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+						Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
+						// если нам просто не удалось письмо, берем следующую очередь из цепочки
+						if chainBinding, ok := bindingsChain[message.BindingType]; ok {
+							bindingType = chainBinding
+						}
+						this.publishDelayedMessage(channel, bindingType, message)
+					case SEND_EVENT_RESULT_OVERLIMIT:
+						bindingType := DELAYED_BINDING_UNKNOWN
+						Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
+						for i := 0;i < limitBindingsLen;i++ {
+							if limitBindings[i] == message.BindingType {
+								bindingType = limitBindings[i]
+								break
+							}
+						}
+						this.publishDelayedMessage(channel, bindingType, message)
 					}
+
 					// всегда подтверждаем получение сообщения
 					// даже если во время отправки письма возникли ошибки,
 					// мы уже положили это письмо в другую очередь
-					delivery.Ack(true)
 					message = nil
+					event = nil
+					delivery.Ack(true)
 				} else {
 					err = channel.Publish(
 						this.binding.failBinding.Exchange,
@@ -469,12 +503,101 @@ func (this *ConsumerApplication) consume(id int) {
 							DeliveryMode: amqp.Transient,
 						},
 					)
-					delivery.Ack(true)
 					Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
+					delivery.Ack(true)
 				}
 			}
 		}()
 	} else {
 		Warn("consumer app#%d, handler#%d can't consume queue %s", this.id, id, this.binding.Queue)
+	}
+}
+
+func (this *ConsumerApplication) publishDelayedMessage(channel *amqp.Channel, bindingType DelayedBindingType, message *MailMessage) {
+	Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
+
+	// получаем очередь, проверяем, что она реально есть
+	// а что? а вдруг нет)
+	if delayedBinding, ok := this.binding.delayedBindings[bindingType]; ok {
+		message.BindingType = bindingType
+		jsonMessage, err := json.Marshal(message)
+		if err == nil {
+			// кладем в очередь
+			err = channel.Publish(
+				delayedBinding.Exchange,
+				delayedBinding.Routing,
+				false,
+				false,
+				amqp.Publishing{
+				ContentType : "text/plain",
+				Body        : []byte(jsonMessage),
+				DeliveryMode: amqp.Transient,
+			},
+			)
+			if err == nil {
+				Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
+			} else {
+				Warn("can't publish fail mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
+			}
+		} else {
+			Warn("can't marshal mail#%d to json", message.Id)
+		}
+	} else {
+		Warn("unknow delayed type %v for mail#%d", bindingType, message.Id)
+	}
+}
+
+func (this *ConsumerApplication) consumeFailMessages(group *sync.WaitGroup) {
+	channel, err := this.connect.Channel()
+	if err == nil {
+		for {
+			delivery, ok, _ := channel.Get(this.binding.failBinding.Queue, false)
+			if ok {
+				message := new(MailMessage)
+				err = json.Unmarshal(delivery.Body, message)
+				if err == nil {
+					analyser.messages <- message
+				}
+			} else {
+				break
+			}
+		}
+		group.Done()
+	} else {
+		WarnWithErr(err)
+	}
+}
+
+func (this *ConsumerApplication) consumeAndPublishFailMessages(group *sync.WaitGroup) {
+	channel, err := this.connect.Channel()
+	if err == nil {
+		for {
+			delivery, ok, _ := channel.Get(this.binding.failBinding.Queue, false)
+			if ok {
+				message := new(MailMessage)
+				err = json.Unmarshal(delivery.Body, message)
+				if err == nil && message.Error.Code == 511 {
+					err = channel.Publish(
+						this.binding.Exchange,
+						this.binding.Routing,
+						false,
+						false,
+						amqp.Publishing{
+							ContentType : "text/plain",
+							Body        : delivery.Body,
+							DeliveryMode: amqp.Transient,
+						},
+					)
+					if err == nil {
+						delivery.Ack(true)
+					}
+				}
+			} else {
+				break
+			}
+		}
+		group.Done()
+	} else {
+		WarnWithErr(err)
 	}
 }

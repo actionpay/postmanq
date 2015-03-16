@@ -19,7 +19,7 @@ type Limiter struct {
 }
 
 // создает сервис ограничений
-func NewLimiter() *Limiter {
+func LimiterOnce() *Limiter {
 	if (limiter == nil) {
 		limiter = new(Limiter)
 		limiter.Limits = make(map[string]*Limit)
@@ -45,7 +45,7 @@ func (this *Limiter) OnInit(event *InitEvent) {
 			Debug("create limit for %s with type %v and duration %v", host, limit.bindingType, limit.duration)
 		}
 		if this.LimitersCount == 0 {
-			this.LimitersCount = DEFAULT_WORKERS_COUNT
+			this.LimitersCount = defaultWorkersCount
 		}
 	} else {
 		FailExitWithErr(err)
@@ -82,11 +82,9 @@ func (this *Limiter) doChecking(id int, event *SendEvent) {
 				Debug("limiter#%d current value is exceeded for %s", id, event.Message.HostnameTo)
 				// определяем очередь, в которое переложем письмо
 				event.Message.BindingType = limit.bindingType
-				// говорим получателю, что у нас превышение ограничения, для того,
-				// чтобы он по другому обработал неудавшуюся отправку письма
-				event.Message.Overlimit = true
+				// говорим получателю, что у нас превышение ограничения,
 				// разблокируем поток получателя
-				event.Message.Done <- false
+				event.Result <- SEND_EVENT_RESULT_OVERLIMIT
 				return
 			}
 		} else {

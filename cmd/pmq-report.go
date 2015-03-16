@@ -1,10 +1,9 @@
 package main
 
 import (
-	"github.com/AdOnWeb/postmanq"
 	"flag"
+	"github.com/AdOnWeb/postmanq"
 )
-
 
 func main() {
 	var file string
@@ -14,8 +13,9 @@ func main() {
 	app := postmanq.NewApplication()
 	if app.IsValidConfigFilename(file) {
 		app.ConfigFilename = file
-		app.Run()
+		app.ShowFailReport()
 	} else {
 		flag.PrintDefaults()
 	}
 }
+

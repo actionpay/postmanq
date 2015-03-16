@@ -17,8 +17,6 @@ import (
 var (
 	// сразу компилирует регулярку для проверки адреса почты, чтобы при отправке не терять на этом время
 	emailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
-	// используется для создания id письма, удобно для отладки
-	mailsCount     int64
 	// хранит количество отправленных писем за минуту, используется для отладки
 	mailsPerMinute int64
 	mailer         *Mailer
@@ -32,28 +30,23 @@ type MailError struct {
 
 // письмо
 type MailMessage struct {
-	Id           int64              `json:"-"`           // номер сообщения
+	Id           int64              `json:"-"`           // номер сообщения для логов
 	Envelope     string             `json:"envelope"`    // отправитель
 	Recipient    string             `json:"recipient"`   // получатель
 	Body         string             `json:"body"`        // тело письма
 	Delivery     amqp.Delivery      `json:"-"`           // получение сообщения очереди
-	Done         chan bool          `json:"-"`           // канал, блокирующий получателя сообщений очереди
 	HostnameFrom string             `json:"-"`           // домен отправителя, удобно сразу получить и использовать при работе с соединением и сертификатом
 	HostnameTo   string             `json:"-"`           // домен получателя, удобно сразу получить и использовать при работе с соединением и сертификатом
 	CreatedDate  time.Time          `json:"-"`           // дата создания, используется в основном сервисом ограничений
-	Overlimit    bool               `json:"-"`           // флаг, говорящий, что сообщение не отправлено, т.к. превышено ограничение для конкретного постового сервиса
 	BindingType  DelayedBindingType `json:"bindingType"` // тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
 	Error        *MailError         `json:"error"`       // ошибка отправки
 }
 
 // инициализирует письмо
 func (this *MailMessage) Init() {
-	atomic.AddInt64(&mailsCount, 1)
 	// удобно во время отладки просматривать, что происходит с письмом
-	this.Id = atomic.LoadInt64(&mailsCount)
-	this.Done = make(chan bool)
+	this.Id = time.Now().UnixNano()
 	this.CreatedDate = time.Now()
-	this.Overlimit = false
 	if hostname, err := this.getHostnameFromEmail(this.Envelope); err == nil {
 		this.HostnameFrom = hostname
 	}
@@ -83,7 +76,7 @@ type Mailer struct {
 }
 
 // создает новый сервис отправки писем
-func NewMailer() *Mailer {
+func MailerOnce() *Mailer {
 	if mailer == nil {
 		mailer = new(Mailer)
 		mailer.events = make(chan *SendEvent)
@@ -116,7 +109,7 @@ func (this *Mailer) OnInit(event *InitEvent) {
 			this.DkimSelector = "mail"
 		}
 		if this.MailersCount == 0 {
-			this.MailersCount = DEFAULT_WORKERS_COUNT
+			this.MailersCount = defaultWorkersCount
 		}
 	} else {
 		FailExitWithErr(err)
@@ -158,7 +151,7 @@ func (this *Mailer) sendMail(id int, event *SendEvent) {
 		this.prepareMail(id, event.Message)
 		this.send(id, event)
 	} else {
-		ReturnMail(event.Message, errors.New(fmt.Sprintf("511 mailer#%d can't send mail#%d, envelope or ricipient is invalid", id, event.Message.Id)))
+		ReturnMail(event, errors.New(fmt.Sprintf("511 mailer#%d can't send mail#%d, envelope or ricipient is invalid", id, event.Message.Id)))
 	}
 }
 
@@ -211,49 +204,43 @@ func (this *Mailer) send(id int, event *SendEvent) {
 						if err == nil {
 							Debug("mailer#%d send command RSET", id)
 							Info("mailer#%d send mail#%d", id, event.Message.Id)
-							event.Client.SetTimeout(WAITING_TIMEOUT)
 							// для статы
 							atomic.AddInt64(&mailsPerMinute, 1)
 							// отпускаем поток получателя сообщений из очереди
-							event.Message.Done <- true
+							event.Result <- SEND_EVENT_RESULT_SUCCESS
 						} else {
-							ReturnMail(event.Message, err)
+							ReturnMail(event, err)
 						}
 					} else {
-						ReturnMail(event.Message, err)
+						ReturnMail(event, err)
 					}
 				} else {
-					ReturnMail(event.Message, err)
+					ReturnMail(event, err)
 				}
 			} else {
-				ReturnMail(event.Message, err)
+				ReturnMail(event, err)
 			}
 		} else {
-			ReturnMail(event.Message, err)
+			ReturnMail(event, err)
 		}
 	} else {
-		ReturnMail(event.Message, err)
+		ReturnMail(event, err)
 	}
 	// говорим, что соединение свободно, его можно передать другому отправителю
-	event.Client.Status = SMTP_CLIENT_STATUS_WAITING
+	if event.Client.IsExpireByNow() {
+		atomic.StoreInt32(&(event.Client.Status), SMTP_CLIENT_STATUS_EXPIRE)
+	} else {
+		event.Client.SetTimeout(WAITING_TIMEOUT)
+		atomic.StoreInt32(&(event.Client.Status), SMTP_CLIENT_STATUS_WAITING)
+	}
 }
 
 func (this *Mailer) OnFinish() {
 	close(this.events)
 }
 
-// отправляет письмо сервису отправки, который затем решит, какой поток будет отправлять письмо
-func SendMail(message *MailMessage) {
-	Debug("create send event for message#%d", message.Id)
-	event := new(SendEvent)
-	event.DefaultPrevented = false
-	event.Message = message
-	event.CreateDate = time.Now()
-	limiter.events <- event
-}
-
 // возвращает письмо обратно в очередь после ошибки во время отправки
-func ReturnMail(message *MailMessage, err error) {
+func ReturnMail(event *SendEvent, err error) {
 	// необходимо проверить сообщение на наличие кода ошибки
 	// обычно код идет первым
 	parts := strings.Split(err.Error(), " ")
@@ -263,12 +250,21 @@ func ReturnMail(message *MailMessage, err error) {
 		// и создать ошибку
 		// письмо с ошибкой вернется в отличную очередь, чем письмо без ошибки
 		if e == nil {
-			message.Error = &MailError{strings.Join(parts[1:], " "), code}
+			event.Message.Error = &MailError{strings.Join(parts[1:], " "), code}
 		} else {
 			WarnWithErr(e)
 		}
 	}
-	Warn("mail#%d sending error - %v", message.Id, err)
+	if event.Client != nil {
+		if event.Client.Worker != nil {
+			event.Client.Worker.Reset()
+		}
+	}
+	Warn("mail#%d sending error - %v", event.Message.Id, err)
 	// отпускаем поток получателя сообщений из очереди
-	message.Done <- false
+	if event.Message.Error == nil {
+		event.Result <- SEND_EVENT_RESULT_DELAY
+	} else {
+		event.Result <- SEND_EVENT_RESULT_ERROR
+	}
 }
