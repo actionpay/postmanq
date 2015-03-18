@@ -85,7 +85,7 @@ func MailerOnce() *Mailer {
 }
 
 // инициализирует сервис отправки писем
-func (this *Mailer) OnInit(event *InitEvent) {
+func (this *Mailer) OnInit(event *ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
 		Debug("read private key file %s", this.PrivateKeyFilename)
@@ -178,7 +178,7 @@ func (this *Mailer) prepareMail(id int, message *MailMessage) {
 
 func (this *Mailer) send(id int, event *SendEvent) {
 	worker := event.Client.Worker
-	Info("mailer#%d receive mail#%d", id, event.Message.Id)
+	Info("mailer#%d try send mail#%d", id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", id, event.Client.Id)
 
 	err := worker.Mail(event.Message.Envelope)
@@ -203,7 +203,7 @@ func (this *Mailer) send(id int, event *SendEvent) {
 						err = worker.Reset()
 						if err == nil {
 							Debug("mailer#%d send command RSET", id)
-							Info("mailer#%d send mail#%d", id, event.Message.Id)
+							Info("mailer#%d success send mail#%d", id, event.Message.Id)
 							// для статы
 							atomic.AddInt64(&mailsPerMinute, 1)
 							// отпускаем поток получателя сообщений из очереди
@@ -251,8 +251,6 @@ func ReturnMail(event *SendEvent, err error) {
 		// письмо с ошибкой вернется в отличную очередь, чем письмо без ошибки
 		if e == nil {
 			event.Message.Error = &MailError{strings.Join(parts[1:], " "), code}
-		} else {
-			WarnWithErr(e)
 		}
 	}
 	if event.Client != nil {

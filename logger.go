@@ -89,7 +89,7 @@ func LoggerOnce() *Logger {
 }
 
 // инициализирует сервис логирования
-func (this *Logger) OnInit(event *InitEvent) {
+func (this *Logger) OnInit(event *ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
 		// устанавливаем уровень логирования
@@ -169,7 +169,7 @@ func log(message string, level LogLevel, args ...interface{}) {
 	if logger.level <= level {
 		// если уровень выше "info", значит пишется ошибка
 		// добавляем к сообщению стек, чтобы посмотреть в чем дело
-		if level > LOG_LEVEL_INFO {
+		if level > LOG_LEVEL_INFO && logger.level == LOG_LEVEL_DEBUG {
 			message = fmt.Sprint(message, "\n", string(debug.Stack()))
 		}
 		logger.messages <- NewLogMessage(level, message, args...)
@@ -184,7 +184,7 @@ func Err(message string, args ...interface{}) {
 // пишет произвольную ошибку в лог и завершает программу
 func FailExit(message string, args ...interface{}) {
 	Err(message, args...)
-	app.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+	app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
 }
 
 // пишет системную ошибку в лог и завершает программу

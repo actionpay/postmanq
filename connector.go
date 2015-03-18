@@ -99,7 +99,7 @@ func (this *Connector) closeConnections(now time.Time) {
 	}
 }
 
-func (this *Connector) OnInit(event *InitEvent) {
+func (this *Connector) OnInit(event *ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
 		// если указан путь до сертификата
@@ -148,7 +148,7 @@ func (this *Connector) createConnections(id int) {
 }
 
 func (this *Connector) doConnection(id int, event *SendEvent) {
-	Debug("connector#%d receive mail#%d", id, event.Message.Id)
+	Info("connector#%d try create connection for mail#%d", id, event.Message.Id)
 	// передаем событию сертификат и его длину
 	event.CertBytes = this.certBytes
 	event.CertBytesLen = this.certBytesLen
@@ -168,7 +168,7 @@ connectToMailServer:
 	case MAIL_SERVER_ERROR:
 		ReturnMail(
 			event,
-			errors.New(fmt.Sprintf("511 connector#%d can't lookup %s", id, event.Message.HostnameTo, event.Message.Id)),
+			errors.New(fmt.Sprintf("511 connector#%d can't lookup %s", id, event.Message.HostnameTo)),
 		)
 		return
 	}

@@ -30,7 +30,7 @@ func LimiterOnce() *Limiter {
 }
 
 // инициализирует сервис
-func (this *Limiter) OnInit(event *InitEvent) {
+func (this *Limiter) OnInit(event *ApplicationEvent) {
 	Debug("init limits...")
 	err := yaml.Unmarshal(event.Data, this)
 	if err == nil {
@@ -67,7 +67,7 @@ func (this *Limiter) checkLimits(id int) {
 }
 
 func (this *Limiter) doChecking(id int, event *SendEvent) {
-	Debug("limiter#%d check limit for mail#%d", id, event.Message.Id)
+	Info("limiter#%d check limit for mail#%d", id, event.Message.Id)
 	// пытаемся найти ограничения для почтового сервиса
 	if limit, ok := this.Limits[event.Message.HostnameTo]; ok {
 		Debug("limiter#%d found config for %s", id, event.Message.HostnameTo)

@@ -94,7 +94,7 @@ func ConsumerOnce() *Consumer {
 }
 
 // инициализирует сервис
-func (this *Consumer) OnInit(event *InitEvent) {
+func (this *Consumer) OnInit(event *ApplicationEvent) {
 	Debug("init consumers apps...")
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, this)
@@ -143,7 +143,7 @@ func (this *Consumer) OnInit(event *InitEvent) {
 						binding.failBinding = failBinding
 
 						appsCount++
-						app := NewConsumerApplication(appsCount, connect, binding, event.MailersCount)
+						app := NewConsumerApplication(appsCount, connect, binding)
 						apps[i] = app
 						Debug("create consumer app#%d", app.id)
 					}
@@ -352,16 +352,14 @@ type ConsumerApplication struct {
 	connect      *amqp.Connection
 	binding      *Binding
 	deliveries   <- chan amqp.Delivery
-	mailersCount int
 }
 
 // создает нового получателя
-func NewConsumerApplication(id int, connect *amqp.Connection, binding *Binding, mailersCount int) *ConsumerApplication {
+func NewConsumerApplication(id int, connect *amqp.Connection, binding *Binding) *ConsumerApplication {
 	app := new(ConsumerApplication)
 	app.id = id
 	app.connect = connect
 	app.binding = binding
-	app.mailersCount = mailersCount
 	return app
 }
 

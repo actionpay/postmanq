@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"time"
 	"crypto/x509"
+	"fmt"
 )
 
 const (
@@ -12,18 +13,12 @@ const (
 )
 
 var (
-	app *Application
+	app Application
 	defaultWorkersCount = runtime.NumCPU()
 )
 
 func init() {
 	runtime.GOMAXPROCS(defaultWorkersCount)
-}
-
-// Событие инициализации. Вызывается после регистрации сервисов и содержит данные для настройки сервисов.
-type InitEvent struct {
-	Data         []byte // данные с настройками каждого сервиса
-	MailersCount int    // количество потоков, отправляющих письма
 }
 
 // Программа отправки почты получилась довольно сложной, т.к. она выполняет обработку и отправку писем,
@@ -32,23 +27,27 @@ type InitEvent struct {
 // Сервис - это модуль программы, отвечающий за выполнение одной конкретной задачи, например логирование.
 // Сервис может сам выполнять эту задачу, либо управлять выполнением задачи.
 type Service interface {
-	OnInit(*InitEvent)
+	OnInit(*ApplicationEvent)
+}
+
+type SendingService interface {
+	Service
 	OnRun()
 	OnFinish()
 }
 
 type ReportService interface {
-	OnInit(*InitEvent)
+	Service
 	OnShowReport()
 }
 
 type PublishService interface {
-	OnInit(*InitEvent)
+	Service
 	OnPublish()
 }
 
 type GrepService interface {
-	OnInit(*InitEvent)
+	Service
 	OnGrep()
 }
 
@@ -95,15 +94,13 @@ const (
 	APPLICATION_EVENT_KIND_INIT    ApplicationEventKind = iota // событие инициализации сервисов
 	APPLICATION_EVENT_KIND_RUN                                 // событие запуска сервисов
 	APPLICATION_EVENT_KIND_FINISH                              // событие завершения сервисов
-	APPLICATION_EVENT_KIND_REPORT
-	APPLICATION_EVENT_KIND_SEARCH
-	APPLICATION_EVENT_KIND_PUBLISH
-	APPLICATION_EVENT_KIND_GREP
 )
 
 // событие приложения
 type ApplicationEvent struct {
 	kind ApplicationEventKind
+	Data []byte
+//	args map[string]interface{}
 }
 
 // создает событие с указанным типом
@@ -111,163 +108,185 @@ func NewApplicationEvent(kind ApplicationEventKind) *ApplicationEvent {
 	return &ApplicationEvent{kind: kind}
 }
 
-// приложение
-type Application struct {
-	ConfigFilename  string                          // путь до конфигурационного файла
-	sendingServices []Service                       // сервисы приложения, отправляющие письма
-	reportServices  []ReportService                 // сервисы приложения, анализирующие очередь писем с ошибками
-	publishServices []PublishService                // сервисы приложения, перекладывающие сообщения с ошибкой в очередь для отправки
-	searchServices  []GrepService                   // сервисы приложения, ищущие по логу
-	events          chan *ApplicationEvent          // канал событий приложения
-	done            chan bool                       // флаг, сигнализирующий окончание работы приложения
-	handlers        map[ApplicationEventKind]func() // обработчики событий приложения
+type Application interface {
+	SetConfigFilename(string)
+	IsValidConfigFilename(string) bool
+	SetEvents(chan *ApplicationEvent)
+	Events() chan *ApplicationEvent
+	SetDone(chan bool)
+	Done() chan bool
+	Services() []interface{}
+	FireInit(*ApplicationEvent, interface{})
+	FireRun(*ApplicationEvent, interface{})
+	FireFinish(*ApplicationEvent, interface{})
+	Run()
 }
 
-// создает приложение
-func NewApplication() *Application {
-	if app == nil {
-		app = new(Application)
-		// создаем канал ожидания окончания программы
-		app.done = make(chan bool)
-	}
-	return app
+type AbstractApplication struct {
+	configFilename  string                 // путь до конфигурационного файла
+	services        []interface{}          // сервисы приложения, отправляющие письма
+	events          chan *ApplicationEvent // канал событий приложения
+	done            chan bool              // флаг, сигнализирующий окончание работы приложения
 }
 
-func (this *Application) IsValidConfigFilename(filename string) bool {
+func (this *AbstractApplication) IsValidConfigFilename(filename string) bool {
 	return len(filename) > 0 && filename != EXAMPLE_CONFIG_YAML
 }
 
-// инициализирует сервисы приложения
-func (this *Application) initSendingServices() {
-	this.initServices(func(event *InitEvent) {
-		for _, service := range this.sendingServices {
-			service.OnInit(event)
+func (this *AbstractApplication) run(app Application, event *ApplicationEvent) {
+	app.SetDone(make(chan bool))
+	// создаем каналы для событий
+	app.SetEvents(make(chan *ApplicationEvent, 3))
+	go func() {
+		for {
+			select {
+			case event := <- app.Events():
+				if event.kind == APPLICATION_EVENT_KIND_INIT {
+					// пытаемся прочитать конфигурационный файл
+					bytes, err := ioutil.ReadFile(this.configFilename)
+					if err == nil {
+						event.Data = bytes
+					} else {
+						FailExit("application can't read configuration file, error -  %v", err)
+					}
+				}
+
+				for _, service := range app.Services() {
+					switch event.kind {
+					case APPLICATION_EVENT_KIND_INIT: app.FireInit(event, service)
+					case APPLICATION_EVENT_KIND_RUN: app.FireRun(event, service)
+					case APPLICATION_EVENT_KIND_FINISH: app.FireFinish(event, service)
+					}
+				}
+
+				switch event.kind {
+				case APPLICATION_EVENT_KIND_INIT:
+					event.kind = APPLICATION_EVENT_KIND_RUN
+					app.Events() <- event
+				case APPLICATION_EVENT_KIND_FINISH:
+					fmt.Println("finish")
+					time.Sleep(2 * time.Second)
+					app.Done() <- true
+				}
+			}
 		}
-		this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_RUN)
-	})
+		close(app.Events())
+	}()
+	app.Events() <- event
+	<- app.Done()
 }
 
-func (this *Application) initServices(callback func(event *InitEvent)) {
-	// пытаемся прочитать конфигурационный файл
-	bytes, err := ioutil.ReadFile(this.ConfigFilename)
-	if err == nil {
-		// создаем событие инициализации
-		event := new(InitEvent)
-		event.Data = bytes
-		// и оповещаем сервисы
-		callback(event)
-	} else {
-		FailExit("application can't read configuration file, error -  %v", err)
-	}
+func (this *AbstractApplication) SetConfigFilename(configFilename string) {
+	this.configFilename = configFilename
 }
 
-// запускает приложения
-func (this *Application) runServices() {
-	for _, service := range this.sendingServices {
-		go service.OnRun()
-	}
+func (this *AbstractApplication) SetEvents(events chan *ApplicationEvent) {
+	this.events = events
 }
 
-// останавливает приложения
-func (this *Application) finishServices() {
-	for _, service := range this.sendingServices {
-		service.OnFinish()
-	}
-	time.Sleep(2 * time.Second)
-	this.done <- true
+func (this *AbstractApplication) Events() chan *ApplicationEvent {
+	return this.events
 }
 
-// запускает и контролирует работу всего приложения
-func (this *Application) Run() {
-	// инициализируем сервисы приложения
-	this.sendingServices = []Service{
+func (this *AbstractApplication) SetDone(done chan bool) {
+	this.done = done
+}
+
+func (this *AbstractApplication) Done() chan bool {
+	return this.done
+}
+
+func (this *AbstractApplication) Services() []interface{} {
+	return this.services
+}
+
+func (this *AbstractApplication) FireInit(event *ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(Service)
+	service.OnInit(event)
+}
+
+func (this *AbstractApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {}
+
+func (this *AbstractApplication) FireFinish(event *ApplicationEvent, abstractService interface{}) {}
+
+type PostApplication struct {
+	AbstractApplication
+}
+
+func NewPostApplication() Application {
+	app = new(PostApplication)
+	return app
+}
+
+func (this *PostApplication) Run() {
+	this.services = []interface{} {
 		LoggerOnce(),
 		LimiterOnce(),
 		ConnectorOnce(),
 		MailerOnce(),
 		ConsumerOnce(),
 	}
+	this.run(this, NewApplicationEvent(APPLICATION_EVENT_KIND_INIT))
 
-	this.handlers = map[ApplicationEventKind]func() {
-		APPLICATION_EVENT_KIND_INIT    : this.initSendingServices,
-		APPLICATION_EVENT_KIND_RUN     : this.runServices,
-		APPLICATION_EVENT_KIND_FINISH  : this.finishServices,
-	}
-
-	this.run(APPLICATION_EVENT_KIND_INIT)
 }
 
-func (this *Application) run(kind ApplicationEventKind) {
-	// создаем каналы для событий
-	this.events = make(chan *ApplicationEvent, len(this.handlers))
-	go func() {
-		for {
-			select {
-			case event := <- this.events:
-				if handler, ok := this.handlers[event.kind]; ok {
-					handler()
-				}
-			}
-		}
-		close(this.events)
-	}()
-	this.events <- NewApplicationEvent(kind)
-	<- this.done
+func (this *PostApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(SendingService)
+	go service.OnRun()
 }
 
-func (this *Application) ShowFailReport() {
-	this.reportServices = []ReportService {
+func (this *PostApplication) FireFinish(event *ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(SendingService)
+	go service.OnFinish()
+}
+
+type ReportApplication struct {
+	AbstractApplication
+}
+
+func NewReportApplication() Application {
+	app = new(ReportApplication)
+	return app
+}
+
+func (this *ReportApplication) Run() {
+	this.services = []interface{} {
 		AnalyserOnce(),
 		ConsumerOnce(),
 	}
-
-	this.handlers = map[ApplicationEventKind]func() {
-		APPLICATION_EVENT_KIND_INIT  : this.initReportServices,
-		APPLICATION_EVENT_KIND_REPORT: this.runReportServices,
-	}
-
-	this.run(APPLICATION_EVENT_KIND_INIT)
+	this.run(this, NewApplicationEvent(APPLICATION_EVENT_KIND_INIT))
 }
 
-func (this *Application) initReportServices() {
-	this.initServices(func(event *InitEvent) {
-		for _, service := range this.reportServices {
-			service.OnInit(event)
-		}
-		this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_REPORT)
-	})
+func (this *ReportApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(ReportService)
+	go service.OnShowReport()
 }
 
-func (this *Application) runReportServices() {
-	for _, service := range this.reportServices {
-		go service.OnShowReport()
-	}
+type PublishApplication struct {
+	AbstractApplication
 }
 
-func (this *Application) PublishFailMessages() {
-	this.publishServices = []PublishService {
+func NewPublishApplication() Application {
+	app = new(PublishApplication)
+	return app
+}
+
+func (this *PublishApplication) Run() {
+	this.services = []interface{} {
 		ConsumerOnce(),
 	}
-
-	this.handlers = map[ApplicationEventKind]func() {
-		APPLICATION_EVENT_KIND_INIT   : this.initPublishServices,
-		APPLICATION_EVENT_KIND_PUBLISH: this.runPublishServices,
-	}
-
-	this.run(APPLICATION_EVENT_KIND_INIT)
+	this.run(this, NewApplicationEvent(APPLICATION_EVENT_KIND_INIT))
 }
 
-func (this *Application) initPublishServices() {
-	this.initServices(func(event *InitEvent) {
-		for _, service := range this.publishServices {
-			service.OnInit(event)
-		}
-		this.events <- NewApplicationEvent(APPLICATION_EVENT_KIND_PUBLISH)
-	})
+func (this *PublishApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(PublishService)
+	go service.OnPublish()
 }
 
-func (this *Application) runPublishServices() {
-	for _, service := range this.publishServices {
-		service.OnPublish()
-	}
-}
+
+
+
+
+
+
+

@@ -30,16 +30,18 @@ type Analyser struct {
 	reportsByCode         map[string][]int
 	reportsByEnvelope     map[string][]int
 	reportsByRecipient    map[string][]int
-	flag                  *flag.FlagSet
 	necessaryAll          bool
 	necessaryCode         string
 	necessaryEnvelope     string
 	necessaryRecipient    string
+	necessaryExport       bool
 	limit                 int
 	offset                int
 	pattern               string
 	tableAggregateFields  []interface{}
 	tableDetailFields     []interface{}
+	tableCodeFields       []interface{}
+	tableAddressFields    []interface{}
 	table                 *clitable.Table
 }
 
@@ -50,35 +52,34 @@ func AnalyserOnce() *Analyser {
 	return analyser
 }
 
-func (this *Analyser) OnInit(*InitEvent) {
+func (this *Analyser) OnInit(event *ApplicationEvent) {
 	this.messages = make(chan *MailMessage)
 	this.reports = make([]*Report, 0)
 	this.reportsByCode = make(map[string][]int)
 	this.reportsByEnvelope = make(map[string][]int)
 	this.reportsByRecipient = make(map[string][]int)
 	this.mutex = new(sync.Mutex)
-	this.tableAggregateFields = []interface{}{
-		"Total mails",
-		"Mails with code",
-		"Envelopes",
-		"Recipients",
+	this.tableAggregateFields = []interface{} {
+		"Mails count",
+		"Code count",
+		"Envelopes count",
+		"Recipients count",
 	}
-	this.tableDetailFields = []interface{}{
+	this.tableDetailFields = []interface{} {
 		"Envelope",
 		"Recipient",
 		"Code",
 		"Message",
 		"Sending count",
 	}
-
-	this.flag = flag.NewFlagSet("analyser", flag.ContinueOnError)
-	this.flag.BoolVar(&this.necessaryAll, "a", false, "show all reports")
-	this.flag.StringVar(&this.necessaryCode, "c", INVALID_INPUT_STRING, "show reports by code")
-	this.flag.StringVar(&this.necessaryEnvelope, "e", INVALID_INPUT_STRING, "show reports by envelope")
-	this.flag.StringVar(&this.necessaryRecipient, "r", INVALID_INPUT_STRING, "show reports by recipient")
-	this.flag.StringVar(&this.pattern, "p", INVALID_INPUT_STRING, "")
-	this.flag.IntVar(&this.limit, "l", INVALID_INPUT_INT, "limit rows")
-	this.flag.IntVar(&this.offset, "o", INVALID_INPUT_INT, "offset rows")
+	this.tableCodeFields = []interface{} {
+		"Code",
+		"Mails count",
+	}
+	this.tableAddressFields = []interface{} {
+		"Address",
+		"Mails count",
+	}
 }
 
 func (this *Analyser) OnShowReport() {
@@ -120,13 +121,11 @@ func (this *Analyser) receiveMessage(message *MailMessage) {
 	} else if this.reports[i] != nil {
 		report = this.reports[i]
 	}
-	this.mutex.Unlock()
 
 	report.CreatedDates = append(report.CreatedDates, message.CreatedDate)
 	isValidCode := report.Code > 0
 	code := strconv.Itoa(report.Code)
 
-	this.mutex.Lock()
 	if _, ok := this.reportsByCode[code]; !ok && isValidCode {
 		this.reportsByCode[code] = make([]int, 0)
 	}
@@ -138,50 +137,74 @@ func (this *Analyser) receiveMessage(message *MailMessage) {
 	}
 
 	if isValidCode {
-		this.reportsByCode[code] = append(this.reportsByCode[code], len(this.reportsByCode[code]) + 1)
+		this.reportsByCode[code] = append(this.reportsByCode[code], report.Id)
 	}
-	this.reportsByEnvelope[report.Envelope] = append(this.reportsByEnvelope[report.Envelope], len(this.reportsByEnvelope[report.Envelope]) + 1)
-	this.reportsByRecipient[report.Recipient] = append(this.reportsByRecipient[report.Recipient], len(this.reportsByRecipient[report.Recipient]) + 1)
+	this.reportsByEnvelope[report.Envelope] = append(this.reportsByEnvelope[report.Envelope], report.Id)
+	this.reportsByRecipient[report.Recipient] = append(this.reportsByRecipient[report.Recipient], report.Id)
 	this.mutex.Unlock()
 }
 
 func (this *Analyser) findReports(args []string) {
-	err := this.flag.Parse(args)
+	flagSet := flag.NewFlagSet("analyser", flag.ContinueOnError)
+	flagSet.BoolVar(&this.necessaryAll, "a", false, "show all reports")
+	flagSet.StringVar(&this.necessaryCode, "c", INVALID_INPUT_STRING, "show reports by code")
+	flagSet.StringVar(&this.necessaryEnvelope, "e", INVALID_INPUT_STRING, "show reports by envelope")
+	flagSet.StringVar(&this.necessaryRecipient, "r", INVALID_INPUT_STRING, "show reports by recipient")
+	flagSet.BoolVar(&this.necessaryExport, "E", false, "export addresses recipients")
+	flagSet.StringVar(&this.pattern, "g", INVALID_INPUT_STRING, "grep")
+	flagSet.IntVar(&this.limit, "l", INVALID_INPUT_INT, "limit rows")
+	flagSet.IntVar(&this.offset, "o", INVALID_INPUT_INT, "offset rows")
+	err := flagSet.Parse(args)
 	if err == nil {
 		re := this.createRegexp()
 		switch {
-		case len(this.necessaryCode) > 0: this.showDetailTable(this.reportsByCode, this.necessaryCode, re)
-		case len(this.necessaryEnvelope) > 0: this.showDetailTable(this.reportsByEnvelope, this.necessaryEnvelope, re)
-		case len(this.necessaryRecipient) > 0: this.showDetailTable(this.reportsByRecipient, this.necessaryRecipient, re)
+		case len(this.necessaryCode) > 0: this.showDetailTable(this.reportsByCode, this.necessaryCode, re, this.tableCodeFields)
+		case len(this.necessaryEnvelope) > 0: this.showDetailTable(this.reportsByEnvelope, this.necessaryEnvelope, re, this.tableAddressFields)
+		case len(this.necessaryRecipient) > 0: this.showDetailTable(this.reportsByRecipient, this.necessaryRecipient, re, this.tableAddressFields)
 		case this.necessaryAll:
 			this.createTable(this.tableDetailFields)
 			for _, report := range this.reports {
 				this.fillRowIfMatch(re, report)
 			}
 			this.table.Print()
-		default: this.showAggregateTable()
+		default: this.showAggregateTable(flagSet)
 		}
 	} else {
-		this.showAggregateTable()
+		this.showAggregateTable(flagSet)
 	}
 }
 
-func (this *Analyser) showDetailTable(aggregateReportIds map[string][]int, keyPattern string, valueRegex *regexp.Regexp) {
-	this.createTable(this.tableDetailFields)
+func (this *Analyser) showDetailTable(aggregateReportIds map[string][]int, keyPattern string, valueRegex *regexp.Regexp, fields []interface{}) {
+	this.showAggregateTableForType(aggregateReportIds, fields)
 	keyRegex, _ := regexp.Compile(keyPattern)
+	this.createTable(this.tableDetailFields)
+	addresses := make([]string, 0)
 	for key, ids := range aggregateReportIds {
 		if keyPattern == "*" || (keyRegex != nil && keyRegex.MatchString(key))  {
 			for _, id := range ids {
-				this.fillRowIfMatch(valueRegex, this.reports[id])
+				for _, report := range this.reports {
+					if report.Id == id {
+						this.fillRowIfMatch(valueRegex, report)
+						if this.necessaryExport {
+							addresses = append(addresses, report.Recipient)
+						}
+						break
+					}
+				}
 			}
 		}
 	}
 	this.table.Print()
+	if this.necessaryExport {
+		fmt.Println()
+		fmt.Println("Addresses:")
+		fmt.Println(strings.Join(addresses, ", "))
+	}
 }
 
-func (this *Analyser) showAggregateTable() {
+func (this *Analyser) showAggregateTable(flagSet *flag.FlagSet) {
 	fmt.Println()
-	this.flag.PrintDefaults()
+	flagSet.PrintDefaults()
 	this.createTable(this.tableAggregateFields)
 	this.table.AddRow(
 		len(this.reports),
@@ -227,6 +250,15 @@ func (this *Analyser) fillRow(report *Report) {
 		report.Message,
 		len(report.CreatedDates),
 	)
+}
+
+func (this *Analyser) showAggregateTableForType(aggregateReportIds map[string][]int, fields []interface{}) {
+	table := clitable.NewTable(fields...)
+	for key, ids := range aggregateReportIds {
+		table.AddRow(key, len(ids))
+	}
+	table.Print()
+	fmt.Println()
 }
 
 type Report struct {

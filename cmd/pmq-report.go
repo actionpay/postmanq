@@ -10,10 +10,10 @@ func main() {
 	flag.StringVar(&file, "f", postmanq.EXAMPLE_CONFIG_YAML, "configuration yaml file")
 	flag.Parse()
 
-	app := postmanq.NewApplication()
+	app := postmanq.NewReportApplication()
 	if app.IsValidConfigFilename(file) {
-		app.ConfigFilename = file
-		app.ShowFailReport()
+		app.SetConfigFilename(file)
+		app.Run()
 	} else {
 		flag.PrintDefaults()
 	}
