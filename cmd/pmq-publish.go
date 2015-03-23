@@ -12,7 +12,7 @@ func main() {
 	flag.StringVar(&file, "f", postmanq.EXAMPLE_CONFIG_YAML, "configuration yaml file")
 	flag.StringVar(&srcQueue, "s", postmanq.INVALID_INPUT_STRING, "source queue")
 	flag.StringVar(&destQueue, "d", postmanq.INVALID_INPUT_STRING, "destination queue")
-	flag.StringVar(&host, "h", postmanq.INVALID_INPUT_STRING, "host")
+	flag.StringVar(&host, "h", postmanq.INVALID_INPUT_STRING, "amqp server hostname")
 	flag.IntVar(&code, "c", postmanq.INVALID_INPUT_INT, "error code")
 	flag.StringVar(&envelope, "e", postmanq.INVALID_INPUT_STRING, "necessary envelope")
 	flag.StringVar(&recipient, "r", postmanq.INVALID_INPUT_STRING, "necessary recipient")
