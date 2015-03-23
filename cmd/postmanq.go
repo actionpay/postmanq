@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/AdOnWeb/postmanq"
 	"flag"
+	"fmt"
 )
 
 
@@ -16,6 +17,7 @@ func main() {
 		app.SetConfigFilename(file)
 		app.Run()
 	} else {
-		flag.PrintDefaults()
+		fmt.Printf("Usage: postmanq -f %s\n", postmanq.EXAMPLE_CONFIG_YAML)
+		flag.VisitAll(postmanq.PrintUsage)
 	}
 }

@@ -2,7 +2,6 @@ package postmanq
 
 import (
 	"sync"
-	"sort"
 	"time"
 	"strconv"
 	"flag"
@@ -12,11 +11,6 @@ import (
 	"regexp"
 	"github.com/byorty/clitable"
 	"fmt"
-)
-
-const (
-	INVALID_INPUT_STRING = ""
-	INVALID_INPUT_INT    = -1
 )
 
 var (
@@ -35,6 +29,7 @@ type Analyser struct {
 	necessaryEnvelope     string
 	necessaryRecipient    string
 	necessaryExport       bool
+	necessaryOnly         bool
 	limit                 int
 	offset                int
 	pattern               string
@@ -102,13 +97,16 @@ func (this *Analyser) receiveMessage(message *MailMessage) {
 	var report *Report
 	this.mutex.Lock()
 	reportsLen := len(this.reports)
-	i := sort.Search(reportsLen, func(i int) bool {
-		return this.reports[i].Envelope == message.Envelope &&
-			this.reports[i].Recipient == message.Recipient &&
-			this.reports[i].Code == message.Error.Code &&
-			this.reports[i].Message == message.Error.Message
-	})
-	if i == reportsLen {
+	for _, existsReport := range this.reports {
+		if existsReport.Envelope == message.Envelope &&
+			existsReport.Recipient == message.Recipient &&
+			existsReport.Code == message.Error.Code &&
+			existsReport.Message == message.Error.Message {
+			report = existsReport
+			break
+		}
+	}
+	if report == nil {
 		report = &Report{
 			Id: reportsLen + 1,
 			Envelope: message.Envelope,
@@ -118,8 +116,6 @@ func (this *Analyser) receiveMessage(message *MailMessage) {
 		}
 		report.CreatedDates = make([]time.Time, 0)
 		this.reports = append(this.reports, report)
-	} else if this.reports[i] != nil {
-		report = this.reports[i]
 	}
 
 	report.CreatedDates = append(report.CreatedDates, message.CreatedDate)
@@ -151,9 +147,10 @@ func (this *Analyser) findReports(args []string) {
 	flagSet.StringVar(&this.necessaryEnvelope, "e", INVALID_INPUT_STRING, "show reports by envelope")
 	flagSet.StringVar(&this.necessaryRecipient, "r", INVALID_INPUT_STRING, "show reports by recipient")
 	flagSet.BoolVar(&this.necessaryExport, "E", false, "export addresses recipients")
-	flagSet.StringVar(&this.pattern, "g", INVALID_INPUT_STRING, "grep")
-	flagSet.IntVar(&this.limit, "l", INVALID_INPUT_INT, "limit rows")
-	flagSet.IntVar(&this.offset, "o", INVALID_INPUT_INT, "offset rows")
+	flagSet.BoolVar(&this.necessaryOnly, "O", false, "show codes or envelopes or recipients without reports")
+	flagSet.StringVar(&this.pattern, "s", INVALID_INPUT_STRING, "search by envelope or recipient or mail body")
+	flagSet.IntVar(&this.limit, "l", INVALID_INPUT_INT, "limit reports")
+	flagSet.IntVar(&this.offset, "o", INVALID_INPUT_INT, "offset reports")
 	err := flagSet.Parse(args)
 	if err == nil {
 		re := this.createRegexp()
@@ -175,36 +172,53 @@ func (this *Analyser) findReports(args []string) {
 }
 
 func (this *Analyser) showDetailTable(aggregateReportIds map[string][]int, keyPattern string, valueRegex *regexp.Regexp, fields []interface{}) {
-	this.showAggregateTableForType(aggregateReportIds, fields)
-	keyRegex, _ := regexp.Compile(keyPattern)
-	this.createTable(this.tableDetailFields)
-	addresses := make([]string, 0)
-	for key, ids := range aggregateReportIds {
-		if keyPattern == "*" || (keyRegex != nil && keyRegex.MatchString(key))  {
-			for _, id := range ids {
-				for _, report := range this.reports {
-					if report.Id == id {
-						this.fillRowIfMatch(valueRegex, report)
-						if this.necessaryExport {
-							addresses = append(addresses, report.Recipient)
+	if this.necessaryOnly {
+		this.showAggregateTableForType(aggregateReportIds, fields)
+	} else {
+		keyRegex, _ := regexp.Compile(keyPattern)
+		this.createTable(this.tableDetailFields)
+		addresses := make([]string, 0)
+		rows := 0
+		for key, ids := range aggregateReportIds {
+			if keyPattern == "*" || (keyRegex != nil && keyRegex.MatchString(key))  {
+				for _, id := range ids {
+					for _, report := range this.reports {
+						if report.Id == id {
+							if this.offset == INVALID_INPUT_INT {
+								if this.limit == INVALID_INPUT_INT || (this.limit > INVALID_INPUT_INT && rows < this.limit) {
+									this.fillRowIfMatch(valueRegex, report)
+									if this.necessaryExport {
+										addresses = append(addresses, report.Recipient)
+									}
+									rows++
+								}
+							} else {
+								this.offset--
+							}
+							break
 						}
-						break
 					}
 				}
 			}
 		}
-	}
-	this.table.Print()
-	if this.necessaryExport {
-		fmt.Println()
-		fmt.Println("Addresses:")
-		fmt.Println(strings.Join(addresses, ", "))
+		this.table.Print()
+		if this.necessaryExport {
+			fmt.Println()
+			fmt.Println("Addresses:")
+			fmt.Println(strings.Join(addresses, ", "))
+		}
 	}
 }
 
 func (this *Analyser) showAggregateTable(flagSet *flag.FlagSet) {
 	fmt.Println()
-	flagSet.PrintDefaults()
+	fmt.Println("Usage: -acer *|regex [-s] [-E] [-O] [-l] [-o]")
+	flagSet.VisitAll(PrintUsage)
+	fmt.Println("Example:")
+	fmt.Println("  -c * -O             show error codes without reports")
+	fmt.Println("  -c 550 -l 100       show 100 reports with 550 error")
+	fmt.Println("  -c 550 -s gmail.com show reports with 550 error and hostname gmail.com")
+	fmt.Println("  -c * -l 100 -o 200  show reports with limit and offset")
 	this.createTable(this.tableAggregateFields)
 	this.table.AddRow(
 		len(this.reports),
@@ -258,7 +272,6 @@ func (this *Analyser) showAggregateTableForType(aggregateReportIds map[string][]
 		table.AddRow(key, len(ids))
 	}
 	table.Print()
-	fmt.Println()
 }
 
 type Report struct {

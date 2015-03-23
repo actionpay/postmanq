@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 	"sync"
+	"net/url"
+	"regexp"
 )
 
 const (
@@ -302,19 +304,34 @@ func (this *Consumer) showWaiting(ticker *time.Ticker) {
 	}
 }
 
-func (this *Consumer) OnPublish() {
+func (this *Consumer) OnPublish(event *ApplicationEvent) {
 	group := new(sync.WaitGroup)
 	delta := 0
-	for _, apps := range this.appsByURI {
-		for _, app := range apps {
-			delta += app.binding.Handlers
-			for i := 0; i < app.binding.Handlers; i++ {
-				go app.consumeAndPublishFailMessages(group)
+	for uri, apps := range this.appsByURI {
+		var necessaryPublish bool
+		if len(event.GetStringArg("host")) > 0 {
+			parsedUri, err := url.Parse(uri)
+			if err == nil && parsedUri.Host == event.GetStringArg("host") {
+				necessaryPublish = true
+			} else {
+				necessaryPublish = false
+			}
+		} else {
+			necessaryPublish = true
+		}
+		if necessaryPublish {
+			for _, app := range apps {
+				delta += app.binding.Handlers
+				for i := 0; i < app.binding.Handlers; i++ {
+					go app.consumeAndPublishMessages(event, group)
+				}
 			}
 		}
 	}
 	group.Add(delta)
 	group.Wait()
+	fmt.Println("done")
+	app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
 }
 
 // получатель сообщений из очереди
@@ -566,36 +583,100 @@ func (this *ConsumerApplication) consumeFailMessages(group *sync.WaitGroup) {
 	}
 }
 
-func (this *ConsumerApplication) consumeAndPublishFailMessages(group *sync.WaitGroup) {
+func (this *ConsumerApplication) consumeAndPublishMessages(event *ApplicationEvent, group *sync.WaitGroup) {
 	channel, err := this.connect.Channel()
 	if err == nil {
+		var envelopeRegex, recipientRegex *regexp.Regexp
+		srcBinding := this.findBindingByQueueName(event.GetStringArg("srcQueue"))
+		if srcBinding == nil {
+
+		}
+		destBinding := this.findBindingByQueueName(event.GetStringArg("destQueue"))
+		if destBinding == nil {
+			fmt.Println("source queue should be defined")
+			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+		}
+		if srcBinding == destBinding {
+			fmt.Println("destination queue should be defined")
+			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+		}
+		if srcBinding == destBinding {
+			fmt.Println("source and destination queue should be different")
+			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+		}
+		if (len(event.GetStringArg("envelope")) > 0) {
+			envelopeRegex, _ = regexp.Compile(event.GetStringArg("envelope"))
+		}
+		if (len(event.GetStringArg("recipient")) > 0) {
+			recipientRegex, _ = regexp.Compile(event.GetStringArg("recipient"))
+		}
+
+		publishDeliveries := make([]amqp.Delivery, 0)
 		for {
-			delivery, ok, _ := channel.Get(this.binding.failBinding.Queue, false)
+			delivery, ok, _ := channel.Get(srcBinding.Queue, false)
 			if ok {
 				message := new(MailMessage)
 				err = json.Unmarshal(delivery.Body, message)
-				if err == nil && message.Error.Code == 511 {
-					err = channel.Publish(
-						this.binding.Exchange,
-						this.binding.Routing,
-						false,
-						false,
-						amqp.Publishing{
-							ContentType : "text/plain",
-							Body        : delivery.Body,
-							DeliveryMode: amqp.Transient,
-						},
-					)
-					if err == nil {
-						delivery.Ack(true)
+				if err == nil {
+					var necessaryPublish bool
+					if (event.GetIntArg("code") > INVALID_INPUT_INT && event.GetIntArg("code") == message.Error.Code) ||
+						(envelopeRegex != nil && envelopeRegex.MatchString(message.Envelope)) ||
+						(recipientRegex != nil && recipientRegex.MatchString(message.Recipient)) ||
+						(event.GetIntArg("code") == INVALID_INPUT_INT && envelopeRegex == nil && recipientRegex == nil) {
+						necessaryPublish = true
+					}
+					if necessaryPublish {
+						fmt.Printf(
+							"find mail#%d: envelope - %s, recipient - %s\n",
+							message.Id,
+							message.Envelope,
+							message.Recipient,
+						)
+						publishDeliveries = append(publishDeliveries, delivery)
 					}
 				}
 			} else {
 				break
 			}
 		}
+
+		for _, delivery := range publishDeliveries {
+			err = channel.Publish(
+				destBinding.Exchange,
+				destBinding.Routing,
+				false,
+				false,
+				amqp.Publishing{
+					ContentType : "text/plain",
+					Body        : delivery.Body,
+					DeliveryMode: amqp.Transient,
+				},
+			)
+			if err == nil {
+				delivery.Ack(true)
+			} else {
+				delivery.Nack(true, true)
+			}
+		}
 		group.Done()
 	} else {
 		WarnWithErr(err)
+	}
+}
+
+func (this *ConsumerApplication) findBindingByQueueName(queueName string) *Binding {
+	if this.binding.Queue == queueName {
+		return this.binding
+	} else if this.binding.failBinding.Queue == queueName {
+		return this.binding.failBinding
+	} else {
+		var binding *Binding
+		for _, delayedBinding := range this.binding.delayedBindings {
+			if delayedBinding.Queue == queueName {
+				binding = delayedBinding
+				break
+			}
+		}
+		return binding
 	}
 }

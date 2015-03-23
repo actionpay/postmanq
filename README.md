@@ -71,6 +71,8 @@ PostmanQ разбирает одну или несколько очередей 
 
 Selector-ом может быть любым словом на латинице. Значение selector-а необходимо указать в настройках postmanq в поле dkimSelector.
 
+Также необходимо увеличить количество открываемых файловых дескрипторов, иначе PostmanQ не сможет открывать новые соединения, и письма будут падать в очередь для ошибок.
+
 Затем устанавливаем AMQP-сервер из [MacPorts](http://www.macports.org/), например [RabbitMQ](https://www.rabbitmq.com).
 
     sudo port install rabbitmq-server
@@ -81,14 +83,20 @@ Selector-ом может быть любым словом на латинице.
 
 Сначала уcтанавливаем [go](http://golang.org/doc/install). Затем устанавливаем postmanq:
 
-    cd /tmp && mkdir postmanq && cd postmanq/
-    export GOPATH=/tmp/postmanq/
-    export GOBIN=/tmp/postmanq/bin/
+    cd /some/path && mkdir postmanq && cd postmanq/
+    export GOPATH=/some/path/postmanq/
+    export GOBIN=/some/path/postmanq/bin/
     go get github.com/AdOnWeb/postmanq
     cd src/github.com/AdOnWeb/postmanq
     git checkout v.3
     go install cmd/postmanq.go
-    cp /tmp/postmanq/bin/postmanq /usr/local/bin/ # как вариант
+    go install cmd/pmq-grep.go
+    go install cmd/pmq-publish.go
+    go install cmd/pmq-report.go
+    ln -s /some/path/postmanq/bin/postmanq /usr/local/bin/
+    ln -s /some/path/postmanq/bin/pmq-grep /usr/local/bin/
+    ln -s /some/path/postmanq/bin/pmq-publish /usr/local/bin/
+    ln -s /some/path/postmanq/bin/pmq-report /usr/local/bin/
     
 Затем берем из репозитория config.yaml и пишем свой файл с настройками. Все настройки подробно описаны в самом config.yaml.
 

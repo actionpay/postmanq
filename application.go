@@ -6,15 +6,22 @@ import (
 	"time"
 	"crypto/x509"
 	"fmt"
+	"flag"
 )
 
 const (
-	EXAMPLE_CONFIG_YAML = "/path/to/config/file.yaml"
+	EXAMPLE_CONFIG_YAML  = "/path/to/config/file.yaml"
+	INVALID_INPUT_STRING = ""
+	INVALID_INPUT_INT    = 0
 )
 
 var (
 	app Application
 	defaultWorkersCount = runtime.NumCPU()
+	PrintUsage = func(f *flag.Flag) {
+		format := "  -%s %s\n"
+		fmt.Printf(format, f.Name, f.Usage)
+	}
 )
 
 func init() {
@@ -43,12 +50,12 @@ type ReportService interface {
 
 type PublishService interface {
 	Service
-	OnPublish()
+	OnPublish(*ApplicationEvent)
 }
 
 type GrepService interface {
 	Service
-	OnGrep()
+	OnGrep(*ApplicationEvent)
 }
 
 type SendEventResult int
@@ -100,7 +107,19 @@ const (
 type ApplicationEvent struct {
 	kind ApplicationEventKind
 	Data []byte
-//	args map[string]interface{}
+	args map[string]interface{}
+}
+
+func (this *ApplicationEvent) GetBoolArg(key string) bool {
+	return this.args[key].(bool)
+}
+
+func (this *ApplicationEvent) GetIntArg(key string) int {
+	return this.args[key].(int)
+}
+
+func (this *ApplicationEvent) GetStringArg(key string) string {
+	return this.args[key].(string)
 }
 
 // создает событие с указанным типом
@@ -120,6 +139,7 @@ type Application interface {
 	FireRun(*ApplicationEvent, interface{})
 	FireFinish(*ApplicationEvent, interface{})
 	Run()
+	RunWithArgs(...interface{})
 }
 
 type AbstractApplication struct {
@@ -164,7 +184,6 @@ func (this *AbstractApplication) run(app Application, event *ApplicationEvent) {
 					event.kind = APPLICATION_EVENT_KIND_RUN
 					app.Events() <- event
 				case APPLICATION_EVENT_KIND_FINISH:
-					fmt.Println("finish")
 					time.Sleep(2 * time.Second)
 					app.Done() <- true
 				}
@@ -204,6 +223,10 @@ func (this *AbstractApplication) FireInit(event *ApplicationEvent, abstractServi
 	service := abstractService.(Service)
 	service.OnInit(event)
 }
+
+func (this *AbstractApplication) Run() {}
+
+func (this *AbstractApplication) RunWithArgs(args ...interface{}) {}
 
 func (this *AbstractApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {}
 
@@ -271,16 +294,54 @@ func NewPublishApplication() Application {
 	return app
 }
 
-func (this *PublishApplication) Run() {
+func (this *PublishApplication) RunWithArgs(args ...interface{}) {
 	this.services = []interface{} {
 		ConsumerOnce(),
 	}
-	this.run(this, NewApplicationEvent(APPLICATION_EVENT_KIND_INIT))
+
+	event := NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
+	event.args = make(map[string]interface{})
+	event.args["srcQueue"] = args[0]
+	event.args["destQueue"] = args[1]
+	event.args["host"] = args[2]
+	event.args["code"] = args[3]
+	event.args["envelope"] = args[4]
+	event.args["recipient"] = args[5]
+
+	this.run(this, event)
 }
 
 func (this *PublishApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(PublishService)
-	go service.OnPublish()
+	go service.OnPublish(event)
+}
+
+type GrepApplication struct {
+	AbstractApplication
+}
+
+func NewGrepApplication() Application {
+	app = new(GrepApplication)
+	return app
+}
+
+func (this *GrepApplication) RunWithArgs(args ...interface{}) {
+	this.services = []interface{} {
+		SearcherOnce(),
+	}
+
+	event := NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
+	event.args = make(map[string]interface{})
+	event.args["envelope"] = args[0]
+	event.args["recipient"] = args[1]
+	event.args["numberLines"] = args[2]
+
+	this.run(this, event)
+}
+
+func (this *GrepApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(GrepService)
+	go service.OnGrep(event)
 }
 
 

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/AdOnWeb/postmanq"
+	"fmt"
 )
 
 func main() {
@@ -15,7 +16,10 @@ func main() {
 		app.SetConfigFilename(file)
 		app.Run()
 	} else {
-		flag.PrintDefaults()
+		fmt.Println("Usage: pmq-report -f")
+		flag.VisitAll(postmanq.PrintUsage)
+		fmt.Println("Example:")
+		fmt.Printf("  pmq-report -f %s\n", postmanq.EXAMPLE_CONFIG_YAML)
 	}
 }
 

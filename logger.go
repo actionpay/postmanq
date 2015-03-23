@@ -30,18 +30,25 @@ const (
 	LOG_LEVEL_ERROR_NAME   = "error"
 )
 
+type LoggerStatus int
+
+const(
+	LOGGER_STATUS_ACTIVE LoggerStatus = iota
+	LOGGER_STATUS_WAIT
+)
+
 var (
 	filenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
 	// названия уровней логирования, используется непосредственно в момент создания записи в лог
 	logLevelById = map[LogLevel]string{
-		LOG_LEVEL_DEBUG:   LOG_LEVEL_DEBUG_NAME,
-		LOG_LEVEL_INFO:    LOG_LEVEL_INFO_NAME,
+		LOG_LEVEL_DEBUG  : LOG_LEVEL_DEBUG_NAME,
+		LOG_LEVEL_INFO   : LOG_LEVEL_INFO_NAME,
 		LOG_LEVEL_WARNING: LOG_LEVEL_WARNING_NAME,
-		LOG_LEVEL_ERROR:   LOG_LEVEL_ERROR_NAME,
+		LOG_LEVEL_ERROR  : LOG_LEVEL_ERROR_NAME,
 	}
 	// уровни логирования по названию, используется для удобной инициализации сервиса логирования
 	logLevelByName = map[string]LogLevel{
-		LOG_LEVEL_DEBUG_NAME   : LOG_LEVEL_DEBUG,
+		LOG_LEVEL_DEBUG_NAME  : LOG_LEVEL_DEBUG,
 		LOG_LEVEL_INFO_NAME   : LOG_LEVEL_INFO,
 		LOG_LEVEL_WARNING_NAME: LOG_LEVEL_WARNING,
 		LOG_LEVEL_ERROR_NAME  : LOG_LEVEL_ERROR,
@@ -72,6 +79,7 @@ type Logger struct {
 	level        LogLevel                            // уровень логов, ниже этого уровня логи писаться не будут
 	writer       *bufio.Writer                       // куда пишем логи stdout или файл
 	messages     chan *LogMessage                    // канал логирования
+	status       LoggerStatus
 }
 
 // создает новый сервис логирования
@@ -81,9 +89,12 @@ func LoggerOnce() *Logger {
 		// инициализируем сервис с настройками по умолчанию
 		logger.messages = make(chan *LogMessage)
 		logger.level = LOG_LEVEL_WARNING
+		logger.status = LOGGER_STATUS_ACTIVE
 		logger.initWriter()
 		// запускаем запись логов в отдельном потоке
-		go logger.write()
+		for i := 0;i < defaultWorkersCount;i++ {
+			go logger.write(i)
+		}
 	}
 	return logger
 }
@@ -112,20 +123,46 @@ func (this *Logger) OnFinish() {
 }
 
 // пишет логи в вывод в отдельном потоке
-func (this *Logger) write() {
+func (this *Logger) write(id int) {
 	for message := range this.messages {
-		if this.writer != nil {
-			this.writer.WriteString(
-				fmt.Sprintf(
-					"PostmanQ | %v | %s: %s\n",
-					time.Now().Format("2006-01-02 15:04:05"),
-					logLevelById[message.Level],
-					fmt.Sprintf(message.Message, message.Args...),
-				),
-			)
-			this.writer.Flush()
-		}
+		this.writeMessage(id, message)
 	}
+}
+
+func (this *Logger) writeMessage(id int, message *LogMessage) {
+	goto writeNewMessage
+
+writeNewMessage:
+	if this.status == LOGGER_STATUS_ACTIVE {
+		if this.writer == nil {
+			goto waitInitWriter
+			return
+		}
+		_, err := this.writer.WriteString(
+			fmt.Sprintf(
+				"PostmanQ | %v | %s: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"),
+				logLevelById[message.Level],
+				fmt.Sprintf(message.Message, message.Args...),
+			),
+		)
+		if err == nil {
+			this.writer.Flush()
+		} else {
+			this.status = LOGGER_STATUS_WAIT
+			this.initWriter()
+			this.status = LOGGER_STATUS_ACTIVE
+			goto writeNewMessage
+		}
+	} else {
+		goto waitInitWriter
+	}
+	return
+
+waitInitWriter:
+	time.Sleep(SLEEP_TIMEOUT)
+	goto writeNewMessage
+	return
 }
 
 // инициализирует вывод логирования
