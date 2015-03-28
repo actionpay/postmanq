@@ -487,6 +487,7 @@ func (this *ConsumerApplication) consume(id int) {
 						if chainBinding, ok := bindingsChain[message.BindingType]; ok {
 							bindingType = chainBinding
 						}
+						Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 						this.publishDelayedMessage(channel, bindingType, message)
 					case SEND_EVENT_RESULT_OVERLIMIT:
 						bindingType := DELAYED_BINDING_UNKNOWN

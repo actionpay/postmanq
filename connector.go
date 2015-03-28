@@ -389,7 +389,7 @@ func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClien
 	// создаем соединение
 	rand.Seed(time.Now().UnixNano())
 	addr := connector.Addresses[rand.Intn(connector.addressesLen)]
-	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr, this.getPort()))
+	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr, "0"))
 	if err == nil {
 		Debug("connector#%d resolve tcp address %s", id, tcpAddr.String())
 		dialer := &net.Dialer{
@@ -430,16 +430,6 @@ func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClien
 		}
 	} else {
 		this.updateMaxConnections(id, err)
-	}
-}
-
-func (this *MxServer) getPort() string {
-	rand.Seed( time.Now().UTC().UnixNano())
-	port, err := net.LookupPort("tcp", strconv.Itoa(MIN_PORT + rand.Intn(MAX_PORT - MIN_PORT)))
-	if err == nil {
-		return strconv.Itoa(port)
-	} else {
-		return this.getPort()
 	}
 }
 
