@@ -89,12 +89,13 @@ func LoggerOnce() *Logger {
 		// инициализируем сервис с настройками по умолчанию
 		logger.messages = make(chan *LogMessage)
 		logger.level = LOG_LEVEL_WARNING
-		logger.status = LOGGER_STATUS_ACTIVE
-		logger.initWriter()
+		logger.status = LOGGER_STATUS_WAIT
 		// запускаем запись логов в отдельном потоке
-		for i := 0;i < defaultWorkersCount;i++ {
-			go logger.write(i)
-		}
+//		for i := 0;i < defaultWorkersCount;i++ {
+//			go logger.write(i)
+			go logger.write(0)
+//		}
+		logger.initWriter()
 	}
 	return logger
 }
@@ -151,7 +152,6 @@ writeNewMessage:
 		} else {
 			this.status = LOGGER_STATUS_WAIT
 			this.initWriter()
-			this.status = LOGGER_STATUS_ACTIVE
 			goto writeNewMessage
 		}
 	} else {
@@ -185,6 +185,7 @@ func (this *Logger) initWriter() {
 				}
 				if logFile != nil {
 					this.writer = bufio.NewWriter(logFile)
+					this.status = LOGGER_STATUS_ACTIVE
 				}
 				if err != nil {
 					FailExitWithErr(err)
@@ -192,6 +193,7 @@ func (this *Logger) initWriter() {
 			}
 		} else if len(this.Output) == 0 || this.Output == "stdout" {
 			this.writer = bufio.NewWriter(os.Stdout)
+			this.status = LOGGER_STATUS_ACTIVE
 		} else { // если из настроек пришло что то непонятное, никуда не пишем логи
 			this.writer = nil
 		}
