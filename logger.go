@@ -139,7 +139,7 @@ writeNewMessage:
 			goto waitInitWriter
 			return
 		}
-		_, err := this.writer.WriteString(
+		numberOfBytes, err := this.writer.WriteString(
 			fmt.Sprintf(
 				"PostmanQ | %v | %s: %s\n",
 				time.Now().Format("2006-01-02 15:04:05"),
@@ -147,7 +147,7 @@ writeNewMessage:
 				fmt.Sprintf(message.Message, message.Args...),
 			),
 		)
-		if err == nil {
+		if err == nil && numberOfBytes > 0 {
 			this.writer.Flush()
 		} else {
 			this.status = LOGGER_STATUS_WAIT
