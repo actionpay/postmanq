@@ -151,6 +151,7 @@ writeNewMessage:
 			this.writer.Flush()
 		} else {
 			this.status = LOGGER_STATUS_WAIT
+			this.writer = nil
 			this.initWriter()
 			goto writeNewMessage
 		}
