@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"bufio"
 	"fmt"
 	"time"
 	yaml "gopkg.in/yaml.v2"
@@ -72,14 +71,35 @@ func NewLogMessage(level LogLevel, message string, args ...interface{}) *LogMess
 	return logMessage
 }
 
+type LogWriter interface {
+	WriteString(string)
+}
+
+type StdoutWriter struct {}
+
+func (this *StdoutWriter) WriteString(str string) {
+	os.Stdout.WriteString(str)
+}
+
+type FileWriter struct {
+	filename string
+}
+
+func (this *FileWriter) WriteString(str string) {
+	f, err := os.OpenFile(this.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	if err == nil {
+		_, err = f.WriteString(str)
+		f.Close()
+	}
+}
+
 // сервис логирования
 type Logger struct {
 	LogLevelName string           `yaml:"logLevel"`  // название уровня логирования, устанавливается в конфиге
 	Output       string           `yaml:"logOutput"` // название вывода логов
 	level        LogLevel                            // уровень логов, ниже этого уровня логи писаться не будут
-	writer       *bufio.Writer                       // куда пишем логи stdout или файл
+	writer       LogWriter                           // куда пишем логи stdout или файл
 	messages     chan *LogMessage                    // канал логирования
-	status       LoggerStatus
 }
 
 // создает новый сервис логирования
@@ -89,12 +109,10 @@ func LoggerOnce() *Logger {
 		// инициализируем сервис с настройками по умолчанию
 		logger.messages = make(chan *LogMessage)
 		logger.level = LOG_LEVEL_WARNING
-		logger.status = LOGGER_STATUS_WAIT
 		// запускаем запись логов в отдельном потоке
-//		for i := 0;i < defaultWorkersCount;i++ {
-//			go logger.write(i)
-			go logger.write(0)
-//		}
+		for i := 0;i < defaultWorkersCount;i++ {
+			go logger.write(i)
+		}
 		logger.initWriter()
 	}
 	return logger
@@ -109,7 +127,6 @@ func (this *Logger) OnInit(event *ApplicationEvent) {
 			this.level = level
 		}
 		// заново инициализируем вывод для логов
-		this.writer = nil
 		this.initWriter()
 	} else {
 		FailExitWithErr(err)
@@ -131,15 +148,8 @@ func (this *Logger) write(id int) {
 }
 
 func (this *Logger) writeMessage(id int, message *LogMessage) {
-	goto writeNewMessage
-
-writeNewMessage:
-	if this.status == LOGGER_STATUS_ACTIVE {
-		if this.writer == nil {
-			goto waitInitWriter
-			return
-		}
-		numberOfBytes, err := this.writer.WriteString(
+	if this.writer != nil {
+		this.writer.WriteString(
 			fmt.Sprintf(
 				"PostmanQ | %v | %s: %s\n",
 				time.Now().Format("2006-01-02 15:04:05"),
@@ -147,57 +157,23 @@ writeNewMessage:
 				fmt.Sprintf(message.Message, message.Args...),
 			),
 		)
-		if err == nil && numberOfBytes > 0 {
-			this.writer.Flush()
-		} else {
-			this.status = LOGGER_STATUS_WAIT
-			this.writer = nil
-			this.initWriter()
-			goto writeNewMessage
-		}
-	} else {
-		goto waitInitWriter
 	}
-	return
-
-waitInitWriter:
-	time.Sleep(SLEEP_TIMEOUT)
-	goto writeNewMessage
-	return
 }
 
 // инициализирует вывод логирования
 func (this *Logger) initWriter() {
-	if this.writer == nil {
-		if filenameRegex.MatchString(this.Output) { // проверяем получили ли из настроек имя файла
-			// получаем директорию, в которой лежит файл
-			dir := filepath.Dir(this.Output)
-			// смотрим, что она реально существует
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				FailExit("directory %s is not exists", dir)
-			} else {
-				var logFile *os.File
-				_, err := os.Stat(this.Output);
-				// если файла нет, создаем
-				if os.IsNotExist(err) {
-					logFile, err = os.Create(this.Output)
-				} else {
-					logFile, err = os.OpenFile(this.Output, os.O_APPEND|os.O_WRONLY, os.ModePerm)
-				}
-				if logFile != nil {
-					this.writer = bufio.NewWriter(logFile)
-					this.status = LOGGER_STATUS_ACTIVE
-				}
-				if err != nil {
-					FailExitWithErr(err)
-				}
-			}
-		} else if len(this.Output) == 0 || this.Output == "stdout" {
-			this.writer = bufio.NewWriter(os.Stdout)
-			this.status = LOGGER_STATUS_ACTIVE
-		} else { // если из настроек пришло что то непонятное, никуда не пишем логи
-			this.writer = nil
+	this.writer = nil
+	if filenameRegex.MatchString(this.Output) { // проверяем получили ли из настроек имя файла
+		// получаем директорию, в которой лежит файл
+		dir := filepath.Dir(this.Output)
+		// смотрим, что она реально существует
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			FailExit("directory %s is not exists", dir)
+		} else {
+			this.writer = &FileWriter{this.Output}
 		}
+	} else if len(this.Output) == 0 || this.Output == "stdout" {
+		this.writer = new(StdoutWriter)
 	}
 }
 
