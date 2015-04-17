@@ -4,7 +4,7 @@ PostmanQ - это высоко производительный почтовый
 На сервере под управлением Ubuntu 12.04 с 8-ми ядерным процессором и 32ГБ оперативной памяти 
 PostmanQ рассылает более 10000 писем в минуту.
 
-Для работы PostmanQ потребуется AMQP-сервер, в котором будут хранится письма. 
+Для работы PostmanQ потребуется AMQP-сервер, в котором будут храниться письма. 
 
 PostmanQ разбирает одну или несколько очередей с письмами и отправляет письма по SMTP сторонним почтовым сервисам.
 
@@ -73,9 +73,7 @@ Selector-ом может быть любым словом на латинице.
 
 Также необходимо увеличить количество открываемых файловых дескрипторов, иначе PostmanQ не сможет открывать новые соединения, и письма будут падать в одну из очередей для повторной отправки.
 
-Затем устанавливаем AMQP-сервер из [MacPorts](http://www.macports.org/), например [RabbitMQ](https://www.rabbitmq.com).
-
-    sudo port install rabbitmq-server
+Затем устанавливаем AMQP-сервер, например [RabbitMQ](https://www.rabbitmq.com).
     
 Теперь все готово для установки PostmanQ.
 
@@ -93,10 +91,10 @@ Selector-ом может быть любым словом на латинице.
     go install cmd/pmq-grep.go
     go install cmd/pmq-publish.go
     go install cmd/pmq-report.go
-    ln -s /some/path/postmanq/bin/postmanq /usr/local/bin/
-    ln -s /some/path/postmanq/bin/pmq-grep /usr/local/bin/
-    ln -s /some/path/postmanq/bin/pmq-publish /usr/local/bin/
-    ln -s /some/path/postmanq/bin/pmq-report /usr/local/bin/
+    ln -s /some/path/postmanq/bin/postmanq /usr/bin/
+    ln -s /some/path/postmanq/bin/pmq-grep /usr/bin/
+    ln -s /some/path/postmanq/bin/pmq-publish /usr/bin/
+    ln -s /some/path/postmanq/bin/pmq-report /usr/bin/
     
 Затем берем из репозитория config.yaml и пишем свой файл с настройками. Все настройки подробно описаны в самом config.yaml.
 
