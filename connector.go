@@ -20,11 +20,9 @@ import (
 )
 
 const (
-	MIN_PORT = 30000
-	MAX_PORT = 50000
 	UNLIMITED_CONNECTION_COUNT = -1                     // безлимитное количество соединений к почтовому сервису
 	RECEIVE_CONNECTION_TIMEOUT = 5 * time.Minute        // время ожидания для получения соединения к почтовому сервису
-	SLEEP_TIMEOUT              = 500 * time.Millisecond
+	SLEEP_TIMEOUT              = 1000 * time.Millisecond
 	HELLO_TIMEOUT              = 5 * time.Minute
 	MAIL_TIMEOUT               = 5 * time.Minute
 	RCPT_TIMEOUT               = 5 * time.Minute
@@ -85,86 +83,86 @@ func ConnectorOnce() *Connector {
 
 // по срабатыванию таймера, просматривает все соединения к почтовым сервисам
 // и закрывает те, которые висят дольше 30 секунд
-func (this *Connector) checkConnections() {
-	for now := range this.ticker.C {
-		go this.closeConnections(now)
+func (c *Connector) checkConnections() {
+	for now := range c.ticker.C {
+		go c.closeConnections(now)
 	}
 }
 
-func (this *Connector) closeConnections(now time.Time) {
-	for _, mailServer := range this.mailServers {
+func (c *Connector) closeConnections(now time.Time) {
+	for _, mailServer := range c.mailServers {
 		// закрываем соединения к каждого почтового сервиса
 		go mailServer.closeConnections(now)
 	}
 }
 
-func (this *Connector) OnInit(event *ApplicationEvent) {
-	err := yaml.Unmarshal(event.Data, this)
+func (c *Connector) OnInit(event *ApplicationEvent) {
+	err := yaml.Unmarshal(event.Data, c)
 	if err == nil {
 		// если указан путь до сертификата
-		if len(this.CertFilename) > 0 {
+		if len(c.CertFilename) > 0 {
 			// пытаемся прочитать сертификат
-			pemBytes, err := ioutil.ReadFile(this.CertFilename)
+			pemBytes, err := ioutil.ReadFile(c.CertFilename)
 			if err == nil {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
-				this.certBytes = pemBlock.Bytes
+				c.certBytes = pemBlock.Bytes
 				// и считаем его длину, чтобы не делать это при создании каждого сертификата
-				this.certBytesLen = len(this.certBytes)
+				c.certBytesLen = len(c.certBytes)
 			} else {
 				FailExit("connector can't read certificate, error - %v", err)
 			}
 		} else {
 			Debug("certificate is not defined")
 		}
-		this.addressesLen = len(this.Addresses)
-		if this.addressesLen == 0 {
+		c.addressesLen = len(c.Addresses)
+		if c.addressesLen == 0 {
 			FailExit("ips should be defined")
 		}
-		if this.ConnectorsCount == 0 {
-			this.ConnectorsCount = defaultWorkersCount
+		if c.ConnectorsCount == 0 {
+			c.ConnectorsCount = defaultWorkersCount
 		}
 	} else {
 		FailExit("connector can't unmarshal config, error - %v", err)
 	}
 }
 
-func (this *Connector) OnRun() {
+func (c *Connector) OnRun() {
 	// запускаем проверку открытых соединений
 	go connector.checkConnections()
-	for i := 0;i < this.ConnectorsCount; i++ {
+	for i := 0;i < c.ConnectorsCount; i++ {
 		id := i + 1
-		go this.receiveConnections(id)
-		go this.lookupServers(id)
-		go this.createConnections(id)
+		go c.receiveConnections(id)
+		go c.lookupServers(id)
+		go c.createConnections(id)
 	}
 }
 
-func (this *Connector) createConnections(id int) {
-	for event := range this.events {
-		this.doConnection(id, event)
+func (c *Connector) createConnections(id int) {
+	for event := range c.events {
+		c.doConnection(id, event)
 	}
 }
 
-func (this *Connector) doConnection(id int, event *SendEvent) {
+func (c *Connector) doConnection(id int, event *SendEvent) {
 	Info("connector#%d try create connection for mail#%d", id, event.Message.Id)
 	// передаем событию сертификат и его длину
-	event.CertBytes = this.certBytes
-	event.CertBytesLen = this.certBytesLen
+	event.CertBytes = c.certBytes
+	event.CertBytesLen = c.certBytesLen
 	goto connectToMailServer
 
 connectToMailServer:
-	this.lookupEvents <- event
+	c.lookupEvents <- event
 	mailServer := <- event.MailServers
 	switch mailServer.status {
-	case MAIL_SERVER_LOOKUP:
+	case LookupMailServerStatus:
 		goto waitLookup
 		return
-	case MAIL_SERVER_SUCCESS:
+	case SuccessMailServerStatus:
 		event.MailServer = mailServer
-		this.connectEvents <- event
+		c.connectEvents <- event
 		return
-	case MAIL_SERVER_ERROR:
+	case ErrorMailServerStatus:
 		ReturnMail(
 			event,
 			errors.New(fmt.Sprintf("511 connector#%d can't lookup %s", id, event.Message.HostnameTo)),
@@ -178,26 +176,26 @@ waitLookup:
 	goto connectToMailServer
 }
 
-func (this *Connector) lookupServers(id int) {
-	for event := range this.lookupEvents {
-		this.lookupServer(id, event)
+func (c *Connector) lookupServers(id int) {
+	for event := range c.lookupEvents {
+		c.lookupServer(id, event)
 	}
 }
 
-func (this *Connector) lookupServer(id int, event *SendEvent) {
-	this.mutex.Lock()
-	if _, ok := this.mailServers[event.Message.HostnameTo]; !ok {
+func (c *Connector) lookupServer(id int, event *SendEvent) {
+	c.mutex.Lock()
+	if _, ok := c.mailServers[event.Message.HostnameTo]; !ok {
 		Debug("connector#%d create mail server for %s", id, event.Message.HostnameTo)
-		this.mailServers[event.Message.HostnameTo] = &MailServer{
-			status: MAIL_SERVER_LOOKUP,
+		c.mailServers[event.Message.HostnameTo] = &MailServer{
+			status: LookupMailServerStatus,
 			connectorId: id,
 		}
 	}
-	this.mutex.Unlock()
-	mailServer := this.mailServers[event.Message.HostnameTo]
-	if id == mailServer.connectorId && mailServer.status == MAIL_SERVER_LOOKUP {
+	c.mutex.Unlock()
+	mailServer := c.mailServers[event.Message.HostnameTo]
+	if id == mailServer.connectorId && mailServer.status == LookupMailServerStatus {
 		Debug("connector#%d look up mx domains for %s...", id, event.Message.HostnameTo)
-		mailServer := this.mailServers[event.Message.HostnameTo]
+		mailServer := c.mailServers[event.Message.HostnameTo]
 		// ищем почтовые сервера для домена
 		mxs, err := net.LookupMX(event.Message.HostnameTo)
 		if err == nil {
@@ -274,23 +272,23 @@ func (this *Connector) lookupServer(id int, event *SendEvent) {
 				mailServer.mxServers[i] = mxServer
 			}
 			mailServer.lastIndex = len(mailServer.mxServers) - 1
-			mailServer.status = MAIL_SERVER_SUCCESS
+			mailServer.status = SuccessMailServerStatus
 			Debug("connector#%d look up %s success", id, event.Message.HostnameTo)
 		} else {
-			mailServer.status = MAIL_SERVER_ERROR
+			mailServer.status = ErrorMailServerStatus
 			Warn("connector#%d can't look up mx domains for %s", id, event.Message.HostnameTo)
 		}
 	}
 	event.MailServers <- mailServer
 }
 
-func (this *Connector) receiveConnections(id int) {
-	for event := range this.connectEvents {
-		this.receiveConnection(id, event)
+func (c *Connector) receiveConnections(id int) {
+	for event := range c.connectEvents {
+		c.receiveConnection(id, event)
 	}
 }
 
-func (this *Connector) receiveConnection(id int, event *SendEvent) {
+func (c *Connector) receiveConnection(id int, event *SendEvent) {
 	Debug("connector#%d find connection for mail#%d", id, event.Message.Id)
 	goto receiveConnect
 
@@ -338,20 +336,20 @@ waitConnect:
 }
 
 // завершает работу сервиса соединений
-func (this *Connector) OnFinish() {
-	close(this.events)
+func (c *Connector) OnFinish() {
+	close(c.events)
 	// останавливаем таймер
-	this.ticker.Stop()
+	c.ticker.Stop()
 	// закрываем все соединения
-	this.closeConnections(time.Now().Add(time.Minute))
+	c.closeConnections(time.Now().Add(time.Minute))
 }
 
 type MailServerStatus int
 
 const (
-	MAIL_SERVER_LOOKUP MailServerStatus = iota
-	MAIL_SERVER_SUCCESS
-	MAIL_SERVER_ERROR
+	LookupMailServerStatus MailServerStatus = iota
+	SuccessMailServerStatus
+	ErrorMailServerStatus
 )
 
 // почтовый сервис

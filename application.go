@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	EXAMPLE_CONFIG_YAML  = "/path/to/config/file.yaml"
-	INVALID_INPUT_STRING = ""
-	INVALID_INPUT_INT    = 0
+	ExampleConfigYaml  = "/path/to/config/file.yaml"
+	InvalidInputString = ""
+	InvalidInputInt    = 0
 )
 
 var (
@@ -61,10 +61,10 @@ type GrepService interface {
 type SendEventResult int
 
 const (
-	SEND_EVENT_RESULT_SUCCESS   SendEventResult = iota
-	SEND_EVENT_RESULT_OVERLIMIT
-	SEND_EVENT_RESULT_ERROR
-	SEND_EVENT_RESULT_DELAY
+	SuccessSendEventResult   SendEventResult = iota
+	OverlimitSendEventResult
+	ErrorSendEventResult
+	DelaySendEventResult
 )
 
 // Событие отправки письма
@@ -98,9 +98,9 @@ func NewSendEvent(message *MailMessage) *SendEvent {
 type ApplicationEventKind int
 
 const (
-	APPLICATION_EVENT_KIND_INIT    ApplicationEventKind = iota // событие инициализации сервисов
-	APPLICATION_EVENT_KIND_RUN                                 // событие запуска сервисов
-	APPLICATION_EVENT_KIND_FINISH                              // событие завершения сервисов
+	InitApplicationEventKind    ApplicationEventKind = iota // событие инициализации сервисов
+	RunApplicationEventKind                                 // событие запуска сервисов
+	FinishApplicationEventKind                              // событие завершения сервисов
 )
 
 // событие приложения
@@ -110,16 +110,16 @@ type ApplicationEvent struct {
 	args map[string]interface{}
 }
 
-func (this *ApplicationEvent) GetBoolArg(key string) bool {
-	return this.args[key].(bool)
+func (e *ApplicationEvent) GetBoolArg(key string) bool {
+	return e.args[key].(bool)
 }
 
-func (this *ApplicationEvent) GetIntArg(key string) int {
-	return this.args[key].(int)
+func (e *ApplicationEvent) GetIntArg(key string) int {
+	return e.args[key].(int)
 }
 
-func (this *ApplicationEvent) GetStringArg(key string) string {
-	return this.args[key].(string)
+func (e *ApplicationEvent) GetStringArg(key string) string {
+	return e.args[key].(string)
 }
 
 // создает событие с указанным типом
@@ -149,11 +149,11 @@ type AbstractApplication struct {
 	done            chan bool              // флаг, сигнализирующий окончание работы приложения
 }
 
-func (this *AbstractApplication) IsValidConfigFilename(filename string) bool {
-	return len(filename) > 0 && filename != EXAMPLE_CONFIG_YAML
+func (a *AbstractApplication) IsValidConfigFilename(filename string) bool {
+	return len(filename) > 0 && filename != ExampleConfigYaml
 }
 
-func (this *AbstractApplication) run(app Application, event *ApplicationEvent) {
+func (a *AbstractApplication) run(app Application, event *ApplicationEvent) {
 	app.SetDone(make(chan bool))
 	// создаем каналы для событий
 	app.SetEvents(make(chan *ApplicationEvent, 3))
@@ -161,9 +161,9 @@ func (this *AbstractApplication) run(app Application, event *ApplicationEvent) {
 		for {
 			select {
 			case event := <- app.Events():
-				if event.kind == APPLICATION_EVENT_KIND_INIT {
+				if event.kind == InitApplicationEventKind {
 					// пытаемся прочитать конфигурационный файл
-					bytes, err := ioutil.ReadFile(this.configFilename)
+					bytes, err := ioutil.ReadFile(a.configFilename)
 					if err == nil {
 						event.Data = bytes
 					} else {
@@ -173,17 +173,17 @@ func (this *AbstractApplication) run(app Application, event *ApplicationEvent) {
 
 				for _, service := range app.Services() {
 					switch event.kind {
-					case APPLICATION_EVENT_KIND_INIT: app.FireInit(event, service)
-					case APPLICATION_EVENT_KIND_RUN: app.FireRun(event, service)
-					case APPLICATION_EVENT_KIND_FINISH: app.FireFinish(event, service)
+					case InitApplicationEventKind: app.FireInit(event, service)
+					case RunApplicationEventKind: app.FireRun(event, service)
+					case FinishApplicationEventKind: app.FireFinish(event, service)
 					}
 				}
 
 				switch event.kind {
-				case APPLICATION_EVENT_KIND_INIT:
-					event.kind = APPLICATION_EVENT_KIND_RUN
+				case InitApplicationEventKind:
+					event.kind = RunApplicationEventKind
 					app.Events() <- event
-				case APPLICATION_EVENT_KIND_FINISH:
+				case FinishApplicationEventKind:
 					time.Sleep(2 * time.Second)
 					app.Done() <- true
 				}
@@ -195,42 +195,42 @@ func (this *AbstractApplication) run(app Application, event *ApplicationEvent) {
 	<- app.Done()
 }
 
-func (this *AbstractApplication) SetConfigFilename(configFilename string) {
-	this.configFilename = configFilename
+func (a *AbstractApplication) SetConfigFilename(configFilename string) {
+	a.configFilename = configFilename
 }
 
-func (this *AbstractApplication) SetEvents(events chan *ApplicationEvent) {
-	this.events = events
+func (a *AbstractApplication) SetEvents(events chan *ApplicationEvent) {
+	a.events = events
 }
 
-func (this *AbstractApplication) Events() chan *ApplicationEvent {
-	return this.events
+func (a *AbstractApplication) Events() chan *ApplicationEvent {
+	return a.events
 }
 
-func (this *AbstractApplication) SetDone(done chan bool) {
-	this.done = done
+func (a *AbstractApplication) SetDone(done chan bool) {
+	a.done = done
 }
 
-func (this *AbstractApplication) Done() chan bool {
-	return this.done
+func (a *AbstractApplication) Done() chan bool {
+	return a.done
 }
 
-func (this *AbstractApplication) Services() []interface{} {
-	return this.services
+func (a *AbstractApplication) Services() []interface{} {
+	return a.services
 }
 
-func (this *AbstractApplication) FireInit(event *ApplicationEvent, abstractService interface{}) {
+func (a *AbstractApplication) FireInit(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(Service)
 	service.OnInit(event)
 }
 
-func (this *AbstractApplication) Run() {}
+func (a *AbstractApplication) Run() {}
 
-func (this *AbstractApplication) RunWithArgs(args ...interface{}) {}
+func (a *AbstractApplication) RunWithArgs(args ...interface{}) {}
 
-func (this *AbstractApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {}
+func (a *AbstractApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {}
 
-func (this *AbstractApplication) FireFinish(event *ApplicationEvent, abstractService interface{}) {}
+func (a *AbstractApplication) FireFinish(event *ApplicationEvent, abstractService interface{}) {}
 
 type PostApplication struct {
 	AbstractApplication
@@ -241,24 +241,24 @@ func NewPostApplication() Application {
 	return app
 }
 
-func (this *PostApplication) Run() {
-	this.services = []interface{} {
+func (a *PostApplication) Run() {
+	a.services = []interface{} {
 		LoggerOnce(),
 		LimiterOnce(),
 		ConnectorOnce(),
 		MailerOnce(),
 		ConsumerOnce(),
 	}
-	this.run(this, NewApplicationEvent(APPLICATION_EVENT_KIND_INIT))
+	a.run(a, NewApplicationEvent(InitApplicationEventKind))
 
 }
 
-func (this *PostApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+func (a *PostApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(SendingService)
 	go service.OnRun()
 }
 
-func (this *PostApplication) FireFinish(event *ApplicationEvent, abstractService interface{}) {
+func (a *PostApplication) FireFinish(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(SendingService)
 	go service.OnFinish()
 }
@@ -272,15 +272,15 @@ func NewReportApplication() Application {
 	return app
 }
 
-func (this *ReportApplication) Run() {
-	this.services = []interface{} {
+func (a *ReportApplication) Run() {
+	a.services = []interface{} {
 		AnalyserOnce(),
 		ConsumerOnce(),
 	}
-	this.run(this, NewApplicationEvent(APPLICATION_EVENT_KIND_INIT))
+	a.run(a, NewApplicationEvent(InitApplicationEventKind))
 }
 
-func (this *ReportApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+func (a *ReportApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(ReportService)
 	go service.OnShowReport()
 }
@@ -294,12 +294,12 @@ func NewPublishApplication() Application {
 	return app
 }
 
-func (this *PublishApplication) RunWithArgs(args ...interface{}) {
-	this.services = []interface{} {
+func (a *PublishApplication) RunWithArgs(args ...interface{}) {
+	a.services = []interface{} {
 		ConsumerOnce(),
 	}
 
-	event := NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
+	event := NewApplicationEvent(InitApplicationEventKind)
 	event.args = make(map[string]interface{})
 	event.args["srcQueue"] = args[0]
 	event.args["destQueue"] = args[1]
@@ -308,10 +308,10 @@ func (this *PublishApplication) RunWithArgs(args ...interface{}) {
 	event.args["envelope"] = args[4]
 	event.args["recipient"] = args[5]
 
-	this.run(this, event)
+	a.run(a, event)
 }
 
-func (this *PublishApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+func (a *PublishApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(PublishService)
 	go service.OnPublish(event)
 }
@@ -325,21 +325,21 @@ func NewGrepApplication() Application {
 	return app
 }
 
-func (this *GrepApplication) RunWithArgs(args ...interface{}) {
-	this.services = []interface{} {
+func (a *GrepApplication) RunWithArgs(args ...interface{}) {
+	a.services = []interface{} {
 		SearcherOnce(),
 	}
 
-	event := NewApplicationEvent(APPLICATION_EVENT_KIND_INIT)
+	event := NewApplicationEvent(InitApplicationEventKind)
 	event.args = make(map[string]interface{})
 	event.args["envelope"] = args[0]
 	event.args["recipient"] = args[1]
 	event.args["numberLines"] = args[2]
 
-	this.run(this, event)
+	a.run(a, event)
 }
 
-func (this *GrepApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
+func (a *GrepApplication) FireRun(event *ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(GrepService)
 	go service.OnGrep(event)
 }

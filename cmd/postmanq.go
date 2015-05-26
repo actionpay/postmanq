@@ -9,7 +9,7 @@ import (
 
 func main() {
 	var file string
-	flag.StringVar(&file, "f", postmanq.EXAMPLE_CONFIG_YAML, "configuration yaml file")
+	flag.StringVar(&file, "f", postmanq.ExampleConfigYaml, "configuration yaml file")
 	flag.Parse()
 
 	app := postmanq.NewPostApplication()
@@ -17,7 +17,7 @@ func main() {
 		app.SetConfigFilename(file)
 		app.Run()
 	} else {
-		fmt.Printf("Usage: postmanq -f %s\n", postmanq.EXAMPLE_CONFIG_YAML)
+		fmt.Printf("Usage: postmanq -f %s\n", postmanq.ExampleConfigYaml)
 		flag.VisitAll(postmanq.PrintUsage)
 	}
 }

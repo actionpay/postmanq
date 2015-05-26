@@ -200,7 +200,7 @@ func Err(message string, args ...interface{}) {
 // пишет произвольную ошибку в лог и завершает программу
 func FailExit(message string, args ...interface{}) {
 	Err(message, args...)
-	app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+	app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 }
 
 // пишет системную ошибку в лог и завершает программу

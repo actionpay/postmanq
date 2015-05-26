@@ -28,10 +28,11 @@ const (
 	DELAYED_BINDING_TWENTY_MINUTES
 	DELAYED_BINDING_THIRTY_MINUTES
 	DELAYED_BINDING_FORTY_MINUTES
-	DELAYED_BINDING_FYFTY_MINUTES
+	DELAYED_BINDING_FIFTY_MINUTES
 	DELAYED_BINDING_HOUR
 	DELAYED_BINDING_SIX_HOURS
 	DELAYED_BINDING_DAY
+	DELAYED_BINDING_NOT_SEND
 )
 
 var (
@@ -46,10 +47,11 @@ var (
 		DELAYED_BINDING_TWENTY_MINUTES : &Binding{Name: "%s.dlx.twenty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 20).Seconds()) * 1000}},
 		DELAYED_BINDING_THIRTY_MINUTES : &Binding{Name: "%s.dlx.thirty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 30).Seconds()) * 1000}},
 		DELAYED_BINDING_FORTY_MINUTES  : &Binding{Name: "%s.dlx.forty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 40).Seconds()) * 1000}},
-		DELAYED_BINDING_FYFTY_MINUTES  : &Binding{Name: "%s.dlx.fyfty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 50).Seconds()) * 1000}},
+		DELAYED_BINDING_FIFTY_MINUTES  : &Binding{Name: "%s.dlx.fifty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 50).Seconds()) * 1000}},
 		DELAYED_BINDING_HOUR           : &Binding{Name: "%s.dlx.hour",           QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
 		DELAYED_BINDING_SIX_HOURS      : &Binding{Name: "%s.dlx.six.hours",      QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
 		DELAYED_BINDING_DAY            : &Binding{Name: "%s.dlx.day",            QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
+		DELAYED_BINDING_NOT_SEND       : &Binding{Name: "%s.not.send"},
 	}
 
 	// отложенные очереди для лимитов
@@ -73,10 +75,10 @@ var (
 		DELAYED_BINDING_TEN_MINUTES   : DELAYED_BINDING_TWENTY_MINUTES,
 		DELAYED_BINDING_TWENTY_MINUTES: DELAYED_BINDING_THIRTY_MINUTES,
 		DELAYED_BINDING_THIRTY_MINUTES: DELAYED_BINDING_FORTY_MINUTES,
-		DELAYED_BINDING_FORTY_MINUTES : DELAYED_BINDING_FYFTY_MINUTES,
-		DELAYED_BINDING_FYFTY_MINUTES : DELAYED_BINDING_HOUR,
+		DELAYED_BINDING_FORTY_MINUTES : DELAYED_BINDING_FIFTY_MINUTES,
+		DELAYED_BINDING_FIFTY_MINUTES : DELAYED_BINDING_HOUR,
 		DELAYED_BINDING_HOUR          : DELAYED_BINDING_SIX_HOURS,
-		DELAYED_BINDING_SIX_HOURS     : DELAYED_BINDING_UNKNOWN,
+		DELAYED_BINDING_SIX_HOURS     : DELAYED_BINDING_NOT_SEND,
 	}
 )
 
@@ -131,7 +133,9 @@ func (this *Consumer) OnInit(event *ApplicationEvent) {
 						for delayedBindingType, delayedBinding := range delayedBindings {
 							delayedBinding.Exchange = fmt.Sprintf(delayedBinding.Name, binding.Exchange)
 							delayedBinding.Queue = fmt.Sprintf(delayedBinding.Name, binding.Queue)
-							delayedBinding.QueueArgs["x-dead-letter-exchange"] = binding.Exchange
+							if delayedBinding.QueueArgs != nil {
+								delayedBinding.QueueArgs["x-dead-letter-exchange"] = binding.Exchange
+							}
 							delayedBinding.Type = binding.Type
 							this.declare(channel, delayedBinding)
 							binding.delayedBindings[delayedBindingType] = delayedBinding
@@ -331,7 +335,7 @@ func (this *Consumer) OnPublish(event *ApplicationEvent) {
 	group.Add(delta)
 	group.Wait()
 	fmt.Println("done")
-	app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+	app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 }
 
 // получатель сообщений из очереди
@@ -427,7 +431,7 @@ func (this *ConsumerApplication) consume(id int) {
 					// во время ожидания поток блокируется
 					// если этого не сделать, тогда невозможно будет подтвердить получение сообщения из очереди
 					switch <- event.Result {
-					case SEND_EVENT_RESULT_ERROR:
+					case ErrorSendEventResult:
 						// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
 						// или получили какую то ошибку от почтового сервиса, что он не может
 						// отправить письмо указанному адресату или выполнить какую то команду
@@ -479,7 +483,7 @@ func (this *ConsumerApplication) consume(id int) {
 								WarnWithErr(err)
 							}
 						}
-					case SEND_EVENT_RESULT_DELAY:
+					case DelaySendEventResult:
 						bindingType := DELAYED_BINDING_UNKNOWN
 						Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
 						Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
@@ -489,7 +493,7 @@ func (this *ConsumerApplication) consume(id int) {
 						}
 						Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 						this.publishDelayedMessage(channel, bindingType, message)
-					case SEND_EVENT_RESULT_OVERLIMIT:
+					case OverlimitSendEventResult:
 						bindingType := DELAYED_BINDING_UNKNOWN
 						Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
 						for i := 0;i < limitBindingsLen;i++ {
@@ -595,15 +599,15 @@ func (this *ConsumerApplication) consumeAndPublishMessages(event *ApplicationEve
 		destBinding := this.findBindingByQueueName(event.GetStringArg("destQueue"))
 		if destBinding == nil {
 			fmt.Println("source queue should be defined")
-			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+			app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 		}
 		if srcBinding == destBinding {
 			fmt.Println("destination queue should be defined")
-			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+			app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 		}
 		if srcBinding == destBinding {
 			fmt.Println("source and destination queue should be different")
-			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+			app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 		}
 		if (len(event.GetStringArg("envelope")) > 0) {
 			envelopeRegex, _ = regexp.Compile(event.GetStringArg("envelope"))
@@ -620,10 +624,10 @@ func (this *ConsumerApplication) consumeAndPublishMessages(event *ApplicationEve
 				err = json.Unmarshal(delivery.Body, message)
 				if err == nil {
 					var necessaryPublish bool
-					if (event.GetIntArg("code") > INVALID_INPUT_INT && event.GetIntArg("code") == message.Error.Code) ||
+					if (event.GetIntArg("code") > InvalidInputInt && event.GetIntArg("code") == message.Error.Code) ||
 						(envelopeRegex != nil && envelopeRegex.MatchString(message.Envelope)) ||
 						(recipientRegex != nil && recipientRegex.MatchString(message.Recipient)) ||
-						(event.GetIntArg("code") == INVALID_INPUT_INT && envelopeRegex == nil && recipientRegex == nil) {
+						(event.GetIntArg("code") == InvalidInputInt && envelopeRegex == nil && recipientRegex == nil) {
 						necessaryPublish = true
 					}
 					if necessaryPublish {

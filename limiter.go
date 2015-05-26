@@ -84,7 +84,7 @@ func (this *Limiter) doChecking(id int, event *SendEvent) {
 				event.Message.BindingType = limit.bindingType
 				// говорим получателю, что у нас превышение ограничения,
 				// разблокируем поток получателя
-				event.Result <- SEND_EVENT_RESULT_OVERLIMIT
+				event.Result <- OverlimitSendEventResult
 				return
 			}
 		} else {

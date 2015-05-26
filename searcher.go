@@ -38,15 +38,15 @@ func (this *Searcher) OnInit(event *ApplicationEvent) {
 			this.logFile, err = os.OpenFile(this.Output, os.O_RDONLY, os.ModePerm)
 			if err != nil {
 				fmt.Println(err)
-				app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+				app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 			}
 		} else {
 			fmt.Println("logOutput should be a file")
-			app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+			app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 		}
 	} else {
 		fmt.Println("searcher can't unmarshal config file")
-		app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+		app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 	}
 }
 
@@ -60,7 +60,7 @@ func (this *Searcher) OnGrep(event *ApplicationEvent) {
 	}
 
 	linesLen := len(lines)
-	if event.GetIntArg("numberLines") > INVALID_INPUT_INT && event.GetIntArg("numberLines") < linesLen {
+	if event.GetIntArg("numberLines") > InvalidInputInt && event.GetIntArg("numberLines") < linesLen {
 		lines = lines[linesLen - event.GetIntArg("numberLines"):]
 	}
 
@@ -87,7 +87,7 @@ func (this *Searcher) OnGrep(event *ApplicationEvent) {
 		}
 	}
 
-	app.Events() <- NewApplicationEvent(APPLICATION_EVENT_KIND_FINISH)
+	app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 }
 
 func (this *Searcher) grep(mailId string, lines []string) {
@@ -105,16 +105,16 @@ func (this *Searcher) grep(mailId string, lines []string) {
 				limiterId = limiterIdRegex.FindString(line)
 			}
 			if connectorIdRegex.MatchString(line) {
-				limiterId = INVALID_INPUT_STRING
+				limiterId = InvalidInputString
 				connectorId = connectorIdRegex.FindString(line)
 			}
 			if mailerIdRegex.MatchString(line) {
-				connectorId = INVALID_INPUT_STRING
+				connectorId = InvalidInputString
 				mailerId = mailerIdRegex.FindString(line)
 			}
 
 			if strings.Contains(line, "sending error") || strings.Contains(line, "success send") {
-				mailerId = INVALID_INPUT_STRING
+				mailerId = InvalidInputString
 			}
 		} else {
 			if len(limiterId) > 0 && strings.Contains(line, limiterId) {

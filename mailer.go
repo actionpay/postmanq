@@ -207,7 +207,7 @@ func (this *Mailer) send(id int, event *SendEvent) {
 							// для статы
 							atomic.AddInt64(&mailsPerMinute, 1)
 							// отпускаем поток получателя сообщений из очереди
-							event.Result <- SEND_EVENT_RESULT_SUCCESS
+							event.Result <- SuccessSendEventResult
 						} else {
 							ReturnMail(event, err)
 						}
@@ -261,8 +261,8 @@ func ReturnMail(event *SendEvent, err error) {
 	Warn("mail#%d sending error - %v", event.Message.Id, err)
 	// отпускаем поток получателя сообщений из очереди
 	if event.Message.Error == nil {
-		event.Result <- SEND_EVENT_RESULT_DELAY
+		event.Result <- DelaySendEventResult
 	} else {
-		event.Result <- SEND_EVENT_RESULT_ERROR
+		event.Result <- ErrorSendEventResult
 	}
 }
