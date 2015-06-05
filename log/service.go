@@ -81,7 +81,7 @@ type Service struct {
 }
 
 // создает новый сервис логирования
-func Inst() *Service {
+func Inst() common.SendingService {
 	if service == nil {
 		service = new(Service)
 		// запускаем запись логов в отдельном потоке
@@ -108,6 +108,10 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 }
 
 func (s *Service) OnRun() {}
+
+func (s *Service) Events() chan *SendEvent {
+	return nil
+}
 
 // закрывает канал логирования
 func (s *Service) OnFinish() {
