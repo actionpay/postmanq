@@ -1,9 +1,9 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"fmt"
 	"time"
 )
 
@@ -11,7 +11,7 @@ type Writer interface {
 	writeString(string)
 }
 
-type StdoutWriter struct {}
+type StdoutWriter struct{}
 
 func (this *StdoutWriter) writeString(str string) {
 	os.Stdout.WriteString(str)
@@ -36,7 +36,7 @@ func (w Writers) len() int {
 }
 
 func (w *Writers) init(service *Service) {
-	for i := 0;i < w.len();i++ {
+	for i := 0; i < w.len(); i++ {
 		if filenameRegex.MatchString(service.Output) { // проверяем получили ли из настроек имя файла
 			// получаем директорию, в которой лежит файл
 			dir := filepath.Dir(service.Output)

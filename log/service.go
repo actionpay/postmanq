@@ -1,8 +1,8 @@
 package log
 
 import (
+	"github.com/AdOnWeb/postmanq/common"
 	yaml "gopkg.in/yaml.v2"
-	"github.com/AdOnWeb/postmanq/types"
 	"regexp"
 )
 
@@ -10,8 +10,8 @@ import (
 type Level int
 
 // уровни логирования
-const(
-	DebugLevel   Level = iota
+const (
+	DebugLevel Level = iota
 	InfoLevel
 	WarningLevel
 	ErrorLevel
@@ -29,29 +29,32 @@ var (
 	filenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
 	// названия уровней логирования, используется непосредственно в момент создания записи в лог
 	logLevelById = map[Level]string{
-		DebugLevel  : DebugLevelName,
-		InfoLevel   : InfoLevelName,
+		DebugLevel:   DebugLevelName,
+		InfoLevel:    InfoLevelName,
 		WarningLevel: WarningLevelName,
-		ErrorLevel  : ErrorLevelName,
+		ErrorLevel:   ErrorLevelName,
 	}
 	// уровни логирования по названию, используется для удобной инициализации сервиса логирования
 	logLevelByName = map[string]Level{
-		DebugLevelName  : DebugLevel,
-		InfoLevelName   : InfoLevel,
+		DebugLevelName:   DebugLevel,
+		InfoLevelName:    InfoLevel,
 		WarningLevelName: WarningLevel,
-		ErrorLevelName  : ErrorLevel,
+		ErrorLevelName:   ErrorLevel,
 	}
 	messages = make(chan *Message)
-	writers = make(Writers, types.DefaultWorkersCount)
-	level = WarningLevel
-	service *Service
+	writers  = make(Writers, common.DefaultWorkersCount)
+	level    = WarningLevel
+	service  *Service
 )
 
 // запись логирования
 type Message struct {
-	Message string        // сообщение для лога, может содержать параметры
-	Level   Level         // уровень логирования записи, необходим для отсечения лишних записей
-	Args    []interface{} // аргументы для параметров сообщения
+	// сообщение для лога, может содержать параметры
+	Message string
+	// уровень логирования записи, необходим для отсечения лишних записей
+	Level Level
+	// аргументы для параметров сообщения
+	Args []interface{}
 }
 
 // созадние новой записи логирования
@@ -65,15 +68,20 @@ func NewMessage(level Level, message string, args ...interface{}) *Message {
 
 // сервис логирования
 type Service struct {
-	LevelName string        `yaml:"logLevel"`  // название уровня логирования, устанавливается в конфиге
-	Output    string        `yaml:"logOutput"` // название вывода логов
-	level     Level                            // уровень логов, ниже этого уровня логи писаться не будут
-	writer    Writer                           // куда пишем логи stdout или файл
-	messages  chan *Message                    // канал логирования
+	// название уровня логирования, устанавливается в конфиге
+	LevelName string `yaml:"logLevel"`
+	// название вывода логов
+	Output string `yaml:"logOutput"`
+	// уровень логов, ниже этого уровня логи писаться не будут
+	level Level
+	// куда пишем логи stdout или файл
+	writer Writer
+	// канал логирования
+	messages chan *Message
 }
 
 // создает новый сервис логирования
-func Once() *Service {
+func Me() *Service {
 	if service == nil {
 		service = new(Service)
 		// запускаем запись логов в отдельном потоке
@@ -84,7 +92,7 @@ func Once() *Service {
 }
 
 // инициализирует сервис логирования
-func (s *Service) OnInit(event *types.ApplicationEvent) {
+func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
 		// устанавливаем уровень логирования

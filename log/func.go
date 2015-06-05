@@ -2,12 +2,13 @@ package log
 
 import (
 	"fmt"
+	"github.com/AdOnWeb/postmanq/common"
 	"runtime/debug"
 )
 
 // посылает сервису логирования запись для логирования произвольного уровня
 func log(message string, level Level, args ...interface{}) {
-	defer func(){recover()}()
+	defer func() { recover() }()
 	// если уровень записи не ниже уровня сервиса логирования
 	// запись посылается сервису
 	if level <= level {
@@ -28,7 +29,7 @@ func Err(message string, args ...interface{}) {
 // пишет произвольную ошибку в лог и завершает программу
 func FailExit(message string, args ...interface{}) {
 	Err(message, args...)
-	//	app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
+	common.App.Events() <- common.NewApplicationEvent(FinishApplicationEventKind)
 }
 
 // пишет системную ошибку в лог и завершает программу
