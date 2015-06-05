@@ -81,7 +81,7 @@ type Service struct {
 }
 
 // создает новый сервис логирования
-func Me() *Service {
+func Inst() *Service {
 	if service == nil {
 		service = new(Service)
 		// запускаем запись логов в отдельном потоке
