@@ -1,34 +1,34 @@
 package postmanq
 
 import (
-	yaml "gopkg.in/yaml.v2"
-	"net"
-	"net/smtp"
-	"sync"
-	"time"
-	"crypto/x509"
-	"io/ioutil"
-	"encoding/pem"
 	"crypto/tls"
-	"sort"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
-	"regexp"
+	yaml "gopkg.in/yaml.v2"
+	"io/ioutil"
 	"math/rand"
+	"net"
+	"net/smtp"
+	"regexp"
+	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
-	UNLIMITED_CONNECTION_COUNT = -1                     // безлимитное количество соединений к почтовому сервису
-	RECEIVE_CONNECTION_TIMEOUT = 5 * time.Minute        // время ожидания для получения соединения к почтовому сервису
-	SLEEP_TIMEOUT              = 1000 * time.Millisecond
-	HELLO_TIMEOUT              = 5 * time.Minute
-	MAIL_TIMEOUT               = 5 * time.Minute
-	RCPT_TIMEOUT               = 5 * time.Minute
-	DATA_TIMEOUT               = 10 * time.Minute
-	WAITING_TIMEOUT            = 30 * time.Second
-	TRY_CONNECT_COUNT          = 10
+	UnlimitedConnectionCount = -1              // безлимитное количество соединений к почтовому сервису
+	ReceiveConnectionTimeout = 5 * time.Minute // время ожидания для получения соединения к почтовому сервису
+	SleepTimeout             = 1000 * time.Millisecond
+	HelloTimeout             = 5 * time.Minute
+	MailTimeout              = 5 * time.Minute
+	RcptTimeout              = 5 * time.Minute
+	DataTimeout              = 10 * time.Minute
+	WaitingTimeout           = 30 * time.Second
+	TryConnectCount          = 30
 )
 
 var (
@@ -41,27 +41,27 @@ var (
 // Если доверить управление подключениями отправляющим потокам, тогда это затруднит общее управление подключениями.
 // Поэтому создание подключений и предоставление имеющихся подключений отправляющим потокам вынесено в отдельный сервис.
 type Connector struct {
-	ConnectorsCount    int                    `yaml:"workers"`
+	ConnectorsCount int `yaml:"workers"`
 	// путь до файла с закрытым ключом
-	PrivateKeyFilename string                 `yaml:"privateKey"`
+	PrivateKeyFilename string `yaml:"privateKey"`
 	// путь до файла с сертификатом
-	CertFilename       string                 `yaml:"certificate"`
+	CertFilename string `yaml:"certificate"`
 	// ip с которых будем рассылать письма
-	Addresses          []string               `yaml:"ips"`
-	addressesLen       int
+	Addresses    []string `yaml:"ips"`
+	addressesLen int
 	// почтовые сервисы
-	mailServers        map[string]*MailServer
+	mailServers map[string]*MailServer
 	// семафор, необходим для создания и поиска соединений
-	mutex              *sync.Mutex
+	mutex *sync.Mutex
 	// таймер, необходим для проверки открытых соединений
-	ticker             *time.Ticker
+	ticker *time.Ticker
 	// сертификат в байтах
-	certBytes          []byte
+	certBytes []byte
 	// длина сертификата
-	certBytesLen       int
-	events             chan *SendEvent
-	lookupEvents       chan *SendEvent
-	connectEvents      chan *SendEvent
+	certBytesLen  int
+	events        chan *SendEvent
+	lookupEvents  chan *SendEvent
+	connectEvents chan *SendEvent
 }
 
 // создает новый сервис соединений
@@ -130,7 +130,7 @@ func (c *Connector) OnInit(event *ApplicationEvent) {
 func (c *Connector) OnRun() {
 	// запускаем проверку открытых соединений
 	go connector.checkConnections()
-	for i := 0;i < c.ConnectorsCount; i++ {
+	for i := 0; i < c.ConnectorsCount; i++ {
 		id := i + 1
 		go c.receiveConnections(id)
 		go c.lookupServers(id)
@@ -153,7 +153,7 @@ func (c *Connector) doConnection(id int, event *SendEvent) {
 
 connectToMailServer:
 	c.lookupEvents <- event
-	mailServer := <- event.MailServers
+	mailServer := <-event.MailServers
 	switch mailServer.status {
 	case LookupMailServerStatus:
 		goto waitLookup
@@ -172,7 +172,7 @@ connectToMailServer:
 
 waitLookup:
 	Debug("connector#%d wait ending look up mail server %s...", id, event.Message.HostnameTo)
-	time.Sleep(SLEEP_TIMEOUT)
+	time.Sleep(SleepTimeout)
 	goto connectToMailServer
 }
 
@@ -187,7 +187,7 @@ func (c *Connector) lookupServer(id int, event *SendEvent) {
 	if _, ok := c.mailServers[event.Message.HostnameTo]; !ok {
 		Debug("connector#%d create mail server for %s", id, event.Message.HostnameTo)
 		c.mailServers[event.Message.HostnameTo] = &MailServer{
-			status: LookupMailServerStatus,
+			status:      LookupMailServerStatus,
 			connectorId: id,
 		}
 	}
@@ -206,7 +206,7 @@ func (c *Connector) lookupServer(id int, event *SendEvent) {
 				mxServer := new(MxServer)
 				mxServer.hostname = mxHostname
 				// по умолчанию создаем с безлимитным количеством соединений, т.к. мы не знаем заранее об ограничениях почтовых сервисов
-				mxServer.maxConnections = UNLIMITED_CONNECTION_COUNT
+				mxServer.maxConnections = UnlimitedConnectionCount
 				mxServer.ips = make([]net.IP, 0)
 				mxServer.clients = make([]*SmtpClient, 0)
 				// по умолчанию будем создавать TLS соединение
@@ -221,8 +221,8 @@ func (c *Connector) lookupServer(id int, event *SendEvent) {
 							Debug("connector#%d look up ip %s for %s", id, ip.String(), mxHostname)
 							existsIpsLen := len(mxServer.ips)
 							index := sort.Search(existsIpsLen, func(i int) bool {
-									return mxServer.ips[i].Equal(ip)
-								})
+								return mxServer.ips[i].Equal(ip)
+							})
 							// избавляемся от повторяющихся IP адресов
 							if existsIpsLen == 0 || (index == -1 && existsIpsLen > 0) {
 								mxServer.ips = append(mxServer.ips, ip)
@@ -298,15 +298,15 @@ receiveConnect:
 	for _, mxServer := range event.MailServer.mxServers {
 		Debug("connector#%d check connections for %s", id, mxServer.hostname)
 		for _, client := range mxServer.clients {
-			if atomic.LoadInt32(&(client.Status)) == SMTP_CLIENT_STATUS_WAITING {
-				atomic.StoreInt32(&(client.Status), SMTP_CLIENT_STATUS_WORKING)
-				client.SetTimeout(MAIL_TIMEOUT)
+			if atomic.LoadInt32(&(client.Status)) == WaitingSmtpClientStatus {
+				atomic.StoreInt32(&(client.Status), WorkingSmtpClientStatus)
+				client.SetTimeout(MailTimeout)
 				targetClient = client
 				Debug("connector%d found smtp client#%d", id, client.Id)
 				break
 			}
 		}
-		if targetClient == nil && mxServer.maxConnections == UNLIMITED_CONNECTION_COUNT {
+		if targetClient == nil && mxServer.maxConnections == UnlimitedConnectionCount {
 			Debug("connector#%d can't find free connections for %s, create", id, mxServer.hostname)
 			mxServer.createNewSmtpClient(id, event, &targetClient, mxServer.createTLSSmtpClient)
 		}
@@ -321,7 +321,7 @@ receiveConnect:
 	}
 
 waitConnect:
-	if event.TryCount >= TRY_CONNECT_COUNT {
+	if event.TryCount >= TryConnectCount {
 		ReturnMail(
 			event,
 			errors.New(fmt.Sprintf("connector#%d can't connect to %s", id, event.Message.HostnameTo)),
@@ -329,7 +329,7 @@ waitConnect:
 		return
 	} else {
 		Debug("connector#%d can't find free connections, wait...", id)
-		time.Sleep(SLEEP_TIMEOUT)
+		time.Sleep(SleepTimeout)
 		goto receiveConnect
 		return
 	}
@@ -390,7 +390,7 @@ func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClien
 	if err == nil {
 		Debug("connector#%d resolve tcp address %s", id, tcpAddr.String())
 		dialer := &net.Dialer{
-			Timeout: HELLO_TIMEOUT,
+			Timeout:   HelloTimeout,
 			LocalAddr: tcpAddr,
 		}
 		hostname := net.JoinHostPort(this.hostname, "25")
@@ -398,7 +398,7 @@ func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClien
 		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
 			Debug("connector#%d dialed to %s", id, hostname)
-			connection.SetDeadline(time.Now().Add(HELLO_TIMEOUT))
+			connection.SetDeadline(time.Now().Add(HelloTimeout))
 			// создаем клиента
 			Debug("connector#%d create client to %s", id, this.hostname)
 			client, err := smtp.NewClient(connection, this.hostname)
@@ -442,8 +442,8 @@ func (this *MxServer) createTLSSmtpClient(id int, event *SendEvent, ptrSmtpClien
 			cert.IPAddresses = this.ips
 			pool.AddCert(cert)
 			// открываем TLS соединение
-			err = client.StartTLS(&tls.Config {
-				ClientCAs : pool,
+			err = client.StartTLS(&tls.Config{
+				ClientCAs:  pool,
 				ServerName: this.realServerName,
 			})
 			// если все нормально, создаем клиента
@@ -480,7 +480,7 @@ func (this *MxServer) createSmtpClient(id int, ptrSmtpClient **SmtpClient, conne
 	(*ptrSmtpClient).connection = connection
 	(*ptrSmtpClient).Worker = client
 	(*ptrSmtpClient).createDate = time.Now()
-	(*ptrSmtpClient).Status = SMTP_CLIENT_STATUS_WORKING
+	(*ptrSmtpClient).Status = WorkingSmtpClientStatus
 	this.clients = append(this.clients, (*ptrSmtpClient))
 	Debug("connector#%d create smtp client#%d for %s", id, (*ptrSmtpClient).Id, this.hostname)
 }
@@ -501,18 +501,18 @@ func (this *MxServer) closeConnections(now time.Time) {
 		for i, client := range this.clients {
 			// если соединение свободно и висит в таком статусе дольше 30 секунд, закрываем соединение
 			status := atomic.LoadInt32(&(client.Status))
-			if status == SMTP_CLIENT_STATUS_WAITING && client.IsExpire(now) || status == SMTP_CLIENT_STATUS_EXPIRE {
-				client.Status = SMTP_CLIENT_STATUS_DISCONNECTED
+			if status == WaitingSmtpClientStatus && client.IsExpire(now) || status == ExpireSmtpClientStatus {
+				client.Status = DisconnectedSmtpClientStatus
 				err := client.Worker.Close()
 				if err != nil {
 					WarnWithErr(err)
 				}
 				this.clients = this.clients[:i]
-				if i < len(this.clients) - 1 {
+				if i < len(this.clients)-1 {
 					this.clients = append(this.clients, this.clients[i+1:]...)
 				}
-				if this.maxConnections != UNLIMITED_CONNECTION_COUNT {
-					this.maxConnections = UNLIMITED_CONNECTION_COUNT
+				if this.maxConnections != UnlimitedConnectionCount {
+					this.maxConnections = UnlimitedConnectionCount
 				}
 				Debug("close connection smtp client#%d mx server %s", client.Id, this.hostname)
 			}
@@ -530,21 +530,21 @@ func (this *MxServer) dontUseTLS(err error) {
 // статус клиента почтового сервера
 const (
 	// отсылает письмо
-	SMTP_CLIENT_STATUS_WORKING      int32 = iota
+	WorkingSmtpClientStatus int32 = iota
 	// ожидает письма
-	SMTP_CLIENT_STATUS_WAITING
-	SMTP_CLIENT_STATUS_EXPIRE
+	WaitingSmtpClientStatus
+	ExpireSmtpClientStatus
 	// отсоединен
-	SMTP_CLIENT_STATUS_DISCONNECTED
+	DisconnectedSmtpClientStatus
 )
 
 // клиент почтового сервера
 type SmtpClient struct {
-	Id          int          // номер клиента для удобства в логах
-	connection  net.Conn     // соединение к почтовому серверу
-	Worker      *smtp.Client // реальный smtp клиент
-	createDate  time.Time    // дата создания или изменения статуса клиента
-	Status      int32        // статус
+	Id         int          // номер клиента для удобства в логах
+	connection net.Conn     // соединение к почтовому серверу
+	Worker     *smtp.Client // реальный smtp клиент
+	createDate time.Time    // дата создания или изменения статуса клиента
+	Status     int32        // статус
 }
 
 func (this *SmtpClient) SetTimeout(timeout time.Duration) {
@@ -556,5 +556,5 @@ func (this *SmtpClient) IsExpireByNow() bool {
 }
 
 func (this *SmtpClient) IsExpire(now time.Time) bool {
-	return now.Sub(this.createDate) >= WAITING_TIMEOUT
+	return now.Sub(this.createDate) >= WaitingTimeout
 }

@@ -1,9 +1,9 @@
 package postmanq
 
 import (
-	"time"
 	yaml "gopkg.in/yaml.v2"
 	"sync/atomic"
+	"time"
 )
 
 var (
@@ -14,13 +14,13 @@ var (
 type Limiter struct {
 	LimitersCount int               `yaml:"workers"`
 	Limits        map[string]*Limit `json:"limits"` // ограничения для почтовых сервисов, в качестве ключа используется домен
-	ticker        *time.Ticker                      // таймер, работает каждую секунду
+	ticker        *time.Ticker      // таймер, работает каждую секунду
 	events        chan *SendEvent
 }
 
 // создает сервис ограничений
 func LimiterOnce() *Limiter {
-	if (limiter == nil) {
+	if limiter == nil {
 		limiter = new(Limiter)
 		limiter.Limits = make(map[string]*Limit)
 		limiter.ticker = time.NewTicker(time.Second)
@@ -55,7 +55,7 @@ func (this *Limiter) OnInit(event *ApplicationEvent) {
 func (this *Limiter) OnRun() {
 	// сразу запускаем проверку значений ограничений
 	go this.checkLimitValues()
-	for i := 0;i < this.LimitersCount; i++ {
+	for i := 0; i < this.LimitersCount; i++ {
 		go this.checkLimits(i + 1)
 	}
 }
@@ -133,18 +133,18 @@ const (
 
 var (
 	// возможные промежутки времени для каждого ограничения
-	limitDurations = map[LimitType]time.Duration {
+	limitDurations = map[LimitType]time.Duration{
 		LIMIT_SECOND_TYPE: time.Second,
 		LIMIT_MINUTE_TYPE: time.Minute,
-		LIMIT_HOUR_TYPE  : time.Hour,
-		LIMIT_DAY_TYPE   : time.Hour * 24,
+		LIMIT_HOUR_TYPE:   time.Hour,
+		LIMIT_DAY_TYPE:    time.Hour * 24,
 	}
 	// очереди для каждого ограничения
-	limitBindingTypes = map[LimitType]DelayedBindingType {
-		LIMIT_SECOND_TYPE: DELAYED_BINDING_SECOND,
-		LIMIT_MINUTE_TYPE: DELAYED_BINDING_MINUTE,
-		LIMIT_HOUR_TYPE  : DELAYED_BINDING_HOUR,
-		LIMIT_DAY_TYPE   : DELAYED_BINDING_DAY,
+	limitBindingTypes = map[LimitType]DelayedBindingType{
+		LIMIT_SECOND_TYPE: SecondDelayedBinding,
+		LIMIT_MINUTE_TYPE: MinuteDelayedBinding,
+		LIMIT_HOUR_TYPE:   HourDelayedBinding,
+		LIMIT_DAY_TYPE:    DayDelayedBinding,
 	}
 )
 
@@ -152,10 +152,10 @@ var (
 type Limit struct {
 	Value        int32              `json:"value"` // максимально допустимое количество писем
 	Type         LimitType          `json:"type"`  // тип ограничения
-	currentValue int32                             // текущее количество писем
-	duration     time.Duration                     // промежуток времени, за который проверяется количество отправленных писем
-	modifyDate   time.Time                         // дата последнего обнуления количества отправленных писем
-	bindingType  DelayedBindingType                // тип очереди, в которую необходимо положить письмо, если превышено количество отправленных писем
+	currentValue int32              // текущее количество писем
+	duration     time.Duration      // промежуток времени, за который проверяется количество отправленных писем
+	modifyDate   time.Time          // дата последнего обнуления количества отправленных писем
+	bindingType  DelayedBindingType // тип очереди, в которую необходимо положить письмо, если превышено количество отправленных писем
 }
 
 // сигнализирует о том, что надо ли обнулять текущее количество отправленных писем

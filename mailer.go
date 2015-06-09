@@ -1,17 +1,17 @@
 package postmanq
 
 import (
-	yaml "gopkg.in/yaml.v2"
-	"github.com/streadway/amqp"
-	"regexp"
-	"strings"
-	"fmt"
-	"time"
 	"errors"
+	"fmt"
 	"github.com/byorty/dkim"
+	"github.com/streadway/amqp"
+	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
-	"sync/atomic"
+	"regexp"
 	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -68,11 +68,11 @@ func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 
 // сервис отправки писем
 type Mailer struct {
-	MailersCount       int                 `yaml:"workers"`      // количество отправителей
-	PrivateKeyFilename string              `yaml:"privateKey"`   // путь до закрытого ключа
-	DkimSelector       string              `yaml:"dkimSelector"` // селектор
-	events             chan *SendEvent                           // канал для писем
-	privateKey         []byte                                    // содержимое приватного ключа
+	MailersCount       int             `yaml:"workers"`      // количество отправителей
+	PrivateKeyFilename string          `yaml:"privateKey"`   // путь до закрытого ключа
+	DkimSelector       string          `yaml:"dkimSelector"` // селектор
+	events             chan *SendEvent // канал для писем
+	privateKey         []byte          // содержимое приватного ключа
 }
 
 // создает новый сервис отправки писем
@@ -99,7 +99,7 @@ func (this *Mailer) OnInit(event *ApplicationEvent) {
 			FailExitWithErr(err)
 		}
 		// указываем заголовки для DKIM
-		dkim.StdSignableHeaders = []string {
+		dkim.StdSignableHeaders = []string{
 			"From",
 			"To",
 			"Subject",
@@ -122,7 +122,7 @@ func (this *Mailer) OnRun() {
 	// выводим количество отправленных писем в минуту
 	go this.showMailsPerMinute()
 
-	for i := 0;i < this.MailersCount;i++ {
+	for i := 0; i < this.MailersCount; i++ {
 		go this.sendMails(i + 1)
 	}
 }
@@ -132,7 +132,7 @@ func (this *Mailer) showMailsPerMinute() {
 	tick := time.Tick(time.Minute)
 	for {
 		select {
-		case <- tick:
+		case <-tick:
 			Debug("mailers send %d mails per minute", atomic.LoadInt64(&mailsPerMinute))
 			atomic.StoreInt64(&mailsPerMinute, 0)
 			break
@@ -181,14 +181,15 @@ func (this *Mailer) send(id int, event *SendEvent) {
 	Info("mailer#%d try send mail#%d", id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", id, event.Client.Id)
 
+	successSend := false
 	err := worker.Mail(event.Message.Envelope)
 	if err == nil {
 		Debug("mailer#%d send command MAIL FROM: %s", id, event.Message.Envelope)
-		event.Client.SetTimeout(RCPT_TIMEOUT)
+		event.Client.SetTimeout(RcptTimeout)
 		err = worker.Rcpt(event.Message.Recipient)
 		if err == nil {
 			Debug("mailer#%d send command RCPT TO: %s", id, event.Message.Recipient)
-			event.Client.SetTimeout(DATA_TIMEOUT)
+			event.Client.SetTimeout(DataTimeout)
 			wc, err := worker.Data()
 			if err == nil {
 				Debug("mailer#%d send command DATA", id)
@@ -206,8 +207,7 @@ func (this *Mailer) send(id int, event *SendEvent) {
 							Info("mailer#%d success send mail#%d", id, event.Message.Id)
 							// для статы
 							atomic.AddInt64(&mailsPerMinute, 1)
-							// отпускаем поток получателя сообщений из очереди
-							event.Result <- SuccessSendEventResult
+							successSend = true
 						} else {
 							ReturnMail(event, err)
 						}
@@ -228,10 +228,14 @@ func (this *Mailer) send(id int, event *SendEvent) {
 	}
 	// говорим, что соединение свободно, его можно передать другому отправителю
 	if event.Client.IsExpireByNow() {
-		atomic.StoreInt32(&(event.Client.Status), SMTP_CLIENT_STATUS_EXPIRE)
+		atomic.StoreInt32(&(event.Client.Status), ExpireSmtpClientStatus)
 	} else {
-		event.Client.SetTimeout(WAITING_TIMEOUT)
-		atomic.StoreInt32(&(event.Client.Status), SMTP_CLIENT_STATUS_WAITING)
+		event.Client.SetTimeout(WaitingTimeout)
+		atomic.StoreInt32(&(event.Client.Status), WaitingSmtpClientStatus)
+	}
+	if successSend {
+		// отпускаем поток получателя сообщений из очереди
+		event.Result <- SuccessSendEventResult
 	}
 }
 

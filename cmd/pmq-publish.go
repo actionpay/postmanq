@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/AdOnWeb/postmanq"
 	"fmt"
+	"github.com/AdOnWeb/postmanq"
 )
 
 func main() {

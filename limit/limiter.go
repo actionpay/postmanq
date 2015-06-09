@@ -10,8 +10,11 @@ type Limiter struct {
 	id int
 }
 
-func (l *Limiter) run(id int) {
-	l.id = id
+func newLimiter(id int) *Limiter {
+	return &Limiter{id}
+}
+
+func (l *Limiter) run() {
 	for event := range events {
 		l.check(event)
 	}

@@ -1,11 +1,10 @@
 package main
 
 import (
-	"github.com/AdOnWeb/postmanq"
 	"flag"
 	"fmt"
+	"github.com/AdOnWeb/postmanq"
 )
-
 
 func main() {
 	var file string

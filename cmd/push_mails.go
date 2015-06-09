@@ -1,10 +1,10 @@
 package main
 
 import (
-	"log"
-	"github.com/streadway/amqp"
-	"fmt"
 	"encoding/json"
+	"fmt"
+	"github.com/streadway/amqp"
+	"log"
 	"sync"
 )
 
@@ -84,7 +84,7 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 
 --=_cb8a36ec3e182808407241c0bfcb545b--
 `
-//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
+	//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
 	amqpURI := "amqp://solomonov:solomonov@192.168.13.32:5672/solomonov"
 	log.Println("dialing ", amqpURI)
 	connection, err := amqp.Dial(amqpURI)
@@ -101,63 +101,63 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 	log.Printf("got Channel")
 
 	messageCount := 1
-//	messageCount := 1000
+	//	messageCount := 1000
 
-//	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
-//	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
+	//	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
+	//	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
 
 	group := new(sync.WaitGroup)
 	group.Add(messageCount)
 	for i := 0; i < messageCount; i++ {
 		go func() {
-//			rand.Seed(time.Now().UnixNano())
-//			partMessage := message[:rand.Intn(int(len(message) / 25))]
-//			partMessage = clearRegexp.ReplaceAllString(partMessage, " ")
-//			partMessage = whiteSpaceRegexp.ReplaceAllString(partMessage, " ")
+			//			rand.Seed(time.Now().UnixNano())
+			//			partMessage := message[:rand.Intn(int(len(message) / 25))]
+			//			partMessage = clearRegexp.ReplaceAllString(partMessage, " ")
+			//			partMessage = whiteSpaceRegexp.ReplaceAllString(partMessage, " ")
 
-//			parts := strings.Split(partMessage, " ")
-//			for x := range parts {
-//				j := rand.Intn(x + 1)
-//				parts[x], parts[j] = parts[j], parts[x]
-//			}
+			//			parts := strings.Split(partMessage, " ")
+			//			for x := range parts {
+			//				j := rand.Intn(x + 1)
+			//				parts[x], parts[j] = parts[j], parts[x]
+			//			}
 			js, err := json.Marshal(map[string]string{
-//				"envelope": "robot@actionpay.ru",
+				//				"envelope": "robot@actionpay.ru",
 				"envelope": "robotron@adnwb.ru",
 
-//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
-//				"recipient": "apmail@adonweb.ru",
-//				"recipient": "asolomonoff@gmail.com",
+				//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
+				//				"recipient": "apmail@adonweb.ru",
+				//				"recipient": "asolomonoff@gmail.com",
 				"recipient": "byorty@yandex.ru",
-//				"recipient": "byorty@mail.ru",
-//				"recipient": "byorty@fastmail.com",
-//				"recipient": "byorty@outlook.com",
-//				"recipient": "byorty@qip.ru",
-//				"recipient": "byorty@sibnet.ru",
-//				"recipient": "byorty@tut.by",
-//				"recipient": "asolomonoff@yahoo.com",
-//				"recipient": "byorty@nextmail.ru",
-//				"recipient": "byorty@rambler.ru",
-//				"recipient": "solomonov@km.ru",
-//				"recipient": "byorty@zmail.ru",
-//				"recipient": "byorty@meta.ua",
-//				"recipient": "byorty@e1.ru",
+				//				"recipient": "byorty@mail.ru",
+				//				"recipient": "byorty@fastmail.com",
+				//				"recipient": "byorty@outlook.com",
+				//				"recipient": "byorty@qip.ru",
+				//				"recipient": "byorty@sibnet.ru",
+				//				"recipient": "byorty@tut.by",
+				//				"recipient": "asolomonoff@yahoo.com",
+				//				"recipient": "byorty@nextmail.ru",
+				//				"recipient": "byorty@rambler.ru",
+				//				"recipient": "solomonov@km.ru",
+				//				"recipient": "byorty@zmail.ru",
+				//				"recipient": "byorty@meta.ua",
+				//				"recipient": "byorty@e1.ru",
 
-//				"recipient": "byorty@inet.ua",
+				//				"recipient": "byorty@inet.ua",
 
-//				"recipient": "byorty@bigmir.net",
-//				"recipient": "byorty@chat.ru",
+				//				"recipient": "byorty@bigmir.net",
+				//				"recipient": "byorty@chat.ru",
 
-//				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
+				//				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
 				"body": message,
-//				"body": base64.StdEncoding.EncodeToString([]byte("hello world")),
-//				"body": base64.StdEncoding.EncodeToString([]byte("привет мир")),
+				//				"body": base64.StdEncoding.EncodeToString([]byte("hello world")),
+				//				"body": base64.StdEncoding.EncodeToString([]byte("привет мир")),
 			})
 			if err = channel.Publish(
-				"postmanq",   // publish to an exchange
-//				"postmanq.dlx.minute",   // publish to an exchange
-				"",     // routing to 0 or more queues
-				false,        // mandatory
-				false,        // immediate
+				"postmanq", // publish to an exchange
+				//				"postmanq.dlx.minute",   // publish to an exchange
+				"",    // routing to 0 or more queues
+				false, // mandatory
+				false, // immediate
 				amqp.Publishing{
 					Headers:         amqp.Table{},
 					ContentType:     "text/plain",
@@ -165,7 +165,7 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 					Body:            js,
 					DeliveryMode:    amqp.Transient, // 1=non-persistent, 2=persistent
 					Priority:        0,              // 0-9
-						// a bunch of application/implementation-specific fields
+					// a bunch of application/implementation-specific fields
 				},
 			); err != nil {
 				fmt.Errorf("Exchange Publish: %s", err)
@@ -175,4 +175,3 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 	}
 	group.Wait()
 }
-

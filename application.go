@@ -1,12 +1,12 @@
 package postmanq
 
 import (
-	"runtime"
-	"io/ioutil"
-	"time"
 	"crypto/x509"
-	"fmt"
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"runtime"
+	"time"
 )
 
 const (
@@ -16,9 +16,9 @@ const (
 )
 
 var (
-	app Application
+	app                 Application
 	defaultWorkersCount = runtime.NumCPU()
-	PrintUsage = func(f *flag.Flag) {
+	PrintUsage          = func(f *flag.Flag) {
 		format := "  -%s %s\n"
 		fmt.Printf(format, f.Name, f.Usage)
 	}
@@ -61,7 +61,7 @@ type GrepService interface {
 type SendEventResult int
 
 const (
-	SuccessSendEventResult   SendEventResult = iota
+	SuccessSendEventResult SendEventResult = iota
 	OverlimitSendEventResult
 	ErrorSendEventResult
 	DelaySendEventResult
@@ -69,13 +69,13 @@ const (
 
 // Событие отправки письма
 type SendEvent struct {
-	Client           *SmtpClient          // объект, содержащий подключение и клиент для отправки писем
-	CertPool         *x509.CertPool       // пул сертификатов
-	CertBytes        []byte               // для каждого почтового сервиса необходим подписывать сертификат, поэтому в событии храним сырые данные сертификата
-	CertBytesLen     int                  // длина сертификата, по если длина больше 0, тогда пытаемся отправлять письма через TLS
-	Message          *MailMessage         // само письмо, полученное из очереди
-	DefaultPrevented bool                 // флаг, сигнализирующий обрабатывать ли событие
-	CreateDate       time.Time            // дата создания необходима при получении подключения к почтовому сервису
+	Client           *SmtpClient    // объект, содержащий подключение и клиент для отправки писем
+	CertPool         *x509.CertPool // пул сертификатов
+	CertBytes        []byte         // для каждого почтового сервиса необходим подписывать сертификат, поэтому в событии храним сырые данные сертификата
+	CertBytesLen     int            // длина сертификата, по если длина больше 0, тогда пытаемся отправлять письма через TLS
+	Message          *MailMessage   // само письмо, полученное из очереди
+	DefaultPrevented bool           // флаг, сигнализирующий обрабатывать ли событие
+	CreateDate       time.Time      // дата создания необходима при получении подключения к почтовому сервису
 	Result           chan SendEventResult
 	MailServers      chan *MailServer
 	MailServer       *MailServer
@@ -98,9 +98,9 @@ func NewSendEvent(message *MailMessage) *SendEvent {
 type ApplicationEventKind int
 
 const (
-	InitApplicationEventKind    ApplicationEventKind = iota // событие инициализации сервисов
-	RunApplicationEventKind                                 // событие запуска сервисов
-	FinishApplicationEventKind                              // событие завершения сервисов
+	InitApplicationEventKind   ApplicationEventKind = iota // событие инициализации сервисов
+	RunApplicationEventKind                                // событие запуска сервисов
+	FinishApplicationEventKind                             // событие завершения сервисов
 )
 
 // событие приложения
@@ -143,10 +143,10 @@ type Application interface {
 }
 
 type AbstractApplication struct {
-	configFilename  string                 // путь до конфигурационного файла
-	services        []interface{}          // сервисы приложения, отправляющие письма
-	events          chan *ApplicationEvent // канал событий приложения
-	done            chan bool              // флаг, сигнализирующий окончание работы приложения
+	configFilename string                 // путь до конфигурационного файла
+	services       []interface{}          // сервисы приложения, отправляющие письма
+	events         chan *ApplicationEvent // канал событий приложения
+	done           chan bool              // флаг, сигнализирующий окончание работы приложения
 }
 
 func (a *AbstractApplication) IsValidConfigFilename(filename string) bool {
@@ -160,7 +160,7 @@ func (a *AbstractApplication) run(app Application, event *ApplicationEvent) {
 	go func() {
 		for {
 			select {
-			case event := <- app.Events():
+			case event := <-app.Events():
 				if event.kind == InitApplicationEventKind {
 					// пытаемся прочитать конфигурационный файл
 					bytes, err := ioutil.ReadFile(a.configFilename)
@@ -173,9 +173,12 @@ func (a *AbstractApplication) run(app Application, event *ApplicationEvent) {
 
 				for _, service := range app.Services() {
 					switch event.kind {
-					case InitApplicationEventKind: app.FireInit(event, service)
-					case RunApplicationEventKind: app.FireRun(event, service)
-					case FinishApplicationEventKind: app.FireFinish(event, service)
+					case InitApplicationEventKind:
+						app.FireInit(event, service)
+					case RunApplicationEventKind:
+						app.FireRun(event, service)
+					case FinishApplicationEventKind:
+						app.FireFinish(event, service)
 					}
 				}
 
@@ -192,7 +195,7 @@ func (a *AbstractApplication) run(app Application, event *ApplicationEvent) {
 		close(app.Events())
 	}()
 	app.Events() <- event
-	<- app.Done()
+	<-app.Done()
 }
 
 func (a *AbstractApplication) SetConfigFilename(configFilename string) {
@@ -242,7 +245,7 @@ func NewPostApplication() Application {
 }
 
 func (a *PostApplication) Run() {
-	a.services = []interface{} {
+	a.services = []interface{}{
 		LoggerOnce(),
 		LimiterOnce(),
 		ConnectorOnce(),
@@ -273,7 +276,7 @@ func NewReportApplication() Application {
 }
 
 func (a *ReportApplication) Run() {
-	a.services = []interface{} {
+	a.services = []interface{}{
 		AnalyserOnce(),
 		ConsumerOnce(),
 	}
@@ -295,7 +298,7 @@ func NewPublishApplication() Application {
 }
 
 func (a *PublishApplication) RunWithArgs(args ...interface{}) {
-	a.services = []interface{} {
+	a.services = []interface{}{
 		ConsumerOnce(),
 	}
 
@@ -326,7 +329,7 @@ func NewGrepApplication() Application {
 }
 
 func (a *GrepApplication) RunWithArgs(args ...interface{}) {
-	a.services = []interface{} {
+	a.services = []interface{}{
 		SearcherOnce(),
 	}
 
@@ -343,11 +346,3 @@ func (a *GrepApplication) FireRun(event *ApplicationEvent, abstractService inter
 	service := abstractService.(GrepService)
 	go service.OnGrep(event)
 }
-
-
-
-
-
-
-
-

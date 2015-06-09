@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/AdOnWeb/postmanq"
 	"flag"
 	"fmt"
+	"github.com/AdOnWeb/postmanq"
 )
 
 func main() {
@@ -28,4 +28,3 @@ func main() {
 		fmt.Printf("  pmq-grep -f %s -r mail@example.com -e sender@mail.com\n", postmanq.ExampleConfigYaml)
 	}
 }
-

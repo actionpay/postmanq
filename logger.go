@@ -1,21 +1,21 @@
 package postmanq
 
 import (
+	"fmt"
+	yaml "gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
 	"regexp"
-	"fmt"
-	"time"
-	yaml "gopkg.in/yaml.v2"
 	"runtime/debug"
+	"time"
 )
 
 // уровень логирования
 type LogLevel int
 
 // уровни логирования
-const(
-	LOG_LEVEL_DEBUG   LogLevel = iota
+const (
+	LOG_LEVEL_DEBUG LogLevel = iota
 	LOG_LEVEL_INFO
 	LOG_LEVEL_WARNING
 	LOG_LEVEL_ERROR
@@ -31,7 +31,7 @@ const (
 
 type LoggerStatus int
 
-const(
+const (
 	LOGGER_STATUS_ACTIVE LoggerStatus = iota
 	LOGGER_STATUS_WAIT
 )
@@ -40,17 +40,17 @@ var (
 	filenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
 	// названия уровней логирования, используется непосредственно в момент создания записи в лог
 	logLevelById = map[LogLevel]string{
-		LOG_LEVEL_DEBUG  : LOG_LEVEL_DEBUG_NAME,
-		LOG_LEVEL_INFO   : LOG_LEVEL_INFO_NAME,
+		LOG_LEVEL_DEBUG:   LOG_LEVEL_DEBUG_NAME,
+		LOG_LEVEL_INFO:    LOG_LEVEL_INFO_NAME,
 		LOG_LEVEL_WARNING: LOG_LEVEL_WARNING_NAME,
-		LOG_LEVEL_ERROR  : LOG_LEVEL_ERROR_NAME,
+		LOG_LEVEL_ERROR:   LOG_LEVEL_ERROR_NAME,
 	}
 	// уровни логирования по названию, используется для удобной инициализации сервиса логирования
 	logLevelByName = map[string]LogLevel{
-		LOG_LEVEL_DEBUG_NAME  : LOG_LEVEL_DEBUG,
-		LOG_LEVEL_INFO_NAME   : LOG_LEVEL_INFO,
+		LOG_LEVEL_DEBUG_NAME:   LOG_LEVEL_DEBUG,
+		LOG_LEVEL_INFO_NAME:    LOG_LEVEL_INFO,
 		LOG_LEVEL_WARNING_NAME: LOG_LEVEL_WARNING,
-		LOG_LEVEL_ERROR_NAME  : LOG_LEVEL_ERROR,
+		LOG_LEVEL_ERROR_NAME:   LOG_LEVEL_ERROR,
 	}
 	logger *Logger
 )
@@ -75,7 +75,7 @@ type LogWriter interface {
 	WriteString(string)
 }
 
-type StdoutWriter struct {}
+type StdoutWriter struct{}
 
 func (this *StdoutWriter) WriteString(str string) {
 	os.Stdout.WriteString(str)
@@ -97,9 +97,9 @@ func (this *FileWriter) WriteString(str string) {
 type Logger struct {
 	LogLevelName string           `yaml:"logLevel"`  // название уровня логирования, устанавливается в конфиге
 	Output       string           `yaml:"logOutput"` // название вывода логов
-	level        LogLevel                            // уровень логов, ниже этого уровня логи писаться не будут
-	writer       LogWriter                           // куда пишем логи stdout или файл
-	messages     chan *LogMessage                    // канал логирования
+	level        LogLevel         // уровень логов, ниже этого уровня логи писаться не будут
+	writer       LogWriter        // куда пишем логи stdout или файл
+	messages     chan *LogMessage // канал логирования
 }
 
 // создает новый сервис логирования
@@ -110,7 +110,7 @@ func LoggerOnce() *Logger {
 		logger.messages = make(chan *LogMessage)
 		logger.level = LOG_LEVEL_WARNING
 		// запускаем запись логов в отдельном потоке
-		for i := 0;i < defaultWorkersCount;i++ {
+		for i := 0; i < defaultWorkersCount; i++ {
 			go logger.write(i)
 		}
 		logger.initWriter()
@@ -179,7 +179,7 @@ func (this *Logger) initWriter() {
 
 // посылает сервису логирования запись для логирования произвольного уровня
 func log(message string, level LogLevel, args ...interface{}) {
-	defer func(){recover()}()
+	defer func() { recover() }()
 	// если уровень записи не ниже уровня сервиса логирования
 	// запись посылается сервису
 	if logger.level <= level {

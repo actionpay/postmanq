@@ -1,25 +1,25 @@
 package postmanq
 
 import (
-	yaml "gopkg.in/yaml.v2"
-	"fmt"
-	"os"
 	"bufio"
+	"bytes"
+	"fmt"
+	yaml "gopkg.in/yaml.v2"
+	"os"
 	"regexp"
 	"strings"
-	"bytes"
 )
 
 var (
-	searcher *Searcher
-	mailIdRegex        = regexp.MustCompile(`mail#(\d)+`)
-	limiterIdRegex     = regexp.MustCompile(`limiter#(\d)+`)
-	connectorIdRegex   = regexp.MustCompile(`connector#(\d)+`)
-	mailerIdRegex      = regexp.MustCompile(`mailer#(\d)+`)
+	searcher         *Searcher
+	mailIdRegex      = regexp.MustCompile(`mail#(\d)+`)
+	limiterIdRegex   = regexp.MustCompile(`limiter#(\d)+`)
+	connectorIdRegex = regexp.MustCompile(`connector#(\d)+`)
+	mailerIdRegex    = regexp.MustCompile(`mailer#(\d)+`)
 )
 
 type Searcher struct {
-	Output  string   `yaml:"logOutput"` // название вывода логов
+	Output  string `yaml:"logOutput"` // название вывода логов
 	logFile *os.File
 }
 
@@ -61,7 +61,7 @@ func (this *Searcher) OnGrep(event *ApplicationEvent) {
 
 	linesLen := len(lines)
 	if event.GetIntArg("numberLines") > InvalidInputInt && event.GetIntArg("numberLines") < linesLen {
-		lines = lines[linesLen - event.GetIntArg("numberLines"):]
+		lines = lines[linesLen-event.GetIntArg("numberLines"):]
 	}
 
 	var expr string
@@ -91,7 +91,7 @@ func (this *Searcher) OnGrep(event *ApplicationEvent) {
 }
 
 func (this *Searcher) grep(mailId string, lines []string) {
-	var limiterId, connectorId, mailerId  string
+	var limiterId, connectorId, mailerId string
 	mailRegex, _ := regexp.Compile(mailId)
 	out := new(bytes.Buffer)
 	out.WriteString("\n")

@@ -1,14 +1,14 @@
 package postmanq
 
 import (
-	yaml "gopkg.in/yaml.v2"
-	"github.com/streadway/amqp"
 	"encoding/json"
 	"fmt"
-	"time"
-	"sync"
+	"github.com/streadway/amqp"
+	yaml "gopkg.in/yaml.v2"
 	"net/url"
 	"regexp"
+	"sync"
+	"time"
 )
 
 const (
@@ -19,74 +19,74 @@ const (
 type DelayedBindingType int
 
 const (
-	DELAYED_BINDING_UNKNOWN     DelayedBindingType = iota
-	DELAYED_BINDING_SECOND
-	DELAYED_BINDING_THIRTY_SECOND
-	DELAYED_BINDING_MINUTE
-	DELAYED_BINDING_FIVE_MINUTES
-	DELAYED_BINDING_TEN_MINUTES
-	DELAYED_BINDING_TWENTY_MINUTES
-	DELAYED_BINDING_THIRTY_MINUTES
-	DELAYED_BINDING_FORTY_MINUTES
-	DELAYED_BINDING_FIFTY_MINUTES
-	DELAYED_BINDING_HOUR
-	DELAYED_BINDING_SIX_HOURS
-	DELAYED_BINDING_DAY
-	DELAYED_BINDING_NOT_SEND
+	UnknownDelayedBinding DelayedBindingType = iota
+	SecondDelayedBinding
+	ThirtySecondDelayedBinding
+	MinuteDelayedBinding
+	FiveMinutesDelayedBinding
+	TenMinutesDelayedBinding
+	TwentyMinutesDelayedBinding
+	ThirtyMinutesDelayedBinding
+	FortyMinutesDelayedBinding
+	FiftyMinutesDelayedBinding
+	HourDelayedBinding
+	SixHoursDelayedBinding
+	DayDelayedBinding
+	NotSendDelayedBinding
 )
 
 var (
 	// отложенные очереди вообще
 	// письмо отправляется повторно при возниковении ошибки во время отправки
-	delayedBindings = map[DelayedBindingType]*Binding {
-		DELAYED_BINDING_SECOND         : &Binding{Name: "%s.dlx.second",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
-		DELAYED_BINDING_THIRTY_SECOND  : &Binding{Name: "%s.dlx.thirty.second",  QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds() * 30) * 1000}},
-		DELAYED_BINDING_MINUTE         : &Binding{Name: "%s.dlx.minute",         QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
-		DELAYED_BINDING_FIVE_MINUTES   : &Binding{Name: "%s.dlx.five.minutes",   QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 5).Seconds()) * 1000}},
-		DELAYED_BINDING_TEN_MINUTES    : &Binding{Name: "%s.dlx.ten.minutes",    QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
-		DELAYED_BINDING_TWENTY_MINUTES : &Binding{Name: "%s.dlx.twenty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 20).Seconds()) * 1000}},
-		DELAYED_BINDING_THIRTY_MINUTES : &Binding{Name: "%s.dlx.thirty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 30).Seconds()) * 1000}},
-		DELAYED_BINDING_FORTY_MINUTES  : &Binding{Name: "%s.dlx.forty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 40).Seconds()) * 1000}},
-		DELAYED_BINDING_FIFTY_MINUTES  : &Binding{Name: "%s.dlx.fifty.minutes",  QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 50).Seconds()) * 1000}},
-		DELAYED_BINDING_HOUR           : &Binding{Name: "%s.dlx.hour",           QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
-		DELAYED_BINDING_SIX_HOURS      : &Binding{Name: "%s.dlx.six.hours",      QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
-		DELAYED_BINDING_DAY            : &Binding{Name: "%s.dlx.day",            QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
-		DELAYED_BINDING_NOT_SEND       : &Binding{Name: "%s.not.send"},
+	delayedBindings = map[DelayedBindingType]*Binding{
+		SecondDelayedBinding:        &Binding{Name: "%s.dlx.second", QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()) * 1000}},
+		ThirtySecondDelayedBinding:  &Binding{Name: "%s.dlx.thirty.second", QueueArgs: amqp.Table{"x-message-ttl": int64(time.Second.Seconds()*30) * 1000}},
+		MinuteDelayedBinding:        &Binding{Name: "%s.dlx.minute", QueueArgs: amqp.Table{"x-message-ttl": int64(time.Minute.Seconds()) * 1000}},
+		FiveMinutesDelayedBinding:   &Binding{Name: "%s.dlx.five.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 5).Seconds()) * 1000}},
+		TenMinutesDelayedBinding:    &Binding{Name: "%s.dlx.ten.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 10).Seconds()) * 1000}},
+		TwentyMinutesDelayedBinding: &Binding{Name: "%s.dlx.twenty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 20).Seconds()) * 1000}},
+		ThirtyMinutesDelayedBinding: &Binding{Name: "%s.dlx.thirty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 30).Seconds()) * 1000}},
+		FortyMinutesDelayedBinding:  &Binding{Name: "%s.dlx.forty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 40).Seconds()) * 1000}},
+		FiftyMinutesDelayedBinding:  &Binding{Name: "%s.dlx.fifty.minutes", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Minute * 50).Seconds()) * 1000}},
+		HourDelayedBinding:          &Binding{Name: "%s.dlx.hour", QueueArgs: amqp.Table{"x-message-ttl": int64(time.Hour.Seconds()) * 1000}},
+		SixHoursDelayedBinding:      &Binding{Name: "%s.dlx.six.hours", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 6).Seconds()) * 1000}},
+		DayDelayedBinding:           &Binding{Name: "%s.dlx.day", QueueArgs: amqp.Table{"x-message-ttl": int64((time.Hour * 24).Seconds()) * 1000}},
+		NotSendDelayedBinding:       &Binding{Name: "%s.not.send"},
 	}
 
 	// отложенные очереди для лимитов
-	limitBindings = []DelayedBindingType {
-		DELAYED_BINDING_SECOND,
-		DELAYED_BINDING_MINUTE,
-		DELAYED_BINDING_HOUR,
-		DELAYED_BINDING_DAY,
+	limitBindings = []DelayedBindingType{
+		SecondDelayedBinding,
+		MinuteDelayedBinding,
+		HourDelayedBinding,
+		DayDelayedBinding,
 	}
 
 	limitBindingsLen = len(limitBindings)
 
 	// цепочка очередей, используемых для повторной отправки писем
 	// в качестве ключа используется текущий тип очереди, а в качестве значения следующий
-	bindingsChain = map[DelayedBindingType]DelayedBindingType {
-		DELAYED_BINDING_UNKNOWN       : DELAYED_BINDING_SECOND,
-		DELAYED_BINDING_SECOND        : DELAYED_BINDING_THIRTY_SECOND,
-		DELAYED_BINDING_THIRTY_SECOND : DELAYED_BINDING_MINUTE,
-		DELAYED_BINDING_MINUTE        : DELAYED_BINDING_FIVE_MINUTES,
-		DELAYED_BINDING_FIVE_MINUTES  : DELAYED_BINDING_TEN_MINUTES,
-		DELAYED_BINDING_TEN_MINUTES   : DELAYED_BINDING_TWENTY_MINUTES,
-		DELAYED_BINDING_TWENTY_MINUTES: DELAYED_BINDING_THIRTY_MINUTES,
-		DELAYED_BINDING_THIRTY_MINUTES: DELAYED_BINDING_FORTY_MINUTES,
-		DELAYED_BINDING_FORTY_MINUTES : DELAYED_BINDING_FIFTY_MINUTES,
-		DELAYED_BINDING_FIFTY_MINUTES : DELAYED_BINDING_HOUR,
-		DELAYED_BINDING_HOUR          : DELAYED_BINDING_SIX_HOURS,
-		DELAYED_BINDING_SIX_HOURS     : DELAYED_BINDING_NOT_SEND,
+	bindingsChain = map[DelayedBindingType]DelayedBindingType{
+		UnknownDelayedBinding:       SecondDelayedBinding,
+		SecondDelayedBinding:        ThirtySecondDelayedBinding,
+		ThirtySecondDelayedBinding:  MinuteDelayedBinding,
+		MinuteDelayedBinding:        FiveMinutesDelayedBinding,
+		FiveMinutesDelayedBinding:   TenMinutesDelayedBinding,
+		TenMinutesDelayedBinding:    TwentyMinutesDelayedBinding,
+		TwentyMinutesDelayedBinding: ThirtyMinutesDelayedBinding,
+		ThirtyMinutesDelayedBinding: FortyMinutesDelayedBinding,
+		FortyMinutesDelayedBinding:  FiftyMinutesDelayedBinding,
+		FiftyMinutesDelayedBinding:  HourDelayedBinding,
+		HourDelayedBinding:          SixHoursDelayedBinding,
+		SixHoursDelayedBinding:      NotSendDelayedBinding,
 	}
 )
 
 // сервис, отвечающий за объявление очередей и получение писем из очереди
 type Consumer struct {
 	AppsConfigs []*ConsumerApplicationConfig      `yaml:"consumers"` // настройка получателей сообщений
-	connections map[string]*amqp.Connection                          // подключения к очередям
-	appsByURI   map[string][]*ConsumerApplication                    // получатели сообщений из очереди
+	connections map[string]*amqp.Connection       // подключения к очередям
+	appsByURI   map[string][]*ConsumerApplication // получатели сообщений из очереди
 }
 
 // создает новый сервис
@@ -115,7 +115,7 @@ func (this *Consumer) OnInit(event *ApplicationEvent) {
 					apps := make([]*ConsumerApplication, len(appConfig.Bindings))
 					for i, binding := range appConfig.Bindings {
 						if len(binding.Type) == 0 {
-							binding.Type = EXCHANGE_TYPE_FANOUT
+							binding.Type = FanoutExchangeType
 						}
 						if len(binding.Name) > 0 {
 							binding.Exchange = binding.Name
@@ -173,13 +173,13 @@ func (this *Consumer) OnInit(event *ApplicationEvent) {
 func (this *Consumer) declare(channel *amqp.Channel, binding *Binding) {
 	Debug("declaring exchange - %s", binding.Exchange)
 	err := channel.ExchangeDeclare(
-		binding.Exchange,      // name of the exchange
-		string(binding.Type),  // type
-		true,                  // durable
-		false,                 // delete when complete
-		false,                 // internal
-		false,                 // noWait
-		binding.ExchangeArgs,  // arguments
+		binding.Exchange,     // name of the exchange
+		string(binding.Type), // type
+		true,                 // durable
+		false,                // delete when complete
+		false,                // internal
+		false,                // noWait
+		binding.ExchangeArgs, // arguments
 	)
 	if err == nil {
 		Debug("declared exchange - %s", binding.Exchange)
@@ -298,7 +298,7 @@ func (this *Consumer) showWaiting(ticker *time.Ticker) {
 	}
 	i := 0
 	for {
-		<- ticker.C
+		<-ticker.C
 		fmt.Printf("\rgetting fail messages, please wait%s", commas[i])
 		if i == 2 {
 			i = 0
@@ -346,33 +346,33 @@ type ConsumerApplicationConfig struct {
 
 // связка точки обмена и очереди
 type Binding struct {
-	Name            string       					`yaml:"name"`     // имя точки обмена и очереди
-	Exchange        string       					`yaml:"exchange"` // имя точки обмена
-	ExchangeArgs    amqp.Table                                        // аргументы точки обмена
-	Queue           string       					`yaml:"queue"`    // имя очереди
-	QueueArgs       amqp.Table                                        // аргументы очереди
-	Type            ExchangeType 					`yaml:"type"`     // тип точки обмена
-	Routing         string       					`yaml:"routing"`  // ключ маршрутизации
-	Handlers        int                             `yaml:"workers"`  // количество потоков, разбирающих очередь
-	delayedBindings map[DelayedBindingType]*Binding                   // отложенные очереди
-	failBinding     *Binding                                          // очередь для 500-ых ошибок
+	Name            string                          `yaml:"name"`     // имя точки обмена и очереди
+	Exchange        string                          `yaml:"exchange"` // имя точки обмена
+	ExchangeArgs    amqp.Table                      // аргументы точки обмена
+	Queue           string                          `yaml:"queue"` // имя очереди
+	QueueArgs       amqp.Table                      // аргументы очереди
+	Type            ExchangeType                    `yaml:"type"`    // тип точки обмена
+	Routing         string                          `yaml:"routing"` // ключ маршрутизации
+	Handlers        int                             `yaml:"workers"` // количество потоков, разбирающих очередь
+	delayedBindings map[DelayedBindingType]*Binding // отложенные очереди
+	failBinding     *Binding                        // очередь для 500-ых ошибок
 }
 
 // тип точки обмена
 type ExchangeType string
 
 const (
-	EXCHANGE_TYPE_DIRECT ExchangeType = "direct"
-	EXCHANGE_TYPE_FANOUT              = "fanout"
-	EXCHANGE_TYPE_TOPIC               = "topic"
+	DirectExchangeType ExchangeType = "direct"
+	FanoutExchangeType              = "fanout"
+	TopicExchangeType               = "topic"
 )
 
 // получатель сообщений из очереди
 type ConsumerApplication struct {
-	id           int
-	connect      *amqp.Connection
-	binding      *Binding
-	deliveries   <- chan amqp.Delivery
+	id         int
+	connect    *amqp.Connection
+	binding    *Binding
+	deliveries <-chan amqp.Delivery
 }
 
 // создает нового получателя
@@ -399,13 +399,13 @@ func (this *ConsumerApplication) consume(id int) {
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
 	channel.Qos(2, 0, false)
 	deliveries, err := channel.Consume(
-		this.binding.Queue,    // name
-		"",                    // consumerTag,
-		false,                 // noAck
-		false,                 // exclusive
-		false,                 // noLocal
-		false,                 // noWait
-		nil,                   // arguments
+		this.binding.Queue, // name
+		"",                 // consumerTag,
+		false,              // noAck
+		false,              // exclusive
+		false,              // noLocal
+		false,              // noWait
+		nil,                // arguments
 	)
 	if err == nil {
 		Debug("run consumer app#%d, handler#%d", this.id, id)
@@ -430,7 +430,7 @@ func (this *ConsumerApplication) consume(id int) {
 					// ждем результата,
 					// во время ожидания поток блокируется
 					// если этого не сделать, тогда невозможно будет подтвердить получение сообщения из очереди
-					switch <- event.Result {
+					switch <-event.Result {
 					case ErrorSendEventResult:
 						// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
 						// или получили какую то ошибку от почтового сервиса, что он не может
@@ -442,8 +442,8 @@ func (this *ConsumerApplication) consume(id int) {
 						if message.Error.Code >= 500 && message.Error.Code <= 600 {
 							failBinding = this.binding.failBinding
 						} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
-//						} else { // мы точно попали в серый список, надо повторить отправку письма попозже
-							failBinding = delayedBindings[DELAYED_BINDING_THIRTY_MINUTES]
+							//						} else { // мы точно попали в серый список, надо повторить отправку письма попозже
+							failBinding = delayedBindings[ThirtyMinutesDelayedBinding]
 						}
 						// если очередь для ошибок нашлась
 						if failBinding != nil {
@@ -456,8 +456,8 @@ func (this *ConsumerApplication) consume(id int) {
 									false,
 									false,
 									amqp.Publishing{
-										ContentType : "text/plain",
-										Body        : jsonMessage,
+										ContentType:  "text/plain",
+										Body:         jsonMessage,
 										DeliveryMode: amqp.Transient,
 									},
 								)
@@ -467,7 +467,7 @@ func (this *ConsumerApplication) consume(id int) {
 										message.Error.Message,
 										message.Error.Code,
 										message.Id,
-										this.binding.failBinding.Queue,
+										failBinding.Queue,
 									)
 								} else {
 									Debug(
@@ -484,7 +484,7 @@ func (this *ConsumerApplication) consume(id int) {
 							}
 						}
 					case DelaySendEventResult:
-						bindingType := DELAYED_BINDING_UNKNOWN
+						bindingType := UnknownDelayedBinding
 						Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
 						Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
 						// если нам просто не удалось письмо, берем следующую очередь из цепочки
@@ -494,9 +494,9 @@ func (this *ConsumerApplication) consume(id int) {
 						Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 						this.publishDelayedMessage(channel, bindingType, message)
 					case OverlimitSendEventResult:
-						bindingType := DELAYED_BINDING_UNKNOWN
+						bindingType := UnknownDelayedBinding
 						Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
-						for i := 0;i < limitBindingsLen;i++ {
+						for i := 0; i < limitBindingsLen; i++ {
 							if limitBindings[i] == message.BindingType {
 								bindingType = limitBindings[i]
 								break
@@ -504,6 +504,14 @@ func (this *ConsumerApplication) consume(id int) {
 						}
 						this.publishDelayedMessage(channel, bindingType, message)
 					}
+
+					//					// говорим, что соединение свободно, его можно передать другому отправителю
+					//					if event.Client.IsExpireByNow() {
+					//						atomic.StoreInt32(&(event.Client.Status), ExpireSmtpClientStatus)
+					//					} else {
+					//						event.Client.SetTimeout(WaitingTimeout)
+					//						atomic.StoreInt32(&(event.Client.Status), WaitingSmtpClientStatus)
+					//					}
 
 					// всегда подтверждаем получение сообщения
 					// даже если во время отправки письма возникли ошибки,
@@ -518,8 +526,8 @@ func (this *ConsumerApplication) consume(id int) {
 						false,
 						false,
 						amqp.Publishing{
-							ContentType : "text/plain",
-							Body        : delivery.Body,
+							ContentType:  "text/plain",
+							Body:         delivery.Body,
 							DeliveryMode: amqp.Transient,
 						},
 					)
@@ -549,10 +557,10 @@ func (this *ConsumerApplication) publishDelayedMessage(channel *amqp.Channel, bi
 				false,
 				false,
 				amqp.Publishing{
-				ContentType : "text/plain",
-				Body        : []byte(jsonMessage),
-				DeliveryMode: amqp.Transient,
-			},
+					ContentType:  "text/plain",
+					Body:         []byte(jsonMessage),
+					DeliveryMode: amqp.Transient,
+				},
 			)
 			if err == nil {
 				Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
@@ -609,10 +617,10 @@ func (this *ConsumerApplication) consumeAndPublishMessages(event *ApplicationEve
 			fmt.Println("source and destination queue should be different")
 			app.Events() <- NewApplicationEvent(FinishApplicationEventKind)
 		}
-		if (len(event.GetStringArg("envelope")) > 0) {
+		if len(event.GetStringArg("envelope")) > 0 {
 			envelopeRegex, _ = regexp.Compile(event.GetStringArg("envelope"))
 		}
-		if (len(event.GetStringArg("recipient")) > 0) {
+		if len(event.GetStringArg("recipient")) > 0 {
 			recipientRegex, _ = regexp.Compile(event.GetStringArg("recipient"))
 		}
 
@@ -652,8 +660,8 @@ func (this *ConsumerApplication) consumeAndPublishMessages(event *ApplicationEve
 				false,
 				false,
 				amqp.Publishing{
-					ContentType : "text/plain",
-					Body        : delivery.Body,
+					ContentType:  "text/plain",
+					Body:         delivery.Body,
 					DeliveryMode: amqp.Transient,
 				},
 			)

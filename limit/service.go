@@ -52,7 +52,7 @@ func (s *Service) OnRun() {
 	// сразу запускаем проверку значений ограничений
 	go new(Cleaner).clean()
 	for i := 0; i < s.LimitersCount; i++ {
-		go new(Limiter).run(i + 1)
+		go newLimiter(i + 1).run()
 	}
 }
 

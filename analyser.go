@@ -1,16 +1,16 @@
 package postmanq
 
 import (
+	"bufio"
+	"flag"
+	"fmt"
+	"github.com/byorty/clitable"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"strconv"
-	"flag"
-	"bufio"
-	"os"
-	"strings"
-	"regexp"
-	"github.com/byorty/clitable"
-	"fmt"
 )
 
 var (
@@ -18,26 +18,26 @@ var (
 )
 
 type Analyser struct {
-	mutex                 *sync.Mutex
-	messages              chan *MailMessage
-	reports               []*Report
-	reportsByCode         map[string][]int
-	reportsByEnvelope     map[string][]int
-	reportsByRecipient    map[string][]int
-	necessaryAll          bool
-	necessaryCode         string
-	necessaryEnvelope     string
-	necessaryRecipient    string
-	necessaryExport       bool
-	necessaryOnly         bool
-	limit                 int
-	offset                int
-	pattern               string
-	tableAggregateFields  []interface{}
-	tableDetailFields     []interface{}
-	tableCodeFields       []interface{}
-	tableAddressFields    []interface{}
-	table                 *clitable.Table
+	mutex                *sync.Mutex
+	messages             chan *MailMessage
+	reports              []*Report
+	reportsByCode        map[string][]int
+	reportsByEnvelope    map[string][]int
+	reportsByRecipient   map[string][]int
+	necessaryAll         bool
+	necessaryCode        string
+	necessaryEnvelope    string
+	necessaryRecipient   string
+	necessaryExport      bool
+	necessaryOnly        bool
+	limit                int
+	offset               int
+	pattern              string
+	tableAggregateFields []interface{}
+	tableDetailFields    []interface{}
+	tableCodeFields      []interface{}
+	tableAddressFields   []interface{}
+	table                *clitable.Table
 }
 
 func AnalyserOnce() *Analyser {
@@ -51,31 +51,31 @@ func (a *Analyser) OnInit(event *ApplicationEvent) {
 	a.reportsByEnvelope = make(map[string][]int)
 	a.reportsByRecipient = make(map[string][]int)
 	a.mutex = new(sync.Mutex)
-	a.tableAggregateFields = []interface{} {
+	a.tableAggregateFields = []interface{}{
 		"Mails count",
 		"Code count",
 		"Envelopes count",
 		"Recipients count",
 	}
-	a.tableDetailFields = []interface{} {
+	a.tableDetailFields = []interface{}{
 		"Envelope",
 		"Recipient",
 		"Code",
 		"Message",
 		"Sending count",
 	}
-	a.tableCodeFields = []interface{} {
+	a.tableCodeFields = []interface{}{
 		"Code",
 		"Mails count",
 	}
-	a.tableAddressFields = []interface{} {
+	a.tableAddressFields = []interface{}{
 		"Address",
 		"Mails count",
 	}
 }
 
 func (a *Analyser) OnShowReport() {
-	for i := 0;i < defaultWorkersCount;i++ {
+	for i := 0; i < defaultWorkersCount; i++ {
 		go a.receiveMessages()
 	}
 	scanner := bufio.NewScanner(os.Stdin)
@@ -104,11 +104,11 @@ func (a *Analyser) receiveMessage(message *MailMessage) {
 	}
 	if report == nil {
 		report = &Report{
-			Id: reportsLen + 1,
-			Envelope: message.Envelope,
+			Id:        reportsLen + 1,
+			Envelope:  message.Envelope,
 			Recipient: message.Recipient,
-			Code: message.Error.Code,
-			Message: message.Error.Message,
+			Code:      message.Error.Code,
+			Message:   message.Error.Message,
 		}
 		report.CreatedDates = make([]time.Time, 0)
 		a.reports = append(a.reports, report)
@@ -151,16 +151,20 @@ func (a *Analyser) findReports(args []string) {
 	if err == nil {
 		re := a.createRegexp()
 		switch {
-		case len(a.necessaryCode) > 0: a.showDetailTable(a.reportsByCode, a.necessaryCode, re, a.tableCodeFields)
-		case len(a.necessaryEnvelope) > 0: a.showDetailTable(a.reportsByEnvelope, a.necessaryEnvelope, re, a.tableAddressFields)
-		case len(a.necessaryRecipient) > 0: a.showDetailTable(a.reportsByRecipient, a.necessaryRecipient, re, a.tableAddressFields)
+		case len(a.necessaryCode) > 0:
+			a.showDetailTable(a.reportsByCode, a.necessaryCode, re, a.tableCodeFields)
+		case len(a.necessaryEnvelope) > 0:
+			a.showDetailTable(a.reportsByEnvelope, a.necessaryEnvelope, re, a.tableAddressFields)
+		case len(a.necessaryRecipient) > 0:
+			a.showDetailTable(a.reportsByRecipient, a.necessaryRecipient, re, a.tableAddressFields)
 		case a.necessaryAll:
 			a.createTable(a.tableDetailFields)
 			for _, report := range a.reports {
 				a.fillRowIfMatch(re, report)
 			}
 			a.table.Print()
-		default: a.showAggregateTable(flagSet)
+		default:
+			a.showAggregateTable(flagSet)
 		}
 	} else {
 		a.showAggregateTable(flagSet)
@@ -176,7 +180,7 @@ func (a *Analyser) showDetailTable(aggregateReportIds map[string][]int, keyPatte
 		addresses := make([]string, 0)
 		rows := 0
 		for key, ids := range aggregateReportIds {
-			if keyPattern == "*" || (keyRegex != nil && keyRegex.MatchString(key))  {
+			if keyPattern == "*" || (keyRegex != nil && keyRegex.MatchString(key)) {
 				for _, id := range ids {
 					for _, report := range a.reports {
 						if report.Id == id {
@@ -246,8 +250,8 @@ func (a *Analyser) fillRowIfMatch(valueRegex *regexp.Regexp, report *Report) {
 	if valueRegex == nil {
 		a.fillRow(report)
 	} else if valueRegex.MatchString(report.Envelope) ||
-			  valueRegex.MatchString(report.Recipient) ||
-			  valueRegex.MatchString(report.Message) {
+		valueRegex.MatchString(report.Recipient) ||
+		valueRegex.MatchString(report.Message) {
 		a.fillRow(report)
 	}
 }
