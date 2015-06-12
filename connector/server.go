@@ -65,6 +65,15 @@ type MxServer struct {
 
 	// использоватение TLS
 	useTLS         bool
+
+	hasMaxConnections bool
+
+	waitingQueue *common.Queue
+	workingQueue *common.Queue
+}
+
+func (m *MxServer) hasMaxConnectionsOn() {
+	m.hasMaxConnections = true
 }
 
 // создает новое TLS или обычное соединение
@@ -171,16 +180,6 @@ func (this *MxServer) createSmtpClient(id int, ptrSmtpClient **common.SmtpClient
 	log.Debug("service#%d create smtp client#%d for %s", id, (*ptrSmtpClient).Id, this.hostname)
 }
 
-// обновляет количество максимальных соединений
-// пишет в лог количество максимальных соединений и ошибку, возникшую при попытке открыть новое соединение
-func (this *MxServer) updateMaxConnections(id int, err error) {
-	clientsCount := len(this.clients)
-	if clientsCount > 0 {
-		this.maxConnections = clientsCount
-	}
-	log.Warn("service#%d detect max %d open connections for %s, error - %v", id, this.maxConnections, this.hostname, err)
-}
-
 // закрывает свои собственные соединения
 func (this *MxServer) closeConnections(now time.Time) {
 	if this.clients != nil && len(this.clients) > 0 {
@@ -207,8 +206,6 @@ func (this *MxServer) closeConnections(now time.Time) {
 }
 
 // запрещает использовать TLS соединения
-// и пишет в лог и ошибку, возникшую при попытке открыть TLS соединение
-func (this *MxServer) dontUseTLS(err error) {
+func (this *MxServer) dontUseTLS() {
 	this.useTLS = false
-	log.WarnWithErr(err)
 }
