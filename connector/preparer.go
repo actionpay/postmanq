@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/log"
+	"math/rand"
 	"time"
 )
 
 type ConnectionEvent struct {
-	sendEvent   *common.SendEvent
+	*common.SendEvent
 	servers     chan *MailServer
 	server      *MailServer
 	connectorId int
+	address     string
+	queue       *MxQueue
 }
 
 type Preparer struct {
@@ -20,7 +23,7 @@ type Preparer struct {
 }
 
 func newPreparer(id int) *Preparer {
-	return &Preparer{id}
+	return &Preparer{id}.run()
 }
 
 func (p *Preparer) run() {
@@ -35,10 +38,12 @@ func (p *Preparer) prepare(event *common.SendEvent) {
 	event.CertBytes = p.certBytes
 	event.CertBytesLen = p.certBytesLen
 
+	rand.Seed(time.Now().UnixNano())
 	connectionEvent := &ConnectionEvent{
-		sendEvent:   event,
+		event,
 		servers:     make(chan *MailServer, 1),
 		connectorId: p.id,
+		address:     service.Addresses[rand.Intn(service.addressesLen)],
 	}
 	goto connectToMailServer
 

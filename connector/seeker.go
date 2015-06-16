@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/log"
 	"net"
 	"regexp"
@@ -21,7 +20,7 @@ type Seeker struct {
 }
 
 func newSeeker(id int) *Seeker {
-	return &Seeker{id}
+	return &Seeker{id}.run()
 }
 
 func (s *Seeker) run() {
@@ -31,8 +30,7 @@ func (s *Seeker) run() {
 }
 
 func (s *Seeker) seek(event *ConnectionEvent) {
-	sendEvent := event.sendEvent
-	hostnameTo := sendEvent.Message.HostnameTo
+	hostnameTo := event.Message.HostnameTo
 	seekerMutex.Lock()
 	if _, ok := mailServers[hostnameTo]; !ok {
 		log.Debug("seeker#%d create mail server for %s", event.connectorId, hostnameTo)
@@ -56,12 +54,9 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 				mxServer := new(MxServer)
 				mxServer.hostname = mxHostname
 				mxServer.ips = make([]net.IP, 0)
-				mxServer.clients = make([]*common.SmtpClient, 0)
 				// по умолчанию будем создавать TLS соединение
 				mxServer.useTLS = true
-				mxServer.hasMaxConnections = false
-				mxServer.waitingQueue = common.NewQueue()
-				mxServer.workingQueue = common.NewQueue()
+				mxServer.queues = make(map[string]*MxQueue)
 				// собираем IP адреса для сертификата и проверок
 				ips, err := net.LookupIP(mxHostname)
 				if err == nil {

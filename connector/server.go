@@ -1,13 +1,9 @@
 package connector
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/log"
-	"math/rand"
 	"net"
-	"net/smtp"
 	"sync/atomic"
 	"time"
 )
@@ -46,13 +42,19 @@ func (this *MailServer) closeConnections(now time.Time) {
 	}
 }
 
+type MxQueue struct {
+	common.Queue
+	hasMax bool
+}
+
+func (m *MxQueue) hasMaxOn() {
+	m.hasMax = true
+}
+
 // почтовый сервер
 type MxServer struct {
 	// доменное имя почтового сервера
 	hostname       string
-
-	// количество подключений для одного IP
-	maxConnections int
 
 	// IP сервера
 	ips            []net.IP
@@ -66,118 +68,7 @@ type MxServer struct {
 	// использоватение TLS
 	useTLS         bool
 
-	hasMaxConnections bool
-
-	waitingQueue *common.Queue
-	workingQueue *common.Queue
-}
-
-func (m *MxServer) hasMaxConnectionsOn() {
-	m.hasMaxConnections = true
-}
-
-// создает новое TLS или обычное соединение
-func (this *MxServer) createNewSmtpClient(id int, event *common.SendEvent, ptrSmtpClient **common.SmtpClient, callback func(id int, event *common.SendEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client)) {
-	// создаем соединение
-	rand.Seed(time.Now().UnixNano())
-	addr := service.Addresses[rand.Intn(service.addressesLen)]
-	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(addr, "0"))
-	if err == nil {
-		log.Debug("service#%d resolve tcp address %s", id, tcpAddr.String())
-		dialer := &net.Dialer{
-			Timeout:   common.HelloTimeout,
-			LocalAddr: tcpAddr,
-		}
-		hostname := net.JoinHostPort(this.hostname, "25")
-		log.Debug("service#%d dial to %s", id, hostname)
-		connection, err := dialer.Dial("tcp", hostname)
-		if err == nil {
-			log.Debug("service#%d dialed to %s", id, hostname)
-			connection.SetDeadline(time.Now().Add(common.HelloTimeout))
-			// создаем клиента
-			log.Debug("service#%d create client to %s", id, this.hostname)
-			client, err := smtp.NewClient(connection, this.hostname)
-			if err == nil {
-				log.Debug("service#%d created client to %s", id, this.hostname)
-				// здороваемся
-				err = client.Hello(event.Message.HostnameFrom)
-				if err == nil {
-					log.Debug("service#%d send command HELLO: %s", id, event.Message.HostnameFrom)
-					// создаем TLS или обычное соединение
-					if this.useTLS {
-						this.useTLS, _ = client.Extension("STARTTLS")
-					}
-					log.Debug("service#%d use TLS %v", id, this.useTLS)
-					callback(id, event, ptrSmtpClient, connection, client)
-				} else {
-					client.Quit()
-					this.updateMaxConnections(id, err)
-				}
-			} else {
-				connection.Close()
-				this.updateMaxConnections(id, err)
-			}
-		} else {
-			this.updateMaxConnections(id, err)
-		}
-	} else {
-		this.updateMaxConnections(id, err)
-	}
-}
-
-// создает новое TLS соединение к почтовому серверу
-func (this *MxServer) createTLSSmtpClient(id int, event *common.SendEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
-	// если есть какие данные о сертификате и к серверу можно создать TLS соединение
-	if event.CertBytesLen > 0 && this.useTLS {
-		pool := x509.NewCertPool()
-		// пытаем создать сертификат
-		cert, err := x509.ParseCertificate(event.CertBytes)
-		if err == nil {
-			// задаем сертификату IP сервера
-			cert.IPAddresses = this.ips
-			pool.AddCert(cert)
-			// открываем TLS соединение
-			err = client.StartTLS(&tls.Config{
-				ClientCAs:  pool,
-				ServerName: this.realServerName,
-			})
-			// если все нормально, создаем клиента
-			if err == nil {
-				this.createSmtpClient(id, ptrSmtpClient, connection, client)
-			} else { // если не удалось создать TLS соединение
-				// говорим, что не надо больше создавать TLS соединение
-				this.dontUseTLS(err)
-				// разрываем созданое соединение
-				// это необходимо, т.к. не все почтовые сервисы позволяют продолжить отправку письма
-				// после неудачной попытке создать TLS соединение
-				client.Quit()
-				// создаем обычное соединие
-				this.createNewSmtpClient(id, event, ptrSmtpClient, this.createPlainSmtpClient)
-			}
-		} else {
-			this.dontUseTLS(err)
-			this.createPlainSmtpClient(id, event, ptrSmtpClient, connection, client)
-		}
-	} else {
-		this.createPlainSmtpClient(id, event, ptrSmtpClient, connection, client)
-	}
-}
-
-// создает новое соединие к почтовому серверу
-func (this *MxServer) createPlainSmtpClient(id int, event *common.SendEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
-	this.createSmtpClient(id, ptrSmtpClient, connection, client)
-}
-
-// создает нового клиента почтового сервера
-func (this *MxServer) createSmtpClient(id int, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
-	(*ptrSmtpClient) = new(common.SmtpClient)
-	(*ptrSmtpClient).Id = len(this.clients) + 1
-	(*ptrSmtpClient).connection = connection
-	(*ptrSmtpClient).Worker = client
-	(*ptrSmtpClient).createDate = time.Now()
-	(*ptrSmtpClient).Status = common.WorkingSmtpClientStatus
-	this.clients = append(this.clients, (*ptrSmtpClient))
-	log.Debug("service#%d create smtp client#%d for %s", id, (*ptrSmtpClient).Id, this.hostname)
+	queues map[string]*MxQueue
 }
 
 // закрывает свои собственные соединения
@@ -195,9 +86,6 @@ func (this *MxServer) closeConnections(now time.Time) {
 				this.clients = this.clients[:i]
 				if i < len(this.clients)-1 {
 					this.clients = append(this.clients, this.clients[i+1:]...)
-				}
-				if this.maxConnections != common.UnlimitedConnectionCount {
-					this.maxConnections = common.UnlimitedConnectionCount
 				}
 				log.Debug("close connection smtp client#%d mx server %s", client.Id, this.hostname)
 			}

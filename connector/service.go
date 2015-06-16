@@ -96,9 +96,9 @@ func (c *Service) OnRun() {
 //	go service.checkConnections()
 	for i := 0; i < c.ConnectorsCount; i++ {
 		id := i + 1
-		go newPreparer(id).run()
-		go newSeeker(id).run()
-		go newConnector(id).run()
+		go newPreparer(id)
+		go newSeeker(id)
+		go newConnector(id)
 	}
 }
 
