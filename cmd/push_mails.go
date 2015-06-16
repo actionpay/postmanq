@@ -86,19 +86,19 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 `
 	//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
 	amqpURI := "amqp://solomonov:solomonov@192.168.13.32:5672/solomonov"
-	log.Println("dialing ", amqpURI)
+	logger.Println("dialing ", amqpURI)
 	connection, err := amqp.Dial(amqpURI)
 	if err != nil {
 		fmt.Errorf("Dial: %s", err)
 	}
 	defer connection.Close()
 
-	log.Printf("got Connection, getting Channel")
+	logger.Printf("got Connection, getting Channel")
 	channel, err := connection.Channel()
 	if err != nil {
 		fmt.Errorf("Channel: %s", err)
 	}
-	log.Printf("got Channel")
+	logger.Printf("got Channel")
 
 	messageCount := 1
 	//	messageCount := 1000

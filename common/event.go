@@ -61,6 +61,7 @@ type SendEvent struct {
 	//	MailServer       *MailServer
 	TryCount int
 	Iterator *Iterator
+	Queue *LimitedQueue
 }
 
 // отправляет письмо сервису отправки, который затем решит, какой поток будет отправлять письмо
@@ -70,7 +71,6 @@ func NewSendEvent(message *MailMessage) *SendEvent {
 	event.Message = message
 	event.CreateDate = time.Now()
 	event.Result = make(chan SendEventResult)
-	//	event.MailServers = make(chan *MailServer)
 	event.Iterator = NewIterator(SendindServices)
 	return event
 }

@@ -3,7 +3,7 @@ package consumer
 import (
 	"fmt"
 	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/streadway/amqp"
 	yaml "gopkg.in/yaml.v2"
 	"net/url"
@@ -41,27 +41,27 @@ func Inst() common.SendingService {
 
 // инициализирует сервис
 func (s *Service) OnInit(event *common.ApplicationEvent) {
-	log.Debug("init consumer service")
+	logger.Debug("init consumer service")
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, s)
 	if err != nil {
-		log.FailExit("consumer service can't unmarshal config, error - %v", err)
+		logger.FailExit("consumer service can't unmarshal config, error - %v", err)
 	}
 
 	appsCount := 0
 	for _, config := range s.Configs {
-		log.Debug("consumer service connect to %s", config.URI)
+		logger.Debug("consumer service connect to %s", config.URI)
 		connect, err := amqp.Dial(config.URI)
 		if err != nil {
-			log.FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
+			logger.FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
 		}
-		log.Debug("consumer service got connection to %s, getting channel", config.URI)
+		logger.Debug("consumer service got connection to %s, getting channel", config.URI)
 
 		channel, err := connect.Channel()
 		if err != nil {
-			log.FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
+			logger.FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
 		}
-		log.Debug("consumer service got channel for %s", config.URI)
+		logger.Debug("consumer service got channel for %s", config.URI)
 
 		apps := make([]*Consumer, len(config.Bindings))
 		for i, binding := range config.Bindings {
@@ -86,7 +86,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			appsCount++
 			app := NewConsumer(appsCount, connect, binding)
 			apps[i] = app
-			log.Debug("consumer service create consumer#%d", app.id)
+			logger.Debug("consumer service create consumer#%d", app.id)
 		}
 		s.connections[config.URI] = connect
 		s.consumersByURI[config.URI] = apps
@@ -104,7 +104,7 @@ func (s *Service) reconnect(connect *amqp.Connection, config *Config) {
 // слушает закрытие соединения
 func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error) {
 	for closeError := range closeErrors {
-		log.Warn("consumer service close connection %s with error - %v, restart...", config.URI, closeError)
+		logger.Warn("consumer service close connection %s with error - %v, restart...", config.URI, closeError)
 		connect, err := amqp.Dial(config.URI)
 		if err == nil {
 			s.connections[config.URI] = connect
@@ -115,16 +115,16 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 				}
 				s.reconnect(connect, config)
 			}
-			log.Debug("consumer service reconnect to amqp server %s", config.URI)
+			logger.Debug("consumer service reconnect to amqp server %s", config.URI)
 		} else {
-			log.Warn("consumer service can't reconnect to amqp server %s with error - %v", config.URI, err)
+			logger.Warn("consumer service can't reconnect to amqp server %s with error - %v", config.URI, err)
 		}
 	}
 }
 
 // запускает получателей
 func (s *Service) OnRun() {
-	log.Debug("run consumers...")
+	logger.Debug("run consumers...")
 	for _, apps := range s.consumersByURI {
 		s.runConsumers(apps)
 	}
@@ -138,7 +138,7 @@ func (s *Service) runConsumers(apps []*Consumer) {
 
 // останавливает получателей
 func (s *Service) OnFinish() {
-	log.Debug("stop consumers...")
+	logger.Debug("stop consumers...")
 	for _, connect := range s.connections {
 		if connect != nil {
 			err := connect.Close()

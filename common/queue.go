@@ -48,3 +48,22 @@ func (q *Queue) Empty() bool {
 	q.mutex.Unlock()
 	return empty
 }
+
+func (q *Queue) Len() int {
+	var itemsLen int
+	q.mutex.Lock()
+	itemsLen = len(q.items)
+	q.mutex.Unlock()
+	return itemsLen
+}
+
+type LimitedQueue struct {
+	Queue
+	HasLimit bool
+}
+
+func (l *LimitedQueue) HasLimitOn() {
+	l.HasLimit = true
+}
+
+

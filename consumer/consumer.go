@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/streadway/amqp"
 	"regexp"
 	"sync"
@@ -59,10 +59,10 @@ func (c *Consumer) consume(id int) {
 		nil,             // arguments
 	)
 	if err == nil {
-		log.Debug("run consumer#%d, handler#%d", c.id, id)
+		logger.Debug("run consumer#%d, handler#%d", c.id, id)
 		go c.consumeDeliveries(id, channel, deliveries)
 	} else {
-		log.Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
+		logger.Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
 	}
 }
 
@@ -73,7 +73,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 		if err == nil {
 			// инициализируем параметры письма
 			message.Init()
-			log.Info(
+			logger.Info(
 				"consumer#%d, handler#%d send mail#%d: envelope - %s, recipient - %s to mailer",
 				c.id,
 				id,
@@ -83,7 +83,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 			)
 
 			event := common.NewSendEvent(message)
-			log.Debug("consumer#%d create send event for message#%d", c.id, message.Id)
+			logger.Debug("consumer#%d create send event for message#%d", c.id, message.Id)
 			event.Iterator.Next().(common.SendingService).Events() <- event
 			// ждем результата,
 			// во время ожидания поток блокируется
@@ -105,7 +105,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 					DeliveryMode: amqp.Transient,
 				},
 			)
-			log.Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
+			logger.Warn("can't unmarshal delivery body, body should be json, body is %s", string(delivery.Body))
 		}
 		// всегда подтверждаем получение сообщения
 		// даже если во время отправки письма возникли ошибки,
@@ -144,7 +144,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 				},
 			)
 			if err == nil {
-				log.Debug(
+				logger.Debug(
 					"reason is %s with code %d, publish failure mail#%d to queue %s",
 					message.Error.Message,
 					message.Error.Code,
@@ -152,36 +152,36 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 					failBinding.Queue,
 				)
 			} else {
-				log.Debug(
+				logger.Debug(
 					"can't publish failure mail#%d with error %s and code %d to queue %s",
 					message.Id,
 					message.Error.Message,
 					message.Error.Code,
 					failBinding.Queue,
 				)
-				log.WarnWithErr(err)
+				logger.WarnWithErr(err)
 			}
 		} else {
-			log.WarnWithErr(err)
+			logger.WarnWithErr(err)
 		}
 	}
 }
 
 func (c *Consumer) handleDelaySend(channel *amqp.Channel, message *common.MailMessage) {
 	bindingType := common.UnknownDelayedBinding
-	log.Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
-	log.Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
+	logger.Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+	logger.Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
 	// если нам просто не удалось письмо, берем следующую очередь из цепочки
 	if chainBinding, ok := bindingsChain[message.BindingType]; ok {
 		bindingType = chainBinding
 	}
-	log.Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
+	logger.Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 	c.publishDelayedMessage(channel, bindingType, message)
 }
 
 func (c *Consumer) handleOverlimitSend(channel *amqp.Channel, message *common.MailMessage) {
 	bindingType := common.UnknownDelayedBinding
-	log.Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
+	logger.Debug("reason is overlimit, find dlx queue for mail#%d", message.Id)
 	for i := 0; i < limitBindingsLen; i++ {
 		if limitBindings[i] == message.BindingType {
 			bindingType = limitBindings[i]
@@ -192,7 +192,7 @@ func (c *Consumer) handleOverlimitSend(channel *amqp.Channel, message *common.Ma
 }
 
 func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType DelayedBindingType, message *MailMessage) {
-	log.Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
+	logger.Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
 
 	// получаем очередь, проверяем, что она реально есть
 	// а что? а вдруг нет)
@@ -213,15 +213,15 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType Dela
 				},
 			)
 			if err == nil {
-				log.Debug("publish failure mail#%d to queue %s", message.Id, delayedBinding.Queue)
+				logger.Debug("publish failure mail#%d to queue %s", message.Id, delayedBinding.Queue)
 			} else {
-				log.Warn("can't publish failure mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
+				logger.Warn("can't publish failure mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
 			}
 		} else {
-			log.Warn("can't marshal mail#%d to json", message.Id)
+			logger.Warn("can't marshal mail#%d to json", message.Id)
 		}
 	} else {
-		log.Warn("unknow delayed type %v for mail#%d", bindingType, message.Id)
+		logger.Warn("unknow delayed type %v for mail#%d", bindingType, message.Id)
 	}
 }
 
@@ -320,7 +320,7 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 		}
 		group.Done()
 	} else {
-		log.WarnWithErr(err)
+		logger.WarnWithErr(err)
 	}
 }
 

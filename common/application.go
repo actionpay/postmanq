@@ -1,6 +1,10 @@
 package common
 
-import "runtime"
+import (
+	"flag"
+	"fmt"
+	"runtime"
+)
 
 const (
 	ExampleConfigYaml  = "/path/to/config/file.yaml"
@@ -12,6 +16,10 @@ var (
 	App                 Application
 	SendindServices     []interface{}
 	DefaultWorkersCount = runtime.NumCPU()
+	PrintUsage          = func(f *flag.Flag) {
+		format := "  -%s %s\n"
+		fmt.Printf(format, f.Name, f.Usage)
+	}
 )
 
 type Application interface {

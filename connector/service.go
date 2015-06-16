@@ -5,7 +5,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
 	"time"
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/AdOnWeb/postmanq/common"
 )
 
@@ -74,20 +74,20 @@ func (c *Service) OnInit(event *ApplicationEvent) {
 				// и считаем его длину, чтобы не делать это при создании каждого сертификата
 				c.certBytesLen = len(c.certBytes)
 			} else {
-				log.FailExit("service can't read certificate, error - %v", err)
+				logger.FailExit("service can't read certificate, error - %v", err)
 			}
 		} else {
-			log.Debug("certificate is not defined")
+			logger.Debug("certificate is not defined")
 		}
 		c.addressesLen = len(c.Addresses)
 		if c.addressesLen == 0 {
-			log.FailExit("ips should be defined")
+			logger.FailExit("ips should be defined")
 		}
 		if c.ConnectorsCount == 0 {
 			c.ConnectorsCount = common.DefaultWorkersCount
 		}
 	} else {
-		log.FailExit("service can't unmarshal config, error - %v", err)
+		logger.FailExit("service can't unmarshal config, error - %v", err)
 	}
 }
 

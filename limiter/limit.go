@@ -1,4 +1,4 @@
-package limit
+package limiter
 
 import (
 	"github.com/AdOnWeb/postmanq/common"

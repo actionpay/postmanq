@@ -1,8 +1,8 @@
-package limit
+package limiter
 
 import (
 	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"time"
 )
@@ -32,19 +32,19 @@ func Inst() common.SendingService {
 
 // инициализирует сервис
 func (s *Service) OnInit(event *ApplicationEvent) {
-	log.Debug("init limits...")
+	logger.Debug("init limits...")
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
 		// инициализируем ограничения
 		for host, limit := range s.Limits {
 			limit.init()
-			log.Debug("create limit for %s with type %v and duration %v", host, limit.bindingType, limit.duration)
+			logger.Debug("create limit for %s with type %v and duration %v", host, limit.bindingType, limit.duration)
 		}
 		if s.LimitersCount == 0 {
 			s.LimitersCount = common.DefaultWorkersCount
 		}
 	} else {
-		log.FailExitWithErr(err)
+		logger.FailExitWithErr(err)
 	}
 }
 
@@ -52,7 +52,7 @@ func (s *Service) OnRun() {
 	// сразу запускаем проверку значений ограничений
 	go new(Cleaner).clean()
 	for i := 0; i < s.LimitersCount; i++ {
-		go newLimiter(i + 1).run()
+		go newLimiter(i + 1)
 	}
 }
 

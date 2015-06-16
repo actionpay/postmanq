@@ -1,7 +1,7 @@
-package limit
+package limiter
 
 import (
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	"sync/atomic"
 	"time"
 )
@@ -17,7 +17,7 @@ func (c *Cleaner) clean() {
 			if !limit.isValidDuration(now) {
 				// если дата последнего изменения выходит за промежуток времени для проверки
 				// обнулям текущее количество отправленных писем
-				log.Debug("current limit value %d for %s, const value %d, reset...", limit.currentValue, host, limit.Value)
+				logger.Debug("current limit value %d for %s, const value %d, reset...", limit.currentValue, host, limit.Value)
 				atomic.StoreInt32(&limit.currentValue, 0)
 				limit.modifyDate = time.Now()
 			}

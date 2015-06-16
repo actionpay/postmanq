@@ -3,12 +3,10 @@ package common
 import (
 	"errors"
 	"github.com/streadway/amqp"
-	"net"
-	"net/smtp"
 	"regexp"
-	"time"
-	"strings"
 	"strconv"
+	"strings"
+	"time"
 )
 
 const (
@@ -25,7 +23,7 @@ const (
 
 var (
 	// сразу компилирует регулярку для проверки адреса почты, чтобы при отправке не терять на этом время
-	emailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
+	EmailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
 )
 
 // тип отложенной очереди
@@ -83,51 +81,12 @@ func (this *MailMessage) Init() {
 
 // получает домен из адреса
 func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
-	matches := emailRegexp.FindAllStringSubmatch(email, -1)
+	matches := EmailRegexp.FindAllStringSubmatch(email, -1)
 	if len(matches) == 1 && len(matches[0]) == 2 {
 		return matches[0][1], nil
 	} else {
 		return "", errors.New("invalid email address")
 	}
-}
-
-// статус клиента почтового сервера
-type SmtpClientStatus int
-
-const (
-	// отсылает письмо
-	WorkingSmtpClientStatus SmtpClientStatus = iota
-	// ожидает письма
-	WaitingSmtpClientStatus
-	ExpireSmtpClientStatus
-	// отсоединен
-	DisconnectedSmtpClientStatus
-)
-
-// клиент почтового сервера
-type SmtpClient struct {
-	// номер клиента для удобства в логах
-	Id int
-	// соединение к почтовому серверу
-	connection net.Conn
-	// реальный smtp клиент
-	Worker *smtp.Client
-	// дата создания или изменения статуса клиента
-	createDate time.Time
-	// статус
-	Status SmtpClientStatus
-}
-
-func (this *SmtpClient) SetTimeout(timeout time.Duration) {
-	this.connection.SetDeadline(time.Now().Add(timeout))
-}
-
-func (this *SmtpClient) IsExpireByNow() bool {
-	return this.IsExpire(time.Now())
-}
-
-func (this *SmtpClient) IsExpire(now time.Time) bool {
-	return now.Sub(this.createDate) >= WaitingTimeout
 }
 
 // возвращает письмо обратно в очередь после ошибки во время отправки
@@ -149,7 +108,7 @@ func ReturnMail(event *SendEvent, err error) {
 			event.Client.Worker.Reset()
 		}
 	}
-//	Warn("mail#%d sending error - %v", event.Message.Id, err)
+	//	Warn("mail#%d sending error - %v", event.Message.Id, err)
 	// отпускаем поток получателя сообщений из очереди
 	if event.Message.Error == nil {
 		event.Result <- DelaySendEventResult

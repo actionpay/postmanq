@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	"math/rand"
 	"time"
 )
@@ -32,7 +32,7 @@ func (p *Preparer) run() {
 }
 
 func (p *Preparer) prepare(event *common.SendEvent) {
-	log.Info("preparer#%d try create connection for mail#%d", p.id, event.Message.Id)
+	logger.Info("preparer#%d try create connection for mail#%d", p.id, event.Message.Id)
 	// передаем событию сертификат и его длину
 	event.CertBytes = p.certBytes
 	event.CertBytesLen = p.certBytesLen
@@ -66,7 +66,7 @@ connectToMailServer:
 	}
 
 waitLookup:
-	log.Debug("preparer#%d wait ending look up mail server %s...", p.id, event.Message.HostnameTo)
+	logger.Debug("preparer#%d wait ending look up mail server %s...", p.id, event.Message.HostnameTo)
 	time.Sleep(common.SleepTimeout)
 	goto connectToMailServer
 }

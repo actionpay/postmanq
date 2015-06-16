@@ -3,7 +3,7 @@ package consumer
 import (
 	"fmt"
 	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/log"
+	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/streadway/amqp"
 	"time"
 )
@@ -126,9 +126,9 @@ func (b *Binding) declare(channel *amqp.Channel) {
 		b.ExchangeArgs, // arguments
 	)
 	if err == nil {
-		log.Debug("declare exchange - %s", b.Exchange)
+		logger.Debug("declare exchange - %s", b.Exchange)
 	} else {
-		log.FailExit("can't declare exchange %s, error - %v", b.Exchange, err)
+		logger.FailExit("can't declare exchange %s, error - %v", b.Exchange, err)
 	}
 
 	_, err = channel.QueueDeclare(
@@ -140,9 +140,9 @@ func (b *Binding) declare(channel *amqp.Channel) {
 		b.QueueArgs, // arguments
 	)
 	if err == nil {
-		log.Debug("declare queue - %s", b.Queue)
+		logger.Debug("declare queue - %s", b.Queue)
 	} else {
-		log.FailExit("can't declare queue %s, error - %v", b.Queue, err)
+		logger.FailExit("can't declare queue %s, error - %v", b.Queue, err)
 	}
 
 	err = channel.QueueBind(
@@ -153,9 +153,9 @@ func (b *Binding) declare(channel *amqp.Channel) {
 		nil,        // arguments
 	)
 	if err == nil {
-		log.Debug("queue %s bind to exchange %s with routing key '%s'", b.Queue, b.Exchange, b.Routing)
+		logger.Debug("queue %s bind to exchange %s with routing key '%s'", b.Queue, b.Exchange, b.Routing)
 	} else {
-		log.FailExit("consumer can't bind queue %s to exchange %s, error - %v", b.Queue, b.Exchange, err)
+		logger.FailExit("consumer can't bind queue %s to exchange %s, error - %v", b.Queue, b.Exchange, err)
 	}
 }
 
