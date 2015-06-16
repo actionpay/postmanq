@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"github.com/AdOnWeb/postmanq/common"
 )
 
 var (
@@ -56,7 +57,7 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 				mxServer.ips = make([]net.IP, 0)
 				// по умолчанию будем создавать TLS соединение
 				mxServer.useTLS = true
-				mxServer.queues = make(map[string]*MxQueue)
+				mxServer.queues = make(map[string]*common.LimitedQueue)
 				// собираем IP адреса для сертификата и проверок
 				ips, err := net.LookupIP(mxHostname)
 				if err == nil {

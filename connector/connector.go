@@ -41,7 +41,7 @@ receiveConnect:
 	for _, mxServer := range event.server.mxServers {
 		log.Debug("connector#%d try receive connection for %s", c.id, mxServer.hostname)
 
-		var queue *MxQueue
+		var queue *common.LimitedQueue
 		var ok bool
 		if queue, ok = mxServer.queues[event.address]; ok {
 			if !queue.Empty() {
@@ -52,14 +52,14 @@ receiveConnect:
 				}
 			}
 		} else {
-			queue = new(MxQueue)
+			queue = new(common.LimitedQueue)
 			mxServer.queues[event.address] = queue
 		}
 
-		if (targetClient == nil && !queue.hasMax) ||
+		if (targetClient == nil && !queue.HasLimit) ||
 			(targetClient != nil && targetClient.Status == common.DisconnectedSmtpClientStatus) {
 			log.Debug("connector#%d can't find free smtp client for %s", c.id, mxServer.hostname)
-			event.queue = queue
+			event.Queue = queue
 			c.createSmtpClient(mxServer, event, &targetClient)
 		}
 
@@ -99,7 +99,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
 	if err == nil {
 		log.Debug("connector#%d resolve tcp address %s", c.id, tcpAddr.String())
-		queue := event.queue
+		queue := event.Queue
 		dialer := &net.Dialer{
 			Timeout:   common.HelloTimeout,
 			LocalAddr: tcpAddr,
@@ -126,17 +126,17 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 						c.initSmtpClient(mxServer, ptrSmtpClient, connection, client)
 					}
 				} else {
-					queue.hasMaxOn()
+					queue.HasLimitOn()
 					client.Quit()
 					log.Debug("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
 				}
 			} else {
-				queue.hasMaxOn()
+				queue.HasLimitOn()
 				connection.Close()
 				log.Warn("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
 			}
 		} else {
-			queue.hasMaxOn()
+			queue.HasLimitOn()
 			log.Warn("connector#%d can't dial to %s, err - %v", c.id, hostname, err)
 		}
 	} else {

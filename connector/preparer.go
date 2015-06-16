@@ -15,7 +15,6 @@ type ConnectionEvent struct {
 	server      *MailServer
 	connectorId int
 	address     string
-	queue       *MxQueue
 }
 
 type Preparer struct {
