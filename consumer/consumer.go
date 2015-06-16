@@ -145,7 +145,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 			)
 			if err == nil {
 				log.Debug(
-					"reason is %s with code %d, publish fail mail#%d to queue %s",
+					"reason is %s with code %d, publish failure mail#%d to queue %s",
 					message.Error.Message,
 					message.Error.Code,
 					message.Id,
@@ -153,7 +153,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 				)
 			} else {
 				log.Debug(
-					"can't publish fail mail#%d with error %s and code %d to queue %s",
+					"can't publish failure mail#%d with error %s and code %d to queue %s",
 					message.Id,
 					message.Error.Message,
 					message.Error.Code,
@@ -213,9 +213,9 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType Dela
 				},
 			)
 			if err == nil {
-				log.Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
+				log.Debug("publish failure mail#%d to queue %s", message.Id, delayedBinding.Queue)
 			} else {
-				log.Warn("can't publish fail mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
+				log.Warn("can't publish failure mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
 			}
 		} else {
 			log.Warn("can't marshal mail#%d to json", message.Id)
