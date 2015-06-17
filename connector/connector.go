@@ -44,7 +44,9 @@ receiveConnect:
 		var queue *common.LimitedQueue
 		var ok bool
 		if queue, ok = mxServer.queues[event.address]; ok {
-			if !queue.Empty() {
+			if queue.Empty() {
+				queue.HasLimitOff()
+			} else {
 				client := queue.Pop()
 				if client != nil {
 					targetClient = client.(*common.SmtpClient)
@@ -52,7 +54,7 @@ receiveConnect:
 				}
 			}
 		} else {
-			queue = new(common.LimitedQueue)
+			queue = common.NewLimitQueue()
 			mxServer.queues[event.address] = queue
 		}
 
@@ -107,7 +109,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 		hostname := net.JoinHostPort(mxServer.hostname, "25")
 		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
-			logger.Debug("connector#%d dial to %s", c.id, hostname)
+			logger.Debug("connector#%d connect to %s", c.id, hostname)
 			connection.SetDeadline(time.Now().Add(common.HelloTimeout))
 			client, err := smtp.NewClient(connection, mxServer.hostname)
 			if err == nil {
@@ -115,18 +117,18 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 				err = client.Hello(event.Message.HostnameFrom)
 				if err == nil {
 					logger.Debug("connector#%d send command HELLO: %s", c.id, event.Message.HostnameFrom)
-					// создаем TLS или обычное соединение
+					// проверяем доступно ли TLS
 					if mxServer.useTLS {
 						mxServer.useTLS, _ = client.Extension("STARTTLS")
 					}
 					logger.Debug("connector#%d use TLS %v", c.id, mxServer.useTLS)
+					// создаем TLS или обычное соединение
 					if mxServer.useTLS {
-						c.createTlsSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
+						c.initTlsSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 					} else {
 						c.initSmtpClient(mxServer, ptrSmtpClient, connection, client)
 					}
 				} else {
-					queue.HasLimitOn()
 					client.Quit()
 					logger.Debug("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
 				}
@@ -144,7 +146,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	}
 }
 
-func (c *Connector) createTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
+func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
 	// если есть какие данные о сертификате и к серверу можно создать TLS соединение
 	if event.CertBytesLen > 0 && mxServer.useTLS {
 		pool := x509.NewCertPool()

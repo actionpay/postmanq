@@ -59,7 +59,7 @@ func (m *Mailer) send(event *common.SendEvent) {
 	logger.Info("service#%d try send mail#%d", m.id, message.Id)
 	logger.Debug("service#%d receive smtp client#%d", m.id, event.Client.Id)
 
-	successSend := false
+	success := false
 	err := worker.Mail(message.Envelope)
 	if err == nil {
 		logger.Debug("service#%d send command MAIL FROM: %s", m.id, message.Envelope)
@@ -85,31 +85,21 @@ func (m *Mailer) send(event *common.SendEvent) {
 							logger.Info("service#%d success send mail#%d", m.id, message.Id)
 							// для статы
 //							atomic.AddInt64(&mailsPerMinute, 1)
-							successSend = true
-						} else {
-							common.ReturnMail(event, err)
+							success = true
 						}
-					} else {
-						common.ReturnMail(event, err)
 					}
-				} else {
-					common.ReturnMail(event, err)
 				}
-			} else {
-				common.ReturnMail(event, err)
 			}
-		} else {
-			common.ReturnMail(event, err)
 		}
-	} else {
-		common.ReturnMail(event, err)
 	}
 
 	event.Client.Wait()
 	event.Queue.Push(event.Client)
 
-	if successSend {
+	if success {
 		// отпускаем поток получателя сообщений из очереди
 		event.Result <- SuccessSendEventResult
+	} else {
+		common.ReturnMail(event, err)
 	}
 }

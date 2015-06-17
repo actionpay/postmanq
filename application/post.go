@@ -18,7 +18,6 @@ func NewPost() common.Application {
 }
 
 func (a *PostApplication) Run() {
-	mailer.Inst()
 	a.services = []interface{}{
 		logger.Inst(),
 		consumer.Inst(),

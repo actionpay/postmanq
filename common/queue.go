@@ -60,10 +60,26 @@ func (q *Queue) Len() int {
 type LimitedQueue struct {
 	Queue
 	HasLimit bool
+	limitMutex *sync.Mutex
+}
+
+func NewLimitQueue() *LimitedQueue {
+	return &LimitedQueue{
+		Queue: NewQueue(),
+		limitMutex: new(sync.Mutex),
+	}
 }
 
 func (l *LimitedQueue) HasLimitOn() {
+	l.limitMutex.Lock()
 	l.HasLimit = true
+	l.limitMutex.Unlock()
+}
+
+func (l *LimitedQueue) HasLimitOff() {
+	l.limitMutex.Lock()
+	l.HasLimit = false
+	l.limitMutex.Unlock()
 }
 
 

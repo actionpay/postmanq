@@ -169,13 +169,17 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 
 func (c *Consumer) handleDelaySend(channel *amqp.Channel, message *common.MailMessage) {
 	bindingType := common.UnknownDelayedBinding
-	logger.Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+	logger.Debug(
+		"reason is %s with code %d, find dlx queue for mail#%d",
+		message.Error.Message,
+		message.Error.Code,
+		message.Id,
+	)
 	logger.Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
-	// если нам просто не удалось письмо, берем следующую очередь из цепочки
+	// если нам просто не удалось отправить письмо, берем следующую очередь из цепочки
 	if chainBinding, ok := bindingsChain[message.BindingType]; ok {
 		bindingType = chainBinding
 	}
-	logger.Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 	c.publishDelayedMessage(channel, bindingType, message)
 }
 
@@ -192,7 +196,7 @@ func (c *Consumer) handleOverlimitSend(channel *amqp.Channel, message *common.Ma
 }
 
 func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType DelayedBindingType, message *MailMessage) {
-	logger.Debug("dlx queue type %d for mail#%d", bindingType, message.Id)
+	logger.Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 
 	// получаем очередь, проверяем, что она реально есть
 	// а что? а вдруг нет)
