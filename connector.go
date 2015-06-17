@@ -519,6 +519,7 @@ func (this *MxServer) dropMaxConnections() {
 // закрывает свои собственные соединения
 func (this *MxServer) closeConnections(now time.Time) {
 	if this.clients != nil && len(this.clients) > 0 {
+		Debug("mx server %s has %d clients before checking", this.hostname, len(this.clients))
 		clients := make([]*SmtpClient, 0)
 		for _, client := range this.clients {
 			// если соединение свободно и висит в таком статусе дольше 30 секунд, закрываем соединение
@@ -538,6 +539,7 @@ func (this *MxServer) closeConnections(now time.Time) {
 			}
 		}
 		this.clients = append([]*SmtpClient{}, clients...)
+		Debug("mx server %s has %d clients after checking", this.hostname, len(this.clients))
 	} else {
 		this.dropMaxConnections()
 	}
