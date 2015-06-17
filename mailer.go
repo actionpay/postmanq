@@ -181,6 +181,7 @@ func (this *Mailer) send(id int, event *SendEvent) {
 	Info("mailer#%d try send mail#%d", id, event.Message.Id)
 	Debug("mailer#%d receive smtp client#%d", id, event.Client.Id)
 
+	success := false
 	err := worker.Mail(event.Message.Envelope)
 	if err == nil {
 		Debug("mailer#%d send command MAIL FROM: %s", id, event.Message.Envelope)
@@ -206,32 +207,27 @@ func (this *Mailer) send(id int, event *SendEvent) {
 							Info("mailer#%d success send mail#%d", id, event.Message.Id)
 							// для статы
 							atomic.AddInt64(&mailsPerMinute, 1)
-							// отпускаем поток получателя сообщений из очереди
-							event.Result <- SuccessSendEventResult
-						} else {
-							ReturnMail(event, err)
+							success = true
 						}
-					} else {
-						ReturnMail(event, err)
 					}
-				} else {
-					ReturnMail(event, err)
 				}
-			} else {
-				ReturnMail(event, err)
 			}
-		} else {
-			ReturnMail(event, err)
 		}
-	} else {
-		ReturnMail(event, err)
 	}
+
 	// говорим, что соединение свободно, его можно передать другому отправителю
 	if event.Client.IsExpireByNow() {
 		atomic.StoreInt32(&(event.Client.Status), SMTP_CLIENT_STATUS_EXPIRE)
 	} else {
 		event.Client.SetTimeout(WAITING_TIMEOUT)
 		atomic.StoreInt32(&(event.Client.Status), SMTP_CLIENT_STATUS_WAITING)
+	}
+
+	// отпускаем поток получателя сообщений из очереди
+	if success {
+		event.Result <- SuccessSendEventResult
+	} else {
+		ReturnMail(event, err)
 	}
 }
 
@@ -241,24 +237,26 @@ func (this *Mailer) OnFinish() {
 
 // возвращает письмо обратно в очередь после ошибки во время отправки
 func ReturnMail(event *SendEvent, err error) {
-	// необходимо проверить сообщение на наличие кода ошибки
-	// обычно код идет первым
-	parts := strings.Split(err.Error(), " ")
-	if len(parts) > 0 {
-		// пытаемся получить код
-		code, e := strconv.Atoi(strings.TrimSpace(parts[0]))
-		// и создать ошибку
-		// письмо с ошибкой вернется в отличную очередь, чем письмо без ошибки
-		if e == nil {
-			event.Message.Error = &MailError{strings.Join(parts[1:], " "), code}
+	if err != nil {
+		// необходимо проверить сообщение на наличие кода ошибки
+		// обычно код идет первым
+		parts := strings.Split(err.Error(), " ")
+		if len(parts) > 0 {
+			// пытаемся получить код
+			code, e := strconv.Atoi(strings.TrimSpace(parts[0]))
+			// и создать ошибку
+			// письмо с ошибкой вернется в отличную очередь, чем письмо без ошибки
+			if e == nil {
+				event.Message.Error = &MailError{strings.Join(parts[1:], " "), code}
+			}
 		}
-	}
-	if event.Client != nil {
-		if event.Client.Worker != nil {
-			event.Client.Worker.Reset()
+		if event.Client != nil {
+			if event.Client.Worker != nil {
+				event.Client.Worker.Reset()
+			}
 		}
+		Warn("mail#%d sending error - %v", event.Message.Id, err)
 	}
-	Warn("mail#%d sending error - %v", event.Message.Id, err)
 	// отпускаем поток получателя сообщений из очереди
 	if event.Message.Error == nil {
 		event.Result <- DelaySendEventResult

@@ -467,7 +467,7 @@ func (this *ConsumerApplication) consume(id int) {
 										message.Error.Message,
 										message.Error.Code,
 										message.Id,
-										this.binding.failBinding.Queue,
+										failBinding.Queue,
 									)
 								} else {
 									Debug(

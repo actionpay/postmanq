@@ -518,21 +518,26 @@ func (this *MxServer) dropMaxConnections() {
 
 // закрывает свои собственные соединения
 func (this *MxServer) closeConnections(now time.Time) {
-	if len(this.clients) > 0 {
-		for i, client := range this.clients {
+	if this.clients != nil && len(this.clients) > 0 {
+		clients := make([]*SmtpClient, 0)
+		for _, client := range this.clients {
 			// если соединение свободно и висит в таком статусе дольше 30 секунд, закрываем соединение
 			status := atomic.LoadInt32(&(client.Status))
-			if status == SMTP_CLIENT_STATUS_WAITING && client.IsExpire(now) || status == SMTP_CLIENT_STATUS_EXPIRE {
+			isExpire := client.IsExpire(now)
+			Debug("mx server %s smtp client#%d has status %d and expire %v", this.hostname, client.Id, status, isExpire)
+			if (status == SMTP_CLIENT_STATUS_WAITING && isExpire) || status == SMTP_CLIENT_STATUS_EXPIRE {
 				atomic.StoreInt32(&(client.Status), SMTP_CLIENT_STATUS_DISCONNECTED)
 				err := client.Worker.Close()
 				if err != nil {
 					WarnWithErr(err)
 				}
-				this.clients = append(this.clients[:i], this.clients[i+1:]...)
 				this.dropMaxConnections()
 				Debug("close connection smtp client#%d mx server %s", client.Id, this.hostname)
+			} else {
+				clients = append(clients, client)
 			}
 		}
+		this.clients = append([]*SmtpClient{}, clients...)
 	} else {
 		this.dropMaxConnections()
 	}
