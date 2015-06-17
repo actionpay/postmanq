@@ -485,7 +485,16 @@ func (this *ConsumerApplication) consume(id int) {
 						}
 					case DelaySendEventResult:
 						bindingType := DELAYED_BINDING_UNKNOWN
-						Debug("reason is transfer error, find dlx queue for mail#%d", message.Id)
+						if message.Error == nil {
+							Debug("transfer error, find dlx queue for mail#%d", message.Id)
+						} else {
+							Debug(
+								"error - %s, code - %d, find dlx queue for mail#%d",
+								message.Error.Message,
+								message.Error.Code,
+								message.Id,
+							)
+						}
 						Debug("old dlx queue type %d for mail#%d", message.BindingType, message.Id)
 						// если нам просто не удалось письмо, берем следующую очередь из цепочки
 						if chainBinding, ok := bindingsChain[message.BindingType]; ok {
