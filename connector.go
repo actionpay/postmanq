@@ -297,8 +297,11 @@ receiveConnect:
 	var targetClient *SmtpClient
 	for _, mxServer := range event.MailServer.mxServers {
 		Debug("connector#%d check connections for %s", id, mxServer.hostname)
+		Debug("connector#%d - %s has %d clients", id, mxServer.hostname, len(mxServer.clients))
 		for _, client := range mxServer.clients {
-			if atomic.LoadInt32(&(client.Status)) == SMTP_CLIENT_STATUS_WAITING {
+			status := atomic.LoadInt32(&(client.Status))
+			Debug("connector#%d - client#%d has status %v", id, client.Id, status)
+			if status == SMTP_CLIENT_STATUS_WAITING {
 				atomic.StoreInt32(&(client.Status), SMTP_CLIENT_STATUS_WORKING)
 				client.SetTimeout(MAIL_TIMEOUT)
 				targetClient = client
@@ -306,9 +309,15 @@ receiveConnect:
 				break
 			}
 		}
-		if targetClient == nil && mxServer.maxConnections == UNLIMITED_CONNECTION_COUNT {
-			Debug("connector#%d can't find free connections for %s, create", id, mxServer.hostname)
-			mxServer.createNewSmtpClient(id, event, &targetClient, mxServer.createTLSSmtpClient)
+		if targetClient == nil {
+			Debug("connector#%d can't find free connections for %s", id, mxServer.hostname)
+			maxConnections := mxServer.getMaxConnections()
+			if maxConnections == UNLIMITED_CONNECTION_COUNT {
+				Debug("connector#%d create new connection to %s", id, mxServer.hostname)
+				mxServer.createNewSmtpClient(id, event, &targetClient, mxServer.createTLSSmtpClient)
+			} else {
+				Debug("connector#%d can't create more %d connections to %s", id, maxConnections, mxServer.hostname)
+			}
 		}
 	}
 	if targetClient == nil {
@@ -374,7 +383,7 @@ func (this *MailServer) closeConnections(now time.Time) {
 // почтовый сервер
 type MxServer struct {
 	hostname       string        // доменное имя почтового сервера
-	maxConnections int           // количество подключений для одного IP
+	maxConnections int32         // количество подключений для одного IP
 	ips            []net.IP      // IP сервера
 	clients        []*SmtpClient // клиенты сервера
 	realServerName string        // А запись сервера
@@ -394,20 +403,18 @@ func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClien
 			LocalAddr: tcpAddr,
 		}
 		hostname := net.JoinHostPort(this.hostname, "25")
-		Debug("connector#%d dial to %s", id, hostname)
 		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
-			Debug("connector#%d dialed to %s", id, hostname)
+			Debug("connector#%d connect to %s", id, hostname)
 			connection.SetDeadline(time.Now().Add(HELLO_TIMEOUT))
 			// создаем клиента
-			Debug("connector#%d create client to %s", id, this.hostname)
 			client, err := smtp.NewClient(connection, this.hostname)
 			if err == nil {
-				Debug("connector#%d created client to %s", id, this.hostname)
+				Debug("connector#%d create client to %s", id, this.hostname)
 				// здороваемся
 				err = client.Hello(event.Message.HostnameFrom)
 				if err == nil {
-					Debug("connector#%d send command HELLO: %s", id, event.Message.HostnameFrom)
+					Debug("connector#%d send command HELLO %s", id, event.Message.HostnameFrom)
 					// создаем TLS или обычное соединение
 					if this.useTLS {
 						this.useTLS, _ = client.Extension("STARTTLS")
@@ -416,17 +423,19 @@ func (this *MxServer) createNewSmtpClient(id int, event *SendEvent, ptrSmtpClien
 					callback(id, event, ptrSmtpClient, connection, client)
 				} else {
 					client.Quit()
-					this.updateMaxConnections(id, err)
+					Debug("connector#%d can't send command HELLO %s to %s", id, event.Message.HostnameFrom, this.hostname)
 				}
 			} else {
 				connection.Close()
 				this.updateMaxConnections(id, err)
+				Debug("connector#%d can't create client to %s", id, this.hostname)
 			}
 		} else {
 			this.updateMaxConnections(id, err)
+			Debug("connector#%d can't connect to %s", id, hostname)
 		}
 	} else {
-		this.updateMaxConnections(id, err)
+		Debug("connector#%d can't resolve tcp address %s:0", id, addr)
 	}
 }
 
@@ -488,35 +497,44 @@ func (this *MxServer) createSmtpClient(id int, ptrSmtpClient **SmtpClient, conne
 // обновляет количество максимальных соединений
 // пишет в лог количество максимальных соединений и ошибку, возникшую при попытке открыть новое соединение
 func (this *MxServer) updateMaxConnections(id int, err error) {
-	clientsCount := len(this.clients)
-	if clientsCount > 0 {
-		this.maxConnections = clientsCount
+	clientsLen := int32(len(this.clients))
+	this.setMaxConnections(clientsLen)
+	Warn("connector#%d detect max %d open connections for %s, error - %v", id, clientsLen, this.hostname, err)
+}
+
+func (this *MxServer) getMaxConnections() int32 {
+	return atomic.LoadInt32(&(this.maxConnections))
+}
+
+func (this *MxServer) setMaxConnections(maxConnections int32) {
+	atomic.StoreInt32(&(this.maxConnections), maxConnections)
+}
+
+func (this *MxServer) dropMaxConnections() {
+	if this.getMaxConnections() != UNLIMITED_CONNECTION_COUNT {
+		this.setMaxConnections(UNLIMITED_CONNECTION_COUNT)
 	}
-	Warn("connector#%d detect max %d open connections for %s, error - %v", id, this.maxConnections, this.hostname, err)
 }
 
 // закрывает свои собственные соединения
 func (this *MxServer) closeConnections(now time.Time) {
-	if this.clients != nil && len(this.clients) > 0 {
+	if len(this.clients) > 0 {
 		for i, client := range this.clients {
 			// если соединение свободно и висит в таком статусе дольше 30 секунд, закрываем соединение
 			status := atomic.LoadInt32(&(client.Status))
 			if status == SMTP_CLIENT_STATUS_WAITING && client.IsExpire(now) || status == SMTP_CLIENT_STATUS_EXPIRE {
-				client.Status = SMTP_CLIENT_STATUS_DISCONNECTED
+				atomic.StoreInt32(&(client.Status), SMTP_CLIENT_STATUS_DISCONNECTED)
 				err := client.Worker.Close()
 				if err != nil {
 					WarnWithErr(err)
 				}
-				this.clients = this.clients[:i]
-				if i < len(this.clients) - 1 {
-					this.clients = append(this.clients, this.clients[i+1:]...)
-				}
-				if this.maxConnections != UNLIMITED_CONNECTION_COUNT {
-					this.maxConnections = UNLIMITED_CONNECTION_COUNT
-				}
+				this.clients = append(this.clients[:i], this.clients[i+1:]...)
+				this.dropMaxConnections()
 				Debug("close connection smtp client#%d mx server %s", client.Id, this.hostname)
 			}
 		}
+	} else {
+		this.dropMaxConnections()
 	}
 }
 
