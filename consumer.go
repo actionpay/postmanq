@@ -299,7 +299,7 @@ func (this *Consumer) showWaiting(ticker *time.Ticker) {
 	i := 0
 	for {
 		<- ticker.C
-		fmt.Printf("\rgetting fail messages, please wait%s", commas[i])
+		fmt.Printf("\rgetting failure messages, please wait%s", commas[i])
 		if i == 2 {
 			i = 0
 		} else {
@@ -463,7 +463,7 @@ func (this *ConsumerApplication) consume(id int) {
 								)
 								if err == nil {
 									Debug(
-										"reason is %s with code %d, publish fail mail#%d to queue %s",
+										"reason is %s with code %d, publish failure mail#%d to queue %s",
 										message.Error.Message,
 										message.Error.Code,
 										message.Id,
@@ -471,7 +471,7 @@ func (this *ConsumerApplication) consume(id int) {
 									)
 								} else {
 									Debug(
-										"can't publish fail mail#%d with error %s and code %d to queue %s",
+										"can't publish failure mail#%d with error %s and code %d to queue %s",
 										message.Id,
 										message.Error.Message,
 										message.Error.Code,
@@ -564,9 +564,9 @@ func (this *ConsumerApplication) publishDelayedMessage(channel *amqp.Channel, bi
 			},
 			)
 			if err == nil {
-				Debug("publish fail mail#%d to queue %s", message.Id, delayedBinding.Queue)
+				Debug("publish failure mail#%d to queue %s", message.Id, delayedBinding.Queue)
 			} else {
-				Warn("can't publish fail mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
+				Warn("can't publish failure mail#%d to queue %s, error - %v", message.Id, delayedBinding.Queue, err)
 			}
 		} else {
 			Warn("can't marshal mail#%d to json", message.Id)
