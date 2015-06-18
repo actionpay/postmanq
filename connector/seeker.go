@@ -19,12 +19,13 @@ type Seeker struct {
 	id int
 }
 
-func newSeeker(id int) *Seeker {
-	return &Seeker{id}.run()
+func newSeeker(id int) {
+	seeker := &Seeker{id}
+	seeker.run()
 }
 
 func (s *Seeker) run() {
-	for _, event := range seekerEvents {
+	for event := range seekerEvents {
 		s.seek(event)
 	}
 }

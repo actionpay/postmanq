@@ -41,10 +41,10 @@ func (s *SmtpClient) SetTimeout(timeout time.Duration) {
 func (s *SmtpClient) Wait() {
 	s.Status = WaitingSmtpClientStatus
 	s.timer = time.AfterFunc(WaitingTimeout, func() {
-			s.Status = DisconnectedSmtpClientStatus
-			s.Worker.Close()
-			s.timer = nil
-		})
+		s.Status = DisconnectedSmtpClientStatus
+		s.Worker.Close()
+		s.timer = nil
+	})
 }
 
 func (s *SmtpClient) Wakeup() {

@@ -20,12 +20,13 @@ type Connector struct {
 	id int
 }
 
-func newConnector(id int) *Connector {
-	return &Connector{id}.run()
+func newConnector(id int) {
+	connector := &Connector{id}
+	connector.run()
 }
 
 func (c *Connector) run() {
-	for _, event := range connectorEvents {
+	for event := range connectorEvents {
 		c.connect(event)
 	}
 }
@@ -79,7 +80,7 @@ waitConnect:
 		return
 	} else {
 		logger.Debug("connector#%d can't find free connections, wait...", c.id)
-		time.Sleep(SleepTimeout)
+		time.Sleep(common.SleepTimeout)
 		goto receiveConnect
 		return
 	}

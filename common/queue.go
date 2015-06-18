@@ -7,35 +7,35 @@ import (
 
 type Queue struct {
 	empty bool
-	items []interface {}
+	items []interface{}
 	mutex *sync.Mutex
 }
 
 func NewQueue() *Queue {
-	return *Queue{
+	return &Queue{
 		empty: true,
-		items: make([]interface {}, 0),
-		mutex : new(sync.Mutex),
+		items: make([]interface{}, 0),
+		mutex: new(sync.Mutex),
 	}
 }
 
-func (q *Queue) Push(item interface {}) {
+func (q *Queue) Push(item interface{}) {
 	q.mutex.Lock()
 	if q.empty {
 		q.empty = false
 	}
-	*q.items = append(*q.items, item)
+	q.items = append(q.items, item)
 	q.mutex.Unlock()
 }
 
-func (q *Queue) Pop() interface {} {
-	var item interface {}
+func (q *Queue) Pop() interface{} {
+	var item interface{}
 	q.mutex.Lock()
 	if !q.empty {
-		oldItems := *q.items
+		oldItems := q.items
 		oldItemsLen := len(oldItems)
 		item = oldItems[oldItemsLen-1]
-		*q.items = oldItems[0:oldItemsLen-1]
+		q.items = oldItems[0 : oldItemsLen-1]
 		if oldItemsLen == 0 {
 			q.empty = true
 		}
@@ -61,14 +61,14 @@ func (q *Queue) Len() int {
 }
 
 const (
-	limitedQueueStatus   int32 = iota
+	limitedQueueStatus int32 = iota
 	unlimitedQueueStatus
 )
 
 type LimitedQueue struct {
-	Queue
-	status int32
-	maxLen int32
+	*Queue
+	status     int32
+	maxLen     int32
 	limitMutex *sync.Mutex
 }
 
@@ -103,5 +103,3 @@ func (l *LimitedQueue) MaxLen() int32 {
 func (l *LimitedQueue) AddMaxLen() {
 	atomic.AddInt32(&(l.maxLen), 1)
 }
-
-

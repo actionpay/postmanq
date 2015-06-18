@@ -44,7 +44,7 @@ func Inst() *Service {
 	return service
 }
 
-func (s *Service) OnInit(event *ApplicationEvent) {
+func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
 		// если указан путь до сертификата

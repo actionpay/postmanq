@@ -61,7 +61,7 @@ type SendEvent struct {
 	//	MailServer       *MailServer
 	TryCount int
 	Iterator *Iterator
-	Queue *LimitedQueue
+	Queue    *LimitedQueue
 }
 
 // отправляет письмо сервису отправки, который затем решит, какой поток будет отправлять письмо

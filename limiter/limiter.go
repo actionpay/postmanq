@@ -10,8 +10,9 @@ type Limiter struct {
 	id int
 }
 
-func newLimiter(id int) *Limiter {
-	return &Limiter{id}.run()
+func newLimiter(id int) {
+	limiter := &Limiter{id}
+	limiter.run()
 }
 
 func (l *Limiter) run() {
@@ -38,7 +39,7 @@ func (l *Limiter) check(event *common.SendEvent) {
 				event.Message.BindingType = limit.bindingType
 				// говорим получателю, что у нас превышение ограничения,
 				// разблокируем поток получателя
-				event.Result <- OverlimitSendEventResult
+				event.Result <- common.OverlimitSendEventResult
 				return
 			}
 		} else {

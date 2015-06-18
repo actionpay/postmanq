@@ -53,10 +53,10 @@ func (w *Writers) init(service *Service) {
 }
 
 func (w *Writers) add(i int, writer Writer) {
-	*w[i] = writer
+	(*w)[i] = writer
 }
 
-func (w *Writers) write() {
+func (w Writers) write() {
 	for _, writer := range w {
 		go w.listenMessages(writer)
 	}

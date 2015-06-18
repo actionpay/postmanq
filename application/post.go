@@ -2,10 +2,10 @@ package application
 
 import (
 	"github.com/AdOnWeb/postmanq/common"
+	"github.com/AdOnWeb/postmanq/connector"
 	"github.com/AdOnWeb/postmanq/consumer"
 	"github.com/AdOnWeb/postmanq/limiter"
 	"github.com/AdOnWeb/postmanq/logger"
-	"github.com/AdOnWeb/postmanq/connector"
 	"github.com/AdOnWeb/postmanq/mailer"
 )
 
@@ -17,18 +17,28 @@ func NewPost() common.Application {
 	return new(PostApplication)
 }
 
-func (a *PostApplication) Run() {
-	a.services = []interface{}{
+func (p *PostApplication) Run() {
+	p.services = []interface{}{
 		logger.Inst(),
 		consumer.Inst(),
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
 	}
-	common.SendindServices = []interface {}{
+	common.SendindServices = []interface{}{
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
 	}
-	a.run(a, NewApplicationEvent(InitApplicationEventKind))
+	p.run(p, common.NewApplicationEvent(common.InitApplicationEventKind))
+}
+
+func (p *PostApplication) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(common.SendingService)
+	go service.OnRun()
+}
+
+func (p *PostApplication) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
+	service := abstractService.(common.SendingService)
+	go service.OnFinish()
 }

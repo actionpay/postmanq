@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	resultHandlers = map[common.SendEventResult]func(channel *amqp.Channel, message *common.MailMessage){
+	resultHandlers = map[common.SendEventResult]func(*Consumer, *amqp.Channel, *common.MailMessage){
 		common.ErrorSendEventResult:     (*Consumer).handleErrorSend,
 		common.DelaySendEventResult:     (*Consumer).handleDelaySend,
 		common.OverlimitSendEventResult: (*Consumer).handleOverlimitSend,
@@ -195,7 +195,7 @@ func (c *Consumer) handleOverlimitSend(channel *amqp.Channel, message *common.Ma
 	c.publishDelayedMessage(channel, bindingType, message)
 }
 
-func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType DelayedBindingType, message *MailMessage) {
+func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType common.DelayedBindingType, message *common.MailMessage) {
 	logger.Debug("new dlx queue type %d for mail#%d", bindingType, message.Id)
 
 	// получаем очередь, проверяем, что она реально есть
@@ -235,7 +235,7 @@ func (c *Consumer) consumeFailMessages(group *sync.WaitGroup) {
 		for {
 			delivery, ok, _ := channel.Get(c.binding.failBinding.Queue, false)
 			if ok {
-				message := new(MailMessage)
+				message := new(common.MailMessage)
 				err = json.Unmarshal(delivery.Body, message)
 				if err == nil {
 					//					analyser.messages <- message
@@ -246,7 +246,7 @@ func (c *Consumer) consumeFailMessages(group *sync.WaitGroup) {
 		}
 		group.Done()
 	} else {
-		WarnWithErr(err)
+		logger.WarnWithErr(err)
 	}
 }
 
@@ -257,16 +257,16 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 		srcBinding := c.findBindingByQueueName(event.GetStringArg("srcQueue"))
 		if srcBinding == nil {
 			fmt.Println("source queue should be defined")
-			common.App.Events() <- NewApplicationEvent(FinishApplicationEventKind)
+			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 		}
 		destBinding := c.findBindingByQueueName(event.GetStringArg("destQueue"))
 		if destBinding == nil {
 			fmt.Println("destination queue should be defined")
-			common.App.Events() <- NewApplicationEvent(FinishApplicationEventKind)
+			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 		}
 		if srcBinding == destBinding {
 			fmt.Println("source and destination queue should be different")
-			common.App.Events() <- NewApplicationEvent(FinishApplicationEventKind)
+			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 		}
 		if len(event.GetStringArg("envelope")) > 0 {
 			envelopeRegex, _ = regexp.Compile(event.GetStringArg("envelope"))
@@ -279,14 +279,14 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 		for {
 			delivery, ok, _ := channel.Get(srcBinding.Queue, false)
 			if ok {
-				message := new(MailMessage)
+				message := new(common.MailMessage)
 				err = json.Unmarshal(delivery.Body, message)
 				if err == nil {
 					var necessaryPublish bool
-					if (event.GetIntArg("code") > InvalidInputInt && event.GetIntArg("code") == message.Error.Code) ||
+					if (event.GetIntArg("code") > common.InvalidInputInt && event.GetIntArg("code") == message.Error.Code) ||
 						(envelopeRegex != nil && envelopeRegex.MatchString(message.Envelope)) ||
 						(recipientRegex != nil && recipientRegex.MatchString(message.Recipient)) ||
-						(event.GetIntArg("code") == InvalidInputInt && envelopeRegex == nil && recipientRegex == nil) {
+						(event.GetIntArg("code") == common.InvalidInputInt && envelopeRegex == nil && recipientRegex == nil) {
 						necessaryPublish = true
 					}
 					if necessaryPublish {

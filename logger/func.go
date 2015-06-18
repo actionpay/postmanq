@@ -29,7 +29,7 @@ func Err(message string, args ...interface{}) {
 // пишет произвольную ошибку в лог и завершает программу
 func FailExit(message string, args ...interface{}) {
 	Err(message, args...)
-	common.App.Events() <- common.NewApplicationEvent(FinishApplicationEventKind)
+	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
 // пишет системную ошибку в лог и завершает программу

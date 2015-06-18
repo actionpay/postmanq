@@ -10,7 +10,7 @@ import (
 var (
 	service *Service
 	ticker  *time.Ticker // таймер, работает каждую секунду
-	events  chan *common.SendEvent
+	events  = make(chan *common.SendEvent)
 )
 
 // сервис ограничений, следит за тем, чтобы почтовым сервисам не отправилось больше писем, чем нужно
@@ -25,13 +25,12 @@ func Inst() common.SendingService {
 		service = new(Service)
 		service.Limits = make(map[string]*Limit)
 		ticker = time.NewTicker(time.Second)
-		events = make(chan *SendEvent)
 	}
 	return service
 }
 
 // инициализирует сервис
-func (s *Service) OnInit(event *ApplicationEvent) {
+func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.Debug("init limits...")
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {

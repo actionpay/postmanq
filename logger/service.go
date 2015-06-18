@@ -109,7 +109,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 
 func (s *Service) OnRun() {}
 
-func (s *Service) Events() chan *SendEvent {
+func (s *Service) Events() chan *common.SendEvent {
 	return nil
 }
 

@@ -13,12 +13,13 @@ type Preparer struct {
 	id int
 }
 
-func newPreparer(id int) *Preparer {
-	return &Preparer{id}.run()
+func newPreparer(id int) {
+	preparer := &Preparer{id}
+	preparer.run()
 }
 
 func (p *Preparer) run() {
-	for _, event := range events {
+	for event := range events {
 		p.prepare(event)
 	}
 }
@@ -26,12 +27,12 @@ func (p *Preparer) run() {
 func (p *Preparer) prepare(event *common.SendEvent) {
 	logger.Info("preparer#%d try create connection for mail#%d", p.id, event.Message.Id)
 	// передаем событию сертификат и его длину
-	event.CertBytes = p.certBytes
-	event.CertBytesLen = p.certBytesLen
+	event.CertBytes = service.certBytes
+	event.CertBytesLen = service.certBytesLen
 
 	rand.Seed(time.Now().UnixNano())
 	connectionEvent := &ConnectionEvent{
-		event,
+		SendEvent:   event,
 		servers:     make(chan *MailServer, 1),
 		connectorId: p.id,
 		address:     service.Addresses[rand.Intn(service.addressesLen)],

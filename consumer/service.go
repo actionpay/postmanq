@@ -63,7 +63,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 						// объявляем очередь
 						binding.declare(channel)
 
-						binding.delayedBindings = make(map[DelayedBindingType]*Binding)
+						binding.delayedBindings = make(map[common.DelayedBindingType]*Binding)
 						// объявляем отложенные очереди
 						for delayedBindingType, delayedBinding := range delayedBindings {
 							delayedBinding.declareDelayed(binding, channel)
@@ -146,7 +146,7 @@ func (s *Service) OnFinish() {
 		if connect != nil {
 			err := connect.Close()
 			if err != nil {
-				WarnWithErr(err)
+				logger.WarnWithErr(err)
 			}
 		}
 	}
@@ -221,7 +221,7 @@ func (s *Service) OnPublish(event *common.ApplicationEvent) {
 	group.Add(delta)
 	group.Wait()
 	fmt.Println("done")
-	common.App.Events() <- NewApplicationEvent(FinishApplicationEventKind)
+	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
 // получатель сообщений из очереди

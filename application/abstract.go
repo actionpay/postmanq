@@ -8,17 +8,24 @@ import (
 )
 
 type AbstractApplication struct {
-	configFilename string                        // путь до конфигурационного файла
-	services       []interface{}                 // сервисы приложения, отправляющие письма
-	events         chan *common.ApplicationEvent // канал событий приложения
-	done           chan bool                     // флаг, сигнализирующий окончание работы приложения
+	// путь до конфигурационного файла
+	configFilename string
+
+	// сервисы приложения, отправляющие письма
+	services []interface{}
+
+	// канал событий приложения
+	events chan *common.ApplicationEvent
+
+	// флаг, сигнализирующий окончание работы приложения
+	done chan bool
 }
 
 func (a *AbstractApplication) IsValidConfigFilename(filename string) bool {
 	return len(filename) > 0 && filename != common.ExampleConfigYaml
 }
 
-func (a *AbstractApplication) run(app Application, event *common.ApplicationEvent) {
+func (a *AbstractApplication) run(app common.Application, event *common.ApplicationEvent) {
 	app.SetDone(make(chan bool))
 	// создаем каналы для событий
 	app.SetEvents(make(chan *common.ApplicationEvent, 3))
@@ -26,7 +33,7 @@ func (a *AbstractApplication) run(app Application, event *common.ApplicationEven
 		for {
 			select {
 			case event := <-app.Events():
-				if event.kind == common.InitApplicationEventKind {
+				if event.Kind == common.InitApplicationEventKind {
 					// пытаемся прочитать конфигурационный файл
 					bytes, err := ioutil.ReadFile(a.configFilename)
 					if err == nil {
@@ -37,7 +44,7 @@ func (a *AbstractApplication) run(app Application, event *common.ApplicationEven
 				}
 
 				for _, service := range app.Services() {
-					switch event.kind {
+					switch event.Kind {
 					case common.InitApplicationEventKind:
 						app.FireInit(event, service)
 					case common.RunApplicationEventKind:
@@ -47,9 +54,9 @@ func (a *AbstractApplication) run(app Application, event *common.ApplicationEven
 					}
 				}
 
-				switch event.kind {
+				switch event.Kind {
 				case common.InitApplicationEventKind:
-					event.kind = common.RunApplicationEventKind
+					event.Kind = common.RunApplicationEventKind
 					app.Events() <- event
 				case common.FinishApplicationEventKind:
 					time.Sleep(2 * time.Second)
@@ -88,7 +95,7 @@ func (a *AbstractApplication) Services() []interface{} {
 }
 
 func (a *AbstractApplication) FireInit(event *common.ApplicationEvent, abstractService interface{}) {
-	service := abstractService.(Service)
+	service := abstractService.(common.Service)
 	service.OnInit(event)
 }
 

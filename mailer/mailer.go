@@ -12,8 +12,9 @@ type Mailer struct {
 	id int
 }
 
-func newMailer(id int) *Mailer {
-	return &Mailer{id}.run()
+func newMailer(id int) {
+	mailer := &Mailer{id}
+	mailer.run()
 }
 
 func (m *Mailer) run() {
@@ -28,7 +29,7 @@ func (m *Mailer) sendMail(event *common.SendEvent) {
 		m.prepare(message)
 		m.send(event)
 	} else {
-		ReturnMail(event, errors.New(fmt.Sprintf("511 service#%d can't send mail#%d, envelope or ricipient is invalid", m.id, message.Id)))
+		common.ReturnMail(event, errors.New(fmt.Sprintf("511 service#%d can't send mail#%d, envelope or ricipient is invalid", m.id, message.Id)))
 	}
 }
 
@@ -63,11 +64,11 @@ func (m *Mailer) send(event *common.SendEvent) {
 	err := worker.Mail(message.Envelope)
 	if err == nil {
 		logger.Debug("service#%d send command MAIL FROM: %s", m.id, message.Envelope)
-		event.Client.SetTimeout(RcptTimeout)
+		event.Client.SetTimeout(common.RcptTimeout)
 		err = worker.Rcpt(message.Recipient)
 		if err == nil {
 			logger.Debug("service#%d send command RCPT TO: %s", m.id, message.Recipient)
-			event.Client.SetTimeout(DataTimeout)
+			event.Client.SetTimeout(common.DataTimeout)
 			wc, err := worker.Data()
 			if err == nil {
 				logger.Debug("service#%d send command DATA", m.id)
@@ -94,7 +95,7 @@ func (m *Mailer) send(event *common.SendEvent) {
 
 	if success {
 		// отпускаем поток получателя сообщений из очереди
-		event.Result <- SuccessSendEventResult
+		event.Result <- common.SuccessSendEventResult
 	} else {
 		common.ReturnMail(event, err)
 	}
