@@ -2,16 +2,15 @@ package connector
 
 import (
 	"encoding/pem"
+	"github.com/AdOnWeb/postmanq/common"
+	"github.com/AdOnWeb/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
-	"time"
-	"github.com/AdOnWeb/postmanq/logger"
-	"github.com/AdOnWeb/postmanq/common"
 )
 
 var (
 	service *Service
-	events = make(chan *common.SendEvent)
+	events  = make(chan *common.SendEvent)
 	// почтовые сервисы будут хранится в карте по домену
 	mailServers = make(map[string]*MailServer)
 )
@@ -33,7 +32,7 @@ type Service struct {
 	// сертификат в байтах
 	certBytes []byte
 	// длина сертификата
-	certBytesLen  int
+	certBytesLen int
 }
 
 // создает новый сервис соединений
@@ -43,21 +42,6 @@ func Inst() *Service {
 		service.certBytes = []byte{}
 	}
 	return service
-}
-
-// по срабатыванию таймера, просматривает все соединения к почтовым сервисам
-// и закрывает те, которые висят дольше 30 секунд
-func (c *Service) checkConnections() {
-	for now := range c.ticker.C {
-		go c.closeConnections(now)
-	}
-}
-
-func (c *Service) closeConnections(now time.Time) {
-	for _, mailServer := range c.mailServers {
-		// закрываем соединения к каждого почтового сервиса
-		go mailServer.closeConnections(now)
-	}
 }
 
 func (c *Service) OnInit(event *ApplicationEvent) {
@@ -92,8 +76,6 @@ func (c *Service) OnInit(event *ApplicationEvent) {
 }
 
 func (c *Service) OnRun() {
-	// запускаем проверку открытых соединений
-//	go service.checkConnections()
 	for i := 0; i < c.ConnectorsCount; i++ {
 		id := i + 1
 		go newPreparer(id)
@@ -104,7 +86,13 @@ func (c *Service) OnRun() {
 
 // завершает работу сервиса соединений
 func (c *Service) OnFinish() {
-	close(c.events)
-	// закрываем все соединения
-	c.closeConnections(time.Now().Add(time.Minute))
+	close(events)
+}
+
+type ConnectionEvent struct {
+	*common.SendEvent
+	servers     chan *MailServer
+	server      *MailServer
+	connectorId int
+	address     string
 }

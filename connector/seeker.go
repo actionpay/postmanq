@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"github.com/AdOnWeb/postmanq/common"
 )
 
 var (

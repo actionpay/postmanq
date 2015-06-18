@@ -3,13 +3,13 @@ package connector
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/logger"
 	"net"
 	"net/smtp"
 	"time"
-	"fmt"
-	"errors"
 )
 
 var (
@@ -41,7 +41,7 @@ receiveConnect:
 	for _, mxServer := range event.server.mxServers {
 		logger.Debug("connector#%d try receive connection for %s", c.id, mxServer.hostname)
 
-		event.Queue, _ := mxServer.queues[event.address]
+		event.Queue, _ = mxServer.queues[event.address]
 		client := event.Queue.Pop()
 		if client != nil {
 			targetClient = client.(*common.SmtpClient)

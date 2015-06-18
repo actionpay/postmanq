@@ -31,19 +31,19 @@ type MailServer struct {
 // почтовый сервер
 type MxServer struct {
 	// доменное имя почтового сервера
-	hostname       string
+	hostname string
 
 	// IP сервера
-	ips            []net.IP
+	ips []net.IP
 
 	// клиенты сервера
-	clients        []*common.SmtpClient
+	clients []*common.SmtpClient
 
 	// А запись сервера
 	realServerName string
 
 	// использоватение TLS
-	useTLS         bool
+	useTLS bool
 
 	queues map[string]*common.LimitedQueue
 }
@@ -56,13 +56,13 @@ func newMxServer(hostname string) *MxServer {
 
 	return &MxServer{
 		hostname: hostname,
-		ips: make([]net.IP, 0),
-		useTLS: true,
-		queues: queues,
+		ips:      make([]net.IP, 0),
+		useTLS:   true,
+		queues:   queues,
 	}
 }
 
 // запрещает использовать TLS соединения
-func (this *MxServer) dontUseTLS() {
-	this.useTLS = false
+func (m *MxServer) dontUseTLS() {
+	m.useTLS = false
 }

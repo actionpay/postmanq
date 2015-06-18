@@ -9,14 +9,6 @@ import (
 	"time"
 )
 
-type ConnectionEvent struct {
-	*common.SendEvent
-	servers     chan *MailServer
-	server      *MailServer
-	connectorId int
-	address     string
-}
-
 type Preparer struct {
 	id int
 }
