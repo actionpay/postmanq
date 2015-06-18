@@ -48,6 +48,20 @@ type MxServer struct {
 	queues map[string]*common.LimitedQueue
 }
 
+func newMxServer(hostname string) *MxServer {
+	queues := make(map[string]*common.LimitedQueue)
+	for _, address := range service.Addresses {
+		queues[address] = common.NewLimitQueue()
+	}
+
+	return &MxServer{
+		hostname: hostname,
+		ips: make([]net.IP, 0),
+		useTLS: true,
+		queues: queues,
+	}
+}
+
 // запрещает использовать TLS соединения
 func (this *MxServer) dontUseTLS() {
 	this.useTLS = false

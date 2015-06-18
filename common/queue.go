@@ -1,6 +1,9 @@
 package common
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 type Queue struct {
 	empty bool
@@ -57,29 +60,48 @@ func (q *Queue) Len() int {
 	return itemsLen
 }
 
+const (
+	limitedQueueStatus   int32 = iota
+	unlimitedQueueStatus
+)
+
 type LimitedQueue struct {
 	Queue
-	HasLimit bool
+	status int32
+	maxLen int32
 	limitMutex *sync.Mutex
 }
 
 func NewLimitQueue() *LimitedQueue {
 	return &LimitedQueue{
 		Queue: NewQueue(),
-		limitMutex: new(sync.Mutex),
 	}
 }
 
+func (l *LimitedQueue) HasLimit() bool {
+	return atomic.LoadInt32(&(l.status)) == limitedQueueStatus
+}
+
 func (l *LimitedQueue) HasLimitOn() {
-	l.limitMutex.Lock()
-	l.HasLimit = true
-	l.limitMutex.Unlock()
+	if l.MaxLen() > 0 && !l.HasLimit() {
+		l.setStatus(limitedQueueStatus)
+	}
 }
 
 func (l *LimitedQueue) HasLimitOff() {
-	l.limitMutex.Lock()
-	l.HasLimit = false
-	l.limitMutex.Unlock()
+	l.setStatus(unlimitedQueueStatus)
+}
+
+func (l *LimitedQueue) setStatus(status int32) {
+	atomic.StoreInt32(&(l.status), status)
+}
+
+func (l *LimitedQueue) MaxLen() int32 {
+	return atomic.LoadInt32(&(l.maxLen))
+}
+
+func (l *LimitedQueue) AddMaxLen() {
+	atomic.AddInt32(&(l.maxLen), 1)
 }
 
 

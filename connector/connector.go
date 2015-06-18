@@ -41,27 +41,16 @@ receiveConnect:
 	for _, mxServer := range event.server.mxServers {
 		logger.Debug("connector#%d try receive connection for %s", c.id, mxServer.hostname)
 
-		var queue *common.LimitedQueue
-		var ok bool
-		if queue, ok = mxServer.queues[event.address]; ok {
-			if queue.Empty() {
-				queue.HasLimitOff()
-			} else {
-				client := queue.Pop()
-				if client != nil {
-					targetClient = client.(*common.SmtpClient)
-					logger.Debug("connector%d found free smtp client#%d", c.id, targetClient.Id)
-				}
-			}
-		} else {
-			queue = common.NewLimitQueue()
-			mxServer.queues[event.address] = queue
+		event.Queue, _ := mxServer.queues[event.address]
+		client := event.Queue.Pop()
+		if client != nil {
+			targetClient = client.(*common.SmtpClient)
+			logger.Debug("connector%d found free smtp client#%d", c.id, targetClient.Id)
 		}
 
-		if (targetClient == nil && !queue.HasLimit) ||
+		if (targetClient == nil && !event.Queue.HasLimit()) ||
 			(targetClient != nil && targetClient.Status == common.DisconnectedSmtpClientStatus) {
 			logger.Debug("connector#%d can't find free smtp client for %s", c.id, mxServer.hostname)
-			event.Queue = queue
 			c.createSmtpClient(mxServer, event, &targetClient)
 		}
 
@@ -101,7 +90,6 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
 	if err == nil {
 		logger.Debug("connector#%d resolve tcp address %s", c.id, tcpAddr.String())
-		queue := event.Queue
 		dialer := &net.Dialer{
 			Timeout:   common.HelloTimeout,
 			LocalAddr: tcpAddr,
@@ -126,19 +114,19 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 					if mxServer.useTLS {
 						c.initTlsSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 					} else {
-						c.initSmtpClient(mxServer, ptrSmtpClient, connection, client)
+						c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 					}
 				} else {
 					client.Quit()
 					logger.Debug("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
 				}
 			} else {
-				queue.HasLimitOn()
+				event.Queue.HasLimitOn()
 				connection.Close()
 				logger.Warn("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
 			}
 		} else {
-			queue.HasLimitOn()
+			event.Queue.HasLimitOn()
 			logger.Warn("connector#%d can't dial to %s, err - %v", c.id, hostname, err)
 		}
 	} else {
@@ -164,7 +152,7 @@ func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent
 			})
 			// если все нормально, создаем клиента
 			if err == nil {
-				c.initSmtpClient(mxServer, ptrSmtpClient, connection, client)
+				c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 			} else {
 				// если не удалось создать TLS соединение
 				// говорим, что не надо больше создавать TLS соединение
@@ -179,23 +167,24 @@ func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent
 		} else {
 			logger.Debug("connector#%d can't parse certificate for %s, err - %v", c.id, event.Message.HostnameFrom, err)
 			mxServer.dontUseTLS()
-			c.initSmtpClient(mxServer, ptrSmtpClient, connection, client)
+			c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 		}
 	} else {
-		c.initSmtpClient(mxServer, ptrSmtpClient, connection, client)
+		c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 	}
 }
 
-func (c *Connector) initSmtpClient(mxServer *MxServer, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
+func (c *Connector) initSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
 	isNil := *ptrSmtpClient == nil
 	if isNil {
 		var count int
 		for _, queue := range mxServer.queues {
-			count += queue.Len()
+			count += int(queue.MaxLen())
 		}
 		*ptrSmtpClient = &common.SmtpClient{
 			Id: count + 1,
 		}
+		event.Queue.AddMaxLen()
 	}
 	smtpClient := *ptrSmtpClient
 	smtpClient.Conn = connection

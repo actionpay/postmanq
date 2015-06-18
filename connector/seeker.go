@@ -52,12 +52,7 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 			for i, mx := range mxes {
 				mxHostname := strings.TrimRight(mx.Host, ".")
 				logger.Debug("seeker#%d look up mx domain %s for %s", s.id, mxHostname, hostnameTo)
-				mxServer := new(MxServer)
-				mxServer.hostname = mxHostname
-				mxServer.ips = make([]net.IP, 0)
-				// по умолчанию будем создавать TLS соединение
-				mxServer.useTLS = true
-				mxServer.queues = make(map[string]*common.LimitedQueue)
+				mxServer := newMxServer(mxHostname)
 				// собираем IP адреса для сертификата и проверок
 				ips, err := net.LookupIP(mxHostname)
 				if err == nil {
