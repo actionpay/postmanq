@@ -56,7 +56,7 @@ func (s *Service) OnRun() {
 	}
 }
 
-func (s *Service) Events() chan *SendEvent {
+func (s *Service) Events() chan *common.SendEvent {
 	return events
 }
 
