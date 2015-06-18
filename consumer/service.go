@@ -26,14 +26,14 @@ type Service struct {
 	// подключения к очередям
 	connections map[string]*amqp.Connection
 	// получатели сообщений из очереди
-	consumersByURI map[string][]*Consumer
+	consumers map[string][]*Consumer
 }
 
 func Inst() common.SendingService {
 	if service == nil {
 		service := new(Service)
 		service.connections = make(map[string]*amqp.Connection)
-		service.consumersByURI = make(map[string][]*Consumer)
+		service.consumers = make(map[string][]*Consumer)
 		return service
 	}
 	return service
@@ -44,54 +44,57 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.Debug("init consumer service")
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, s)
-	if err != nil {
-		logger.FailExit("consumer service can't unmarshal config, error - %v", err)
-	}
+	if err == nil {
+		appsCount := 0
+		for _, config := range s.Configs {
+			logger.Debug("consumer service connect to %s", config.URI)
 
-	appsCount := 0
-	for _, config := range s.Configs {
-		logger.Debug("consumer service connect to %s", config.URI)
-		connect, err := amqp.Dial(config.URI)
-		if err != nil {
-			logger.FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
-		}
-		logger.Debug("consumer service got connection to %s, getting channel", config.URI)
+			connect, err := amqp.Dial(config.URI)
+			if err == nil {
+				logger.Debug("consumer service got connection to %s, getting channel", config.URI)
 
-		channel, err := connect.Channel()
-		if err != nil {
-			logger.FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
-		}
-		logger.Debug("consumer service got channel for %s", config.URI)
+				channel, err := connect.Channel()
+				if err == nil {
+					logger.Debug("consumer service got channel for %s", config.URI)
 
-		apps := make([]*Consumer, len(config.Bindings))
-		for i, binding := range config.Bindings {
-			binding.init()
-			// объявляем очередь
-			binding.declare(channel)
+					apps := make([]*Consumer, len(config.Bindings))
+					for i, binding := range config.Bindings {
+						binding.init()
+						// объявляем очередь
+						binding.declare(channel)
 
-			binding.delayedBindings = make(map[DelayedBindingType]*Binding)
-			// объявляем отложенные очереди
-			for delayedBindingType, delayedBinding := range delayedBindings {
-				delayedBinding.declareDelayed(binding, channel)
-				binding.delayedBindings[delayedBindingType] = delayedBinding
+						binding.delayedBindings = make(map[DelayedBindingType]*Binding)
+						// объявляем отложенные очереди
+						for delayedBindingType, delayedBinding := range delayedBindings {
+							delayedBinding.declareDelayed(binding, channel)
+							binding.delayedBindings[delayedBindingType] = delayedBinding
+						}
+						// создаем очередь для 500-ых ошибок
+						failBinding := new(Binding)
+						failBinding.Exchange = fmt.Sprintf(failBindingName, binding.Exchange)
+						failBinding.Queue = fmt.Sprintf(failBindingName, binding.Queue)
+						failBinding.Type = binding.Type
+						failBinding.declare(channel)
+						binding.failBinding = failBinding
+
+						appsCount++
+						app := NewConsumer(appsCount, connect, binding)
+						apps[i] = app
+						logger.Debug("consumer service create consumer#%d", app.id)
+					}
+					s.connections[config.URI] = connect
+					s.consumers[config.URI] = apps
+					// слушаем закрытие соединения
+					s.reconnect(connect, config)
+				} else {
+					logger.FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
+				}
+			} else {
+				logger.FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
 			}
-			// создаем очередь для 500-ых ошибок
-			failBinding := new(Binding)
-			failBinding.Exchange = fmt.Sprintf(failBindingName, binding.Exchange)
-			failBinding.Queue = fmt.Sprintf(failBindingName, binding.Queue)
-			failBinding.Type = binding.Type
-			failBinding.declare(channel)
-			binding.failBinding = failBinding
-
-			appsCount++
-			app := NewConsumer(appsCount, connect, binding)
-			apps[i] = app
-			logger.Debug("consumer service create consumer#%d", app.id)
 		}
-		s.connections[config.URI] = connect
-		s.consumersByURI[config.URI] = apps
-		// слушаем закрытие соединения
-		s.reconnect(connect, config)
+	} else {
+		logger.FailExit("consumer service can't unmarshal config, error - %v", err)
 	}
 }
 
@@ -109,7 +112,7 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 		if err == nil {
 			s.connections[config.URI] = connect
 			closeErrors = nil
-			if apps, ok := s.consumersByURI[config.URI]; ok {
+			if apps, ok := s.consumers[config.URI]; ok {
 				for _, app := range apps {
 					app.connect = connect
 				}
@@ -125,7 +128,7 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 // запускает получателей
 func (s *Service) OnRun() {
 	logger.Debug("run consumers...")
-	for _, apps := range s.consumersByURI {
+	for _, apps := range s.consumers {
 		s.runConsumers(apps)
 	}
 }
@@ -147,6 +150,7 @@ func (s *Service) OnFinish() {
 			}
 		}
 	}
+	close(events)
 }
 
 func (s *Service) Events() chan *common.SendEvent {
@@ -158,7 +162,7 @@ func (s *Service) OnShowReport() {
 	go s.showWaiting(ticker)
 	group := new(sync.WaitGroup)
 	delta := 0
-	for _, apps := range s.consumersByURI {
+	for _, apps := range s.consumers {
 		for _, app := range apps {
 			delta += app.binding.Handlers
 			for i := 0; i < app.binding.Handlers; i++ {
@@ -193,7 +197,7 @@ func (s *Service) showWaiting(ticker *time.Ticker) {
 func (s *Service) OnPublish(event *common.ApplicationEvent) {
 	group := new(sync.WaitGroup)
 	delta := 0
-	for uri, apps := range s.consumersByURI {
+	for uri, apps := range s.consumers {
 		var necessaryPublish bool
 		if len(event.GetStringArg("host")) > 0 {
 			parsedUri, err := url.Parse(uri)
