@@ -44,39 +44,39 @@ func Inst() *Service {
 	return service
 }
 
-func (c *Service) OnInit(event *ApplicationEvent) {
-	err := yaml.Unmarshal(event.Data, c)
+func (s *Service) OnInit(event *ApplicationEvent) {
+	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
 		// если указан путь до сертификата
-		if len(c.CertFilename) > 0 {
+		if len(s.CertFilename) > 0 {
 			// пытаемся прочитать сертификат
-			pemBytes, err := ioutil.ReadFile(c.CertFilename)
+			pemBytes, err := ioutil.ReadFile(s.CertFilename)
 			if err == nil {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
-				c.certBytes = pemBlock.Bytes
+				s.certBytes = pemBlock.Bytes
 				// и считаем его длину, чтобы не делать это при создании каждого сертификата
-				c.certBytesLen = len(c.certBytes)
+				s.certBytesLen = len(s.certBytes)
 			} else {
 				logger.FailExit("service can't read certificate, error - %v", err)
 			}
 		} else {
 			logger.Debug("certificate is not defined")
 		}
-		c.addressesLen = len(c.Addresses)
-		if c.addressesLen == 0 {
+		s.addressesLen = len(s.Addresses)
+		if s.addressesLen == 0 {
 			logger.FailExit("ips should be defined")
 		}
-		if c.ConnectorsCount == 0 {
-			c.ConnectorsCount = common.DefaultWorkersCount
+		if s.ConnectorsCount == 0 {
+			s.ConnectorsCount = common.DefaultWorkersCount
 		}
 	} else {
 		logger.FailExit("service can't unmarshal config, error - %v", err)
 	}
 }
 
-func (c *Service) OnRun() {
-	for i := 0; i < c.ConnectorsCount; i++ {
+func (s *Service) OnRun() {
+	for i := 0; i < s.ConnectorsCount; i++ {
 		id := i + 1
 		go newPreparer(id)
 		go newSeeker(id)
@@ -84,8 +84,12 @@ func (c *Service) OnRun() {
 	}
 }
 
+func (s *Service) Events() chan *common.SendEvent {
+	return events
+}
+
 // завершает работу сервиса соединений
-func (c *Service) OnFinish() {
+func (s *Service) OnFinish() {
 	close(events)
 }
 
