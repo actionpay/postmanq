@@ -50,7 +50,7 @@ func (s *Service) OnInit(event *ApplicationEvent) {
 
 func (s *Service) OnRun() {
 	// сразу запускаем проверку значений ограничений
-	go new(Cleaner).clean()
+	go newCleaner()
 	for i := 0; i < s.LimitersCount; i++ {
 		go newLimiter(i + 1)
 	}

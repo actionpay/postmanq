@@ -9,6 +9,10 @@ import (
 // проверяет значения ограничений и обнуляет значения ограничений
 type Cleaner struct{}
 
+func newCleaner() {
+	new(Cleaner).clean()
+}
+
 func (c *Cleaner) clean() {
 	for now := range ticker.C {
 		// смотрим все ограничения
