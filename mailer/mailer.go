@@ -1,11 +1,11 @@
 package mailer
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
 	"errors"
 	"fmt"
-	"github.com/byorty/dkim"
+	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/byorty/dkim"
 )
 
 type Mailer struct {
@@ -73,20 +73,16 @@ func (m *Mailer) send(event *common.SendEvent) {
 				logger.Debug("service#%d send command DATA", m.id)
 				_, err = fmt.Fprint(wc, message.Body)
 				if err == nil {
-					err = wc.Close()
+					wc.Close()
 					logger.Debug("%s", message.Body)
+					logger.Debug("service#%d send command .", m.id)
+					// стараемся слать письма через уже созданное соединение,
+					// поэтому после отправки письма не закрываем соединение
+					err = worker.Reset()
 					if err == nil {
-						logger.Debug("service#%d send command .", m.id)
-						// стараемся слать письма через уже созданное соединение,
-						// поэтому после отправки письма не закрываем соединение
-						err = worker.Reset()
-						if err == nil {
-							logger.Debug("service#%d send command RSET", m.id)
-							logger.Info("service#%d success send mail#%d", m.id, message.Id)
-							// для статы
-//							atomic.AddInt64(&mailsPerMinute, 1)
-							success = true
-						}
+						logger.Debug("service#%d send command RSET", m.id)
+						logger.Info("service#%d success send mail#%d", m.id, message.Id)
+						success = true
 					}
 				}
 			}
