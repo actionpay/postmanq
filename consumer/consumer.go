@@ -238,7 +238,8 @@ func (c *Consumer) consumeFailMessages(group *sync.WaitGroup) {
 				message := new(common.MailMessage)
 				err = json.Unmarshal(delivery.Body, message)
 				if err == nil {
-					//					analyser.messages <- message
+					sendEvent := common.NewSendEvent(message)
+					sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
 				}
 			} else {
 				break

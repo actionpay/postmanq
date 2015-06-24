@@ -9,15 +9,20 @@ type Service interface {
 	OnInit(*ApplicationEvent)
 }
 
+type EventService interface {
+	Events() chan *SendEvent
+}
+
 type SendingService interface {
 	Service
+	EventService
 	OnRun()
 	OnFinish()
-	Events() chan *SendEvent
 }
 
 type ReportService interface {
 	Service
+	EventService
 	OnShowReport()
 }
 

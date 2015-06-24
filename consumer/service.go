@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sync"
 	"time"
+	"sync/atomic"
 )
 
 const (
@@ -158,40 +159,28 @@ func (s *Service) Events() chan *common.SendEvent {
 }
 
 func (s *Service) OnShowReport() {
-	ticker := time.NewTicker(time.Millisecond * 250)
-	go s.showWaiting(ticker)
+	var delta int32
+	waiter := newWaiter()
 	group := new(sync.WaitGroup)
-	delta := 0
-	for _, apps := range s.consumers {
-		for _, app := range apps {
-			delta += app.binding.Handlers
-			for i := 0; i < app.binding.Handlers; i++ {
-				go app.consumeFailMessages(group)
-			}
-		}
-	}
-	group.Add(delta)
-	group.Wait()
-	ticker.Stop()
-	//	analyser.findReports([]string{})
-}
 
-func (s *Service) showWaiting(ticker *time.Ticker) {
-	commas := []string{
-		".  ",
-		" . ",
-		"  .",
+	for _, apps := range s.consumers {
+		go func() {
+			for _, app := range apps {
+				atomic.StoreInt32(&delta, int32(app.binding.Handlers))
+				for i := 0; i < app.binding.Handlers; i++ {
+					go app.consumeFailMessages(group)
+				}
+			}
+		}()
 	}
-	i := 0
-	for {
-		<-ticker.C
-		fmt.Printf("\rgetting fail messages, please wait%s", commas[i])
-		if i == 2 {
-			i = 0
-		} else {
-			i++
-		}
-	}
+	group.Add(int(atomic.LoadInt32(&delta)))
+	group.Wait()
+	waiter.Stop()
+	time.Sleep(time.Second)
+
+	sendEvent := common.NewSendEvent(nil)
+	sendEvent.DefaultPrevented = true
+	sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
 }
 
 func (s *Service) OnPublish(event *common.ApplicationEvent) {

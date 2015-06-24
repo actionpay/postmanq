@@ -71,6 +71,6 @@ func NewSendEvent(message *MailMessage) *SendEvent {
 	event.Message = message
 	event.CreateDate = time.Now()
 	event.Result = make(chan SendEventResult)
-	event.Iterator = NewIterator(SendindServices)
+	event.Iterator = NewIterator(Services)
 	return event
 }

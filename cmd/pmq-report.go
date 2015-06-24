@@ -3,22 +3,23 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/AdOnWeb/postmanq"
+	"github.com/AdOnWeb/postmanq/application"
+	"github.com/AdOnWeb/postmanq/common"
 )
 
 func main() {
 	var file string
-	flag.StringVar(&file, "f", postmanq.ExampleConfigYaml, "configuration yaml file")
+	flag.StringVar(&file, "f", common.ExampleConfigYaml, "configuration yaml file")
 	flag.Parse()
 
-	app := postmanq.NewReportApplication()
+	app := application.NewReport()
 	if app.IsValidConfigFilename(file) {
 		app.SetConfigFilename(file)
 		app.Run()
 	} else {
 		fmt.Println("Usage: pmq-report -f")
-		flag.VisitAll(postmanq.PrintUsage)
+		flag.VisitAll(common.PrintUsage)
 		fmt.Println("Example:")
-		fmt.Printf("  pmq-report -f %s\n", postmanq.ExampleConfigYaml)
+		fmt.Printf("  pmq-report -f %s\n", common.ExampleConfigYaml)
 	}
 }

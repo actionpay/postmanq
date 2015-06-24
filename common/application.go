@@ -14,7 +14,7 @@ const (
 
 var (
 	App                 Application
-	SendindServices     []interface{}
+	Services     []interface{}
 	DefaultWorkersCount = runtime.NumCPU()
 	PrintUsage          = func(f *flag.Flag) {
 		format := "  -%s %s\n"

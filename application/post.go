@@ -25,7 +25,7 @@ func (p *PostApplication) Run() {
 		connector.Inst(),
 		mailer.Inst(),
 	}
-	common.SendindServices = []interface{}{
+	common.Services = []interface{}{
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
