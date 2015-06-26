@@ -6,26 +6,27 @@ import (
 	"github.com/AdOnWeb/postmanq/analyser"
 )
 
-type ReportApplication struct {
-	AbstractApplication
+type Report struct {
+	Abstract
 }
 
 func NewReport() common.Application {
-	return new(ReportApplication)
+	return new(Report)
 }
 
-func (a *ReportApplication) Run() {
-	a.services = []interface{}{
-		consumer.Inst(),
-		analyser.Inst(),
-	}
+func (r *Report) Run() {
+	common.App = r
 	common.Services = []interface{}{
 		analyser.Inst(),
 	}
-	a.run(a, common.NewApplicationEvent(common.InitApplicationEventKind))
+	r.services = []interface{}{
+		consumer.Inst(),
+		analyser.Inst(),
+	}
+	r.run(r, common.NewApplicationEvent(common.InitApplicationEventKind))
 }
 
-func (a *ReportApplication) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
+func (r *Report) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.ReportService)
 	go service.OnShowReport()
 }

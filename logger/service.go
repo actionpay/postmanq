@@ -3,7 +3,6 @@ package logger
 import (
 	"github.com/AdOnWeb/postmanq/common"
 	yaml "gopkg.in/yaml.v2"
-	"regexp"
 )
 
 // уровень логирования
@@ -26,7 +25,6 @@ const (
 )
 
 var (
-	filenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
 	// названия уровней логирования, используется непосредственно в момент создания записи в лог
 	logLevelById = map[Level]string{
 		DebugLevel:   DebugLevelName,

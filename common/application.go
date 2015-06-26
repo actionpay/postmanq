@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"runtime"
+	"regexp"
 )
 
 const (
@@ -16,6 +17,7 @@ var (
 	App                 Application
 	Services     []interface{}
 	DefaultWorkersCount = runtime.NumCPU()
+	FilenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
 	PrintUsage          = func(f *flag.Flag) {
 		format := "  -%s %s\n"
 		fmt.Printf(format, f.Name, f.Usage)

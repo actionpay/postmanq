@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type AbstractApplication struct {
+type Abstract struct {
 	// путь до конфигурационного файла
 	configFilename string
 
@@ -21,11 +21,11 @@ type AbstractApplication struct {
 	done chan bool
 }
 
-func (a *AbstractApplication) IsValidConfigFilename(filename string) bool {
+func (a *Abstract) IsValidConfigFilename(filename string) bool {
 	return len(filename) > 0 && filename != common.ExampleConfigYaml
 }
 
-func (a *AbstractApplication) run(app common.Application, event *common.ApplicationEvent) {
+func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 	app.SetDone(make(chan bool))
 	// создаем каналы для событий
 	app.SetEvents(make(chan *common.ApplicationEvent, 3))
@@ -70,40 +70,40 @@ func (a *AbstractApplication) run(app common.Application, event *common.Applicat
 	<-app.Done()
 }
 
-func (a *AbstractApplication) SetConfigFilename(configFilename string) {
+func (a *Abstract) SetConfigFilename(configFilename string) {
 	a.configFilename = configFilename
 }
 
-func (a *AbstractApplication) SetEvents(events chan *common.ApplicationEvent) {
+func (a *Abstract) SetEvents(events chan *common.ApplicationEvent) {
 	a.events = events
 }
 
-func (a *AbstractApplication) Events() chan *common.ApplicationEvent {
+func (a *Abstract) Events() chan *common.ApplicationEvent {
 	return a.events
 }
 
-func (a *AbstractApplication) SetDone(done chan bool) {
+func (a *Abstract) SetDone(done chan bool) {
 	a.done = done
 }
 
-func (a *AbstractApplication) Done() chan bool {
+func (a *Abstract) Done() chan bool {
 	return a.done
 }
 
-func (a *AbstractApplication) Services() []interface{} {
+func (a *Abstract) Services() []interface{} {
 	return a.services
 }
 
-func (a *AbstractApplication) FireInit(event *common.ApplicationEvent, abstractService interface{}) {
+func (a *Abstract) FireInit(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.Service)
 	service.OnInit(event)
 }
 
-func (a *AbstractApplication) Run() {}
+func (a *Abstract) Run() {}
 
-func (a *AbstractApplication) RunWithArgs(args ...interface{}) {}
+func (a *Abstract) RunWithArgs(args ...interface{}) {}
 
-func (a *AbstractApplication) FireRun(event *common.ApplicationEvent, abstractService interface{}) {}
+func (a *Abstract) FireRun(event *common.ApplicationEvent, abstractService interface{}) {}
 
-func (a *AbstractApplication) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
+func (a *Abstract) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
 }

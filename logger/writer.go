@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"github.com/AdOnWeb/postmanq/common"
 )
 
 type Writer interface {
@@ -37,7 +38,7 @@ func (w Writers) len() int {
 
 func (w *Writers) init(service *Service) {
 	for i := 0; i < w.len(); i++ {
-		if filenameRegex.MatchString(service.Output) { // проверяем получили ли из настроек имя файла
+		if common.FilenameRegex.MatchString(service.Output) { // проверяем получили ли из настроек имя файла
 			// получаем директорию, в которой лежит файл
 			dir := filepath.Dir(service.Output)
 			// смотрим, что она реально существует

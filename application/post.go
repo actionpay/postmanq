@@ -9,15 +9,21 @@ import (
 	"github.com/AdOnWeb/postmanq/mailer"
 )
 
-type PostApplication struct {
-	AbstractApplication
+type Post struct {
+	Abstract
 }
 
 func NewPost() common.Application {
-	return new(PostApplication)
+	return new(Post)
 }
 
-func (p *PostApplication) Run() {
+func (p *Post) Run() {
+	common.App = p
+	common.Services = []interface{}{
+		limiter.Inst(),
+		connector.Inst(),
+		mailer.Inst(),
+	}
 	p.services = []interface{}{
 		logger.Inst(),
 		consumer.Inst(),
@@ -25,20 +31,15 @@ func (p *PostApplication) Run() {
 		connector.Inst(),
 		mailer.Inst(),
 	}
-	common.Services = []interface{}{
-		limiter.Inst(),
-		connector.Inst(),
-		mailer.Inst(),
-	}
 	p.run(p, common.NewApplicationEvent(common.InitApplicationEventKind))
 }
 
-func (p *PostApplication) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
+func (p *Post) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.SendingService)
 	go service.OnRun()
 }
 
-func (p *PostApplication) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
+func (p *Post) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.SendingService)
 	go service.OnFinish()
 }
