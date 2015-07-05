@@ -38,6 +38,7 @@ func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 					bytes, err := ioutil.ReadFile(a.configFilename)
 					if err == nil {
 						event.Data = bytes
+						app.Init(event)
 					} else {
 						logger.FailExit("application can't read configuration file, error -  %v", err)
 					}
@@ -98,6 +99,8 @@ func (a *Abstract) FireInit(event *common.ApplicationEvent, abstractService inte
 	service := abstractService.(common.Service)
 	service.OnInit(event)
 }
+
+func (a *Abstract) Init(event *common.ApplicationEvent) {}
 
 func (a *Abstract) Run() {}
 

@@ -2,7 +2,6 @@ package common
 
 import (
 	"errors"
-	"github.com/streadway/amqp"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,23 +9,25 @@ import (
 )
 
 const (
-	UnlimitedConnectionCount = -1              // безлимитное количество соединений к почтовому сервису
-	ReceiveConnectionTimeout = 5 * time.Minute // время ожидания для получения соединения к почтовому сервису
+	// Таймауты
+	ReceiveConnectionTimeout = 5 * time.Minute
 	SleepTimeout             = 1000 * time.Millisecond
 	HelloTimeout             = 5 * time.Minute
 	MailTimeout              = 5 * time.Minute
 	RcptTimeout              = 5 * time.Minute
 	DataTimeout              = 10 * time.Minute
 	WaitingTimeout           = 30 * time.Second
-	TryConnectCount          = 30
+
+	// Максимальное количество попыток подключения к почтовику за отправку письма
+	MaxTryConnectionCount = 30
 )
 
 var (
-	// сразу компилирует регулярку для проверки адреса почты, чтобы при отправке не терять на этом время
+	// Регулярка для проверки адреса почты, сразу компилируем, чтобы при отправке не терять на этом время
 	EmailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
 )
 
-// тип отложенной очереди
+// Тип отложенной очереди
 type DelayedBindingType int
 
 const (
@@ -46,27 +47,46 @@ const (
 	NotSendDelayedBinding
 )
 
-// ошибка во время отпрвки письма
+// Ошибка во время отпрвки письма
 type MailError struct {
+	// Сообщение
 	Message string `json:"message"`
-	Code    int    `json:"code"`
+
+	// Код ошибки
+	Code int `json:"code"`
 }
 
-// письмо
+// Письмо
 type MailMessage struct {
-	Id           int64              `json:"-"`           // номер сообщения для логов
-	Envelope     string             `json:"envelope"`    // отправитель
-	Recipient    string             `json:"recipient"`   // получатель
-	Body         string             `json:"body"`        // тело письма
-	Delivery     amqp.Delivery      `json:"-"`           // получение сообщения очереди
-	HostnameFrom string             `json:"-"`           // домен отправителя, удобно сразу получить и использовать при работе с соединением и сертификатом
-	HostnameTo   string             `json:"-"`           // домен получателя, удобно сразу получить и использовать при работе с соединением и сертификатом
-	CreatedDate  time.Time          `json:"-"`           // дата создания, используется в основном сервисом ограничений
-	BindingType  DelayedBindingType `json:"bindingType"` // тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
-	Error        *MailError         `json:"error"`       // ошибка отправки
+	// Идентификатор для логов
+	Id int64 `json:"-"`
+
+	// Отправитель
+	Envelope string `json:"envelope"`
+
+	// Получатель
+	Recipient string `json:"recipient"`
+
+	// Тело письма
+	Body string `json:"body"`
+
+	// Домен отправителя, удобно сразу получить и использовать далее
+	HostnameFrom string `json:"-"`
+
+	// Домен получателя, удобно сразу получить и использовать далее
+	HostnameTo string `json:"-"`
+
+	// Дата создания, используется в основном сервисом ограничений
+	CreatedDate time.Time `json:"-"`
+
+	// Тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
+	BindingType DelayedBindingType `json:"bindingType"`
+
+	// Ошибка отправки
+	Error *MailError `json:"error"`
 }
 
-// инициализирует письмо
+// Инициализирует письмо
 func (this *MailMessage) Init() {
 	// удобно во время отладки просматривать, что происходит с письмом
 	this.Id = time.Now().UnixNano()
@@ -79,7 +99,7 @@ func (this *MailMessage) Init() {
 	}
 }
 
-// получает домен из адреса
+// Получает домен из адреса
 func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 	matches := EmailRegexp.FindAllStringSubmatch(email, -1)
 	if len(matches) == 1 && len(matches[0]) == 2 {
@@ -89,26 +109,30 @@ func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 	}
 }
 
-// возвращает письмо обратно в очередь после ошибки во время отправки
+// Возвращает письмо обратно в очередь после ошибки во время отправки
 func ReturnMail(event *SendEvent, err error) {
 	// необходимо проверить сообщение на наличие кода ошибки
 	// обычно код идет первым
-	parts := strings.Split(err.Error(), " ")
+	errorMessage := err.Error()
+	parts := strings.Split(errorMessage, " ")
 	if len(parts) > 0 {
 		// пытаемся получить код
 		code, e := strconv.Atoi(strings.TrimSpace(parts[0]))
 		// и создать ошибку
-		// письмо с ошибкой вернется в отличную очередь, чем письмо без ошибки
+		// письмо с ошибкой вернется в другую очередь, отличную от письмо без ошибки
 		if e == nil {
-			event.Message.Error = &MailError{strings.Join(parts[1:], " "), code}
+			event.Message.Error = &MailError{errorMessage, code}
 		}
 	}
+
+	// если в событии уже создан клиент
 	if event.Client != nil {
 		if event.Client.Worker != nil {
+			// сбрасываем цепочку команд к почтовому сервису
 			event.Client.Worker.Reset()
 		}
 	}
-	//	Warn("mail#%d sending error - %v", event.Message.Id, err)
+
 	// отпускаем поток получателя сообщений из очереди
 	if event.Message.Error == nil {
 		event.Result <- DelaySendEventResult

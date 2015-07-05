@@ -15,23 +15,29 @@ var (
 	seekerMutex = new(sync.Mutex)
 )
 
+// Искатель, ищет информацию о сервере
 type Seeker struct {
+	// Идентификатор для логов
 	id int
 }
 
+// Создает и запускает нового искателя
 func newSeeker(id int) {
 	seeker := &Seeker{id}
 	seeker.run()
 }
 
+// Запускает прослушивание событий поиска информации о сервере
 func (s *Seeker) run() {
 	for event := range seekerEvents {
 		s.seek(event)
 	}
 }
 
+// Ищет информацию о сервере
 func (s *Seeker) seek(event *ConnectionEvent) {
 	hostnameTo := event.Message.HostnameTo
+	// добавляем новый почтовый домен
 	seekerMutex.Lock()
 	if _, ok := mailServers[hostnameTo]; !ok {
 		logger.Debug("seeker#%d create mail server for %s", event.connectorId, hostnameTo)
@@ -42,6 +48,9 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 	}
 	seekerMutex.Unlock()
 	mailServer := mailServers[hostnameTo]
+	// если пришло несколько несколько писем на один почтовый сервис,
+	// и информация о сервисе еще не собрана,
+	// то таким образом блокируем повторную попытку собрать инфомацию о почтовом сервисе
 	if event.connectorId == mailServer.connectorId && mailServer.status == LookupMailServerStatus {
 		logger.Debug("seeker#%d look up mx domains for %s...", s.id, hostnameTo)
 		mailServer := mailServers[hostnameTo]
@@ -113,7 +122,6 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 				logger.Debug("seeker#%d look up detect real server name %s", s.id, mxServer.realServerName)
 				mailServer.mxServers[i] = mxServer
 			}
-			mailServer.lastIndex = len(mailServer.mxServers) - 1
 			mailServer.status = SuccessMailServerStatus
 			logger.Debug("seeker#%d look up %s success", s.id, hostnameTo)
 		} else {

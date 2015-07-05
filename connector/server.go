@@ -5,49 +5,54 @@ import (
 	"net"
 )
 
+// Статус почтового сервис
 type MailServerStatus int
 
 const (
+	// По сервису ведется поиск информации
 	LookupMailServerStatus MailServerStatus = iota
+
+	// По сервису успешно собрана информация
 	SuccessMailServerStatus
+
+	// По сервису не удалось собрать информацию
 	ErrorMailServerStatus
 )
 
-// почтовый сервис
+// Почтовый сервис
 type MailServer struct {
-	// серверы почтового сервиса
+	// Серверы почтового сервиса
 	mxServers []*MxServer
 
-	// индекс последнего почтового сервиса
-	lastIndex int
-
-	// номер потока, собирающего информацию о почтовом сервисе
+	// Номер потока, собирающего информацию о почтовом сервисе
 	connectorId int
 
-	// статус, говорящий о том, собранали ли информация о почтовом сервисе
+	// Статус, говорящий о том, собранали ли информация о почтовом сервисе
 	status MailServerStatus
 }
 
-// почтовый сервер
+// Почтовый сервер
 type MxServer struct {
-	// доменное имя почтового сервера
+	// Доменное имя почтового сервера
 	hostname string
 
 	// IP сервера
 	ips []net.IP
 
-	// клиенты сервера
+	// Клиенты сервера
 	clients []*common.SmtpClient
 
 	// А запись сервера
 	realServerName string
 
-	// использоватение TLS
+	// Использоватение TLS
 	useTLS bool
 
+	// Очередь клиентов
 	queues map[string]*common.LimitedQueue
 }
 
+// Создает новый почтовый сервер
 func newMxServer(hostname string) *MxServer {
 	queues := make(map[string]*common.LimitedQueue)
 	for _, address := range service.Addresses {
@@ -62,7 +67,7 @@ func newMxServer(hostname string) *MxServer {
 	}
 }
 
-// запрещает использовать TLS соединения
+// Запрещает использовать TLS соединения
 func (m *MxServer) dontUseTLS() {
 	m.useTLS = false
 }

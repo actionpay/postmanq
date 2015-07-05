@@ -38,7 +38,7 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 	if err == nil {
 		conf[dkim.AUIDKey] = message.Envelope
 		conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
-		signer, err := dkim.New(conf, service.privateKey)
+		signer := dkim.NewByKey(conf, service.privateKey)
 		if err == nil {
 			signed, err := signer.Sign([]byte(message.Body))
 			if err == nil {
@@ -61,6 +61,7 @@ func (m *Mailer) send(event *common.SendEvent) {
 	logger.Debug("service#%d receive smtp client#%d", m.id, event.Client.Id)
 
 	success := false
+	event.Client.SetTimeout(common.MailTimeout)
 	err := worker.Mail(message.Envelope)
 	if err == nil {
 		logger.Debug("service#%d send command MAIL FROM: %s", m.id, message.Envelope)

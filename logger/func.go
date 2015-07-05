@@ -7,17 +7,17 @@ import (
 )
 
 // посылает сервису логирования запись для логирования произвольного уровня
-func log(message string, level Level, args ...interface{}) {
+func log(message string, necessaryLevel Level, args ...interface{}) {
 	defer func() { recover() }()
 	// если уровень записи не ниже уровня сервиса логирования
 	// запись посылается сервису
-	if level <= level {
+	if level <= necessaryLevel {
 		// если уровень выше "info", значит пишется ошибка
 		// добавляем к сообщению стек, чтобы посмотреть в чем дело
-		if level > InfoLevel && level == DebugLevel {
+		if necessaryLevel > InfoLevel && necessaryLevel == DebugLevel {
 			message = fmt.Sprint(message, "\n", string(debug.Stack()))
 		}
-		messages <- NewMessage(level, message, args...)
+		messages <- NewMessage(necessaryLevel, message, args...)
 	}
 }
 

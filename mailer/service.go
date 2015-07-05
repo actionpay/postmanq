@@ -6,6 +6,9 @@ import (
 	"github.com/byorty/dkim"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
+	"crypto/rsa"
+	"encoding/pem"
+	"crypto/x509"
 )
 
 var (
@@ -26,7 +29,7 @@ type Service struct {
 	DkimSelector string `yaml:"dkimSelector"`
 
 	// содержимое приватного ключа
-	privateKey []byte
+	privateKey *rsa.PrivateKey
 }
 
 // создает новый сервис отправки писем
@@ -44,9 +47,15 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 		logger.Debug("read private key file %s", s.PrivateKeyFilename)
 		// закрытый ключ должен быть указан обязательно
 		// поэтому даже не проверяем что указано в переменной
-		s.privateKey, err = ioutil.ReadFile(s.PrivateKeyFilename)
+		privateKey, err := ioutil.ReadFile(s.PrivateKeyFilename)
 		if err == nil {
 			logger.Debug("private key read success")
+			der, _ := pem.Decode(privateKey)
+			s.privateKey, err = x509.ParsePKCS1PrivateKey(der.Bytes)
+			if err != nil {
+				logger.Debug("can't decode or parse private key")
+				logger.FailExitWithErr(err)
+			}
 		} else {
 			logger.Debug("can't read private key")
 			logger.FailExitWithErr(err)

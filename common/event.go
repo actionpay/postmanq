@@ -1,23 +1,30 @@
 package common
 
-import (
-	"crypto/x509"
-	"time"
-)
+import "time"
 
-// тип гловального события приложения
+// Тип события приложения
 type ApplicationEventKind int
 
 const (
-	InitApplicationEventKind   ApplicationEventKind = iota // событие инициализации сервисов
-	RunApplicationEventKind                                // событие запуска сервисов
-	FinishApplicationEventKind                             // событие завершения сервисов
+	// Инициализации сервисов
+	InitApplicationEventKind ApplicationEventKind = iota
+
+	// Запуска сервисов
+	RunApplicationEventKind
+
+	// Завершение сервисов
+	FinishApplicationEventKind
 )
 
-// событие приложения
+// Событие приложения
 type ApplicationEvent struct {
+	// Тип события
 	Kind ApplicationEventKind
+
+	// Данные из файла настроек
 	Data []byte
+
+	// Аргументы командной строки
 	Args map[string]interface{}
 }
 
@@ -33,38 +40,65 @@ func (e *ApplicationEvent) GetStringArg(key string) string {
 	return e.Args[key].(string)
 }
 
-// создает событие с указанным типом
+// Создает событие с указанным типом
 func NewApplicationEvent(kind ApplicationEventKind) *ApplicationEvent {
 	return &ApplicationEvent{Kind: kind}
 }
 
+// Результат отправки письма
 type SendEventResult int
 
 const (
+	// Успех
 	SuccessSendEventResult SendEventResult = iota
+
+	// Превышение лимита
 	OverlimitSendEventResult
+
+	// Ошибка
 	ErrorSendEventResult
+
+	// Повторная отправка через некоторое время
 	DelaySendEventResult
 )
 
 // Событие отправки письма
 type SendEvent struct {
-	Client           *SmtpClient    // объект, содержащий подключение и клиент для отправки писем
-	CertPool         *x509.CertPool // пул сертификатов
-	CertBytes        []byte         // для каждого почтового сервиса необходим подписывать сертификат, поэтому в событии храним сырые данные сертификата
-	CertBytesLen     int            // длина сертификата, по если длина больше 0, тогда пытаемся отправлять письма через TLS
-	Message          *MailMessage   // само письмо, полученное из очереди
-	DefaultPrevented bool           // флаг, сигнализирующий обрабатывать ли событие
-	CreateDate       time.Time      // дата создания необходима при получении подключения к почтовому сервису
-	Result           chan SendEventResult
-	//	MailServers      chan *MailServer
-	//	MailServer       *MailServer
+	// Клиент для отправки писем
+	Client *SmtpClient
+
+	// Пул сертификатов
+//	CertPool *x509.CertPool
+
+	// Для каждого почтового сервиса необходим подписывать сертификат, поэтому в событии храним сырые данные сертификата
+//	CertBytes []byte
+
+	// Длина сертификата, по если длина больше 0, тогда пытаемся отправлять письма через TLS
+//	CertBytesLen int
+
+	// Письмо, полученное из очереди
+	Message *MailMessage
+
+	// Флаг, сигнализирующий обрабатывать ли событие
+	DefaultPrevented bool
+
+	// Дата создания необходима при получении подключения к почтовому сервису
+	CreateDate time.Time
+
+	// Результат
+	Result chan SendEventResult
+
+	// Количество попыток отправок письма
 	TryCount int
+
+	// Итератор сервисов, участвующих в отправке письма
 	Iterator *Iterator
-	Queue    *LimitedQueue
+
+	// Очередь, в которую необходимо будет положить клиента после отправки письма
+	Queue *LimitedQueue
 }
 
-// отправляет письмо сервису отправки, который затем решит, какой поток будет отправлять письмо
+// Создает событие отправки сообщения
 func NewSendEvent(message *MailMessage) *SendEvent {
 	event := new(SendEvent)
 	event.DefaultPrevented = false

@@ -3,27 +3,39 @@ package common
 import (
 	"flag"
 	"fmt"
-	"runtime"
 	"regexp"
+	"runtime"
 )
 
 const (
-	ExampleConfigYaml  = "/path/to/config/file.yaml"
+	// Используется в примерах использования
+	ExampleConfigYaml = "/path/to/config/file.yaml"
+
 	InvalidInputString = ""
 	InvalidInputInt    = 0
 )
 
 var (
-	App                 Application
-	Services     []interface{}
+	// Объект текущего приложения, иногда необходим сервисам, для отправки событий приложению
+	App Application
+
+	// Сервисы, используются для создания итератора
+	Services []interface{}
+
+	// Количество goroutine, может измениться для инициализации приложения
 	DefaultWorkersCount = runtime.NumCPU()
+
+	// Используется в нескольких пакетах, поэтому вынес
 	FilenameRegex = regexp.MustCompile(`[^\\/]+\.[^\\/]+`)
-	PrintUsage          = func(f *flag.Flag) {
+
+	PrintUsage = func(f *flag.Flag) {
 		format := "  -%s %s\n"
 		fmt.Printf(format, f.Name, f.Usage)
 	}
 )
 
+// Проект содержит несколько приложений: pmq-grep, pmq-publish, pmq-report, postmanq
+// Чтобы упростить и стандартизировать приложения, разработан этот интерфейс
 type Application interface {
 	SetConfigFilename(string)
 	IsValidConfigFilename(string) bool
@@ -35,6 +47,7 @@ type Application interface {
 	FireInit(*ApplicationEvent, interface{})
 	FireRun(*ApplicationEvent, interface{})
 	FireFinish(*ApplicationEvent, interface{})
+	Init(*ApplicationEvent)
 	Run()
 	RunWithArgs(...interface{})
 }
