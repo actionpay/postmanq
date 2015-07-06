@@ -13,6 +13,7 @@ var (
 
 type Service struct {
 	Hostnames      []string `yaml:"exclude"`
+	hostnameLen    int
 	GuardiansCount int      `yaml:"workers"`
 }
 
@@ -27,6 +28,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.Debug("init guardians...")
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
+		s.hostnameLen = len(s.Hostnames)
 		if s.GuardiansCount == 0 {
 			s.GuardiansCount = common.DefaultWorkersCount
 		}
@@ -36,7 +38,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 }
 
 func (s *Service) OnRun() {
-
+	for i := 0; i < s.GuardiansCount; i++ {
+		go newGuardian(i + 1)
+	}
 }
 
 func (s *Service) Events() chan *common.SendEvent {
