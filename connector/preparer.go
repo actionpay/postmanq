@@ -59,7 +59,7 @@ connectToMailServer:
 
 waitLookup:
 	logger.Debug("preparer#%d wait ending look up mail server %s...", p.id, event.Message.HostnameTo)
-	time.Sleep(common.SleepTimeout)
+	time.Sleep(common.App.Timeout().Sleep)
 	goto connectToMailServer
 	return
 }

@@ -70,13 +70,16 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 							delayedBinding.declareDelayed(binding, channel)
 							binding.delayedBindings[delayedBindingType] = delayedBinding
 						}
-						// создаем очередь для 500-ых ошибок
-						failBinding := new(Binding)
-						failBinding.Exchange = fmt.Sprintf(failBindingName, binding.Exchange)
-						failBinding.Queue = fmt.Sprintf(failBindingName, binding.Queue)
-						failBinding.Type = binding.Type
-						failBinding.declare(channel)
-						binding.failBinding = failBinding
+
+						binding.failureBindings = make(map[FailureBindingType]*Binding)
+						for failureBindingType, tplName := range failureBindingTypeTplNames {
+							failureBinding := new(Binding)
+							failureBinding.Exchange = fmt.Sprintf(tplName, binding.Exchange)
+							failureBinding.Queue = fmt.Sprintf(tplName, binding.Queue)
+							failureBinding.Type = binding.Type
+							failureBinding.declare(channel)
+							binding.failureBindings[failureBindingType] = failureBinding
+						}
 
 						appsCount++
 						app := NewConsumer(appsCount, connect, binding)

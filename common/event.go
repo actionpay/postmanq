@@ -60,6 +60,9 @@ const (
 
 	// Повторная отправка через некоторое время
 	DelaySendEventResult
+
+	// Отмена отправки
+	RevokeSendEventResult
 )
 
 // Событие отправки письма

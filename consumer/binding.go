@@ -17,6 +17,24 @@ const (
 	TopicExchangeType               = "topic"
 )
 
+type FailureBindingType int
+
+const (
+	RecipientFailureBindingType FailureBindingType = iota
+	TechnicalFailureBindingType
+	ConnectionFailureBindingType
+	UnknownFailureBindingType
+)
+
+var (
+	failureBindingTypeTplNames = map[FailureBindingType]string{
+		RecipientFailureBindingType:  "%s.failure.recipient",
+		TechnicalFailureBindingType:  "%s.failure.technical",
+		ConnectionFailureBindingType: "%s.failure.connection",
+		UnknownFailureBindingType:    "%s.failure.unknown",
+	}
+)
+
 var (
 	// отложенные очереди вообще
 	// письмо отправляется повторно при возниковении ошибки во время отправки
@@ -68,24 +86,33 @@ var (
 type Binding struct {
 	// имя точки обмена и очереди
 	Name string `yaml:"name"`
+
 	// имя точки обмена
 	Exchange string `yaml:"exchange"`
+
 	// аргументы точки обмена
 	ExchangeArgs amqp.Table
+
 	// имя очереди
 	Queue string `yaml:"queue"`
+
 	// аргументы очереди
 	QueueArgs amqp.Table
+
 	// тип точки обмена
 	Type ExchangeType `yaml:"type"`
+
 	// ключ маршрутизации
 	Routing string `yaml:"routing"`
+
 	// количество потоков, разбирающих очередь
 	Handlers int `yaml:"workers"`
+
 	// отложенные очереди
 	delayedBindings map[common.DelayedBindingType]*Binding
-	// очередь для 500-ых ошибок
-	failBinding *Binding
+
+	// очереди для ошибок
+	failureBindings map[FailureBindingType]*Binding
 }
 
 func newDelayedBinding(name string, duration time.Duration) *Binding {

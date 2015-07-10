@@ -8,6 +8,7 @@ import (
 	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/AdOnWeb/postmanq/mailer"
 	yaml "gopkg.in/yaml.v2"
+	"github.com/AdOnWeb/postmanq/guardian"
 )
 
 type Post struct {
@@ -23,6 +24,7 @@ func NewPost() common.Application {
 func (p *Post) Run() {
 	common.App = p
 	common.Services = []interface{}{
+		guardian.Inst(),
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
@@ -30,6 +32,7 @@ func (p *Post) Run() {
 	p.services = []interface{}{
 		logger.Inst(),
 		consumer.Inst(),
+		guardian.Inst(),
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
@@ -37,12 +40,13 @@ func (p *Post) Run() {
 	p.run(p, common.NewApplicationEvent(common.InitApplicationEventKind))
 }
 
-func (a *Post) Init(event *common.ApplicationEvent) {
+func (p *Post) Init(event *common.ApplicationEvent) {
 	// получаем настройки
-	err := yaml.Unmarshal(event.Data, a)
+	err := yaml.Unmarshal(event.Data, p)
 	if err == nil {
-		common.DefaultWorkersCount = a.Workers
-		logger.Debug("app workers count %d", a.Workers)
+		p.CommonTimeout.Init()
+		common.DefaultWorkersCount = p.Workers
+		logger.Debug("app workers count %d", p.Workers)
 	} else {
 		logger.FailExitWithErr(err)
 	}

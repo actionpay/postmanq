@@ -50,4 +50,5 @@ type Application interface {
 	Init(*ApplicationEvent)
 	Run()
 	RunWithArgs(...interface{})
+	Timeout() Timeout
 }

@@ -25,7 +25,7 @@ func (l *Limiter) check(event *common.SendEvent) {
 	logger.Info("limiter#%d check limit for mail#%d", l.id, event.Message.Id)
 	// пытаемся найти ограничения для почтового сервиса
 	if limit, ok := service.Limits[event.Message.HostnameTo]; ok {
-		logger.Debug("limiter#%d found config for %s", l.id, event.Message.HostnameTo)
+		logger.Debug("limiter#%d found limit for %s", l.id, event.Message.HostnameTo)
 		// если оно нашлось, проверяем, что отправка нового письма происходит в тот промежуток времени,
 		// в который нам необходимо следить за ограничениями
 		if limit.isValidDuration(event.Message.CreatedDate) {
@@ -46,7 +46,7 @@ func (l *Limiter) check(event *common.SendEvent) {
 			logger.Debug("limiter#%d duration great then %v", l.id, limit.duration)
 		}
 	} else {
-		logger.Debug("limiter#%d not found for %s", l.id, event.Message.HostnameTo)
+		logger.Debug("limiter#%d not found limit for %s", l.id, event.Message.HostnameTo)
 	}
 	event.Iterator.Next().(common.SendingService).Events() <- event
 }

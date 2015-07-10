@@ -59,7 +59,6 @@ func (c *Consumer) consume(id int) {
 		nil,             // arguments
 	)
 	if err == nil {
-		logger.Debug("run consumer#%d, handler#%d", c.id, id)
 		go c.consumeDeliveries(id, channel, deliveries)
 	} else {
 		logger.Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
@@ -94,9 +93,10 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 			message = nil
 			event = nil
 		} else {
+			failureBinding := c.binding.failureBindings[TechnicalFailureBindingType]
 			err = channel.Publish(
-				c.binding.failBinding.Exchange,
-				c.binding.failBinding.Routing,
+				failureBinding.Exchange,
+				failureBinding.Routing,
 				false,
 				false,
 				amqp.Publishing{
@@ -118,52 +118,51 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 	// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
 	// или получили какую то ошибку от почтового сервиса, что он не может
 	// отправить письмо указанному адресату или выполнить какую то команду
-	var failBinding *Binding
+	var failureBinding *Binding
 	// если ошибка связана с невозможностью отправить письмо адресату
 	// перекладываем письмо в очередь для плохих писем
 	// и пусть отправители сами с ними разбираются
-	if message.Error.Code >= 500 && message.Error.Code <= 600 {
-		failBinding = c.binding.failBinding
+	if message.Error.Code >= 500 && message.Error.Code < 600 {
+		failureBinding = c.binding.failureBindings[errorSignsMap.BindingType(message)]
 	} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
-		failBinding = delayedBindings[common.ThirtyMinutesDelayedBinding]
+		failureBinding = delayedBindings[common.ThirtyMinutesDelayedBinding]
+	} else {
+		failureBinding = c.binding.failureBindings[UnknownFailureBindingType]
 	}
-	// если очередь для ошибок нашлась
-	if failBinding != nil {
-		jsonMessage, err := json.Marshal(message)
+	jsonMessage, err := json.Marshal(message)
+	if err == nil {
+		// кладем в очередь
+		err = channel.Publish(
+			failureBinding.Exchange,
+			failureBinding.Routing,
+			false,
+			false,
+			amqp.Publishing{
+				ContentType:  "text/plain",
+				Body:         jsonMessage,
+				DeliveryMode: amqp.Transient,
+			},
+		)
 		if err == nil {
-			// кладем в очередь
-			err = channel.Publish(
-				failBinding.Exchange,
-				failBinding.Routing,
-				false,
-				false,
-				amqp.Publishing{
-					ContentType:  "text/plain",
-					Body:         jsonMessage,
-					DeliveryMode: amqp.Transient,
-				},
+			logger.Debug(
+				"reason is %s with code %d, publish failure mail#%d to queue %s",
+				message.Error.Message,
+				message.Error.Code,
+				message.Id,
+				failureBinding.Queue,
 			)
-			if err == nil {
-				logger.Debug(
-					"reason is %s with code %d, publish failure mail#%d to queue %s",
-					message.Error.Message,
-					message.Error.Code,
-					message.Id,
-					failBinding.Queue,
-				)
-			} else {
-				logger.Debug(
-					"can't publish failure mail#%d with error %s and code %d to queue %s",
-					message.Id,
-					message.Error.Message,
-					message.Error.Code,
-					failBinding.Queue,
-				)
-				logger.WarnWithErr(err)
-			}
 		} else {
+			logger.Debug(
+				"can't publish failure mail#%d with error %s and code %d to queue %s",
+				message.Id,
+				message.Error.Message,
+				message.Error.Code,
+				failureBinding.Queue,
+			)
 			logger.WarnWithErr(err)
 		}
+	} else {
+		logger.WarnWithErr(err)
 	}
 }
 
@@ -234,17 +233,19 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType comm
 func (c *Consumer) consumeFailMessages(group *sync.WaitGroup) {
 	channel, err := c.connect.Channel()
 	if err == nil {
-		for {
-			delivery, ok, _ := channel.Get(c.binding.failBinding.Queue, false)
-			if ok {
-				message := new(common.MailMessage)
-				err = json.Unmarshal(delivery.Body, message)
-				if err == nil {
-					sendEvent := common.NewSendEvent(message)
-					sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
+		for _, failureBinding := range c.binding.failureBindings {
+			for {
+				delivery, ok, _ := channel.Get(failureBinding.Queue, false)
+				if ok {
+					message := new(common.MailMessage)
+					err = json.Unmarshal(delivery.Body, message)
+					if err == nil {
+						sendEvent := common.NewSendEvent(message)
+						sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
+					}
+				} else {
+					break
 				}
-			} else {
-				break
 			}
 		}
 		group.Done()
@@ -332,18 +333,29 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 }
 
 func (c *Consumer) findBindingByQueueName(queueName string) *Binding {
+	var binding *Binding
+
 	if c.binding.Queue == queueName {
-		return c.binding
-	} else if c.binding.failBinding.Queue == queueName {
-		return c.binding.failBinding
-	} else {
-		var binding *Binding
+		binding = c.binding
+	}
+
+	if binding == nil {
+		for _, failureBinding := range c.binding.failureBindings {
+			if failureBinding.Queue == queueName {
+				binding = failureBinding
+				break
+			}
+		}
+	}
+
+	if binding == nil {
 		for _, delayedBinding := range c.binding.delayedBindings {
 			if delayedBinding.Queue == queueName {
 				binding = delayedBinding
 				break
 			}
 		}
-		return binding
 	}
+
+	return binding
 }

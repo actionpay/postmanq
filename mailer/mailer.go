@@ -61,15 +61,15 @@ func (m *Mailer) send(event *common.SendEvent) {
 	logger.Debug("service#%d receive smtp client#%d", m.id, event.Client.Id)
 
 	success := false
-	event.Client.SetTimeout(common.MailTimeout)
+	event.Client.SetTimeout(common.App.Timeout().Mail)
 	err := worker.Mail(message.Envelope)
 	if err == nil {
 		logger.Debug("service#%d send command MAIL FROM: %s", m.id, message.Envelope)
-		event.Client.SetTimeout(common.RcptTimeout)
+		event.Client.SetTimeout(common.App.Timeout().Rcpt)
 		err = worker.Rcpt(message.Recipient)
 		if err == nil {
 			logger.Debug("service#%d send command RCPT TO: %s", m.id, message.Recipient)
-			event.Client.SetTimeout(common.DataTimeout)
+			event.Client.SetTimeout(common.App.Timeout().Data)
 			wc, err := worker.Data()
 			if err == nil {
 				logger.Debug("service#%d send command DATA", m.id)

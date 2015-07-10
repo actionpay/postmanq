@@ -19,6 +19,8 @@ type Abstract struct {
 
 	// флаг, сигнализирующий окончание работы приложения
 	done chan bool
+
+	CommonTimeout common.Timeout `yaml:"timeouts"`
 }
 
 func (a *Abstract) IsValidConfigFilename(filename string) bool {
@@ -108,5 +110,8 @@ func (a *Abstract) RunWithArgs(args ...interface{}) {}
 
 func (a *Abstract) FireRun(event *common.ApplicationEvent, abstractService interface{}) {}
 
-func (a *Abstract) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
+func (a *Abstract) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {}
+
+func (a *Abstract) Timeout() common.Timeout {
+	return a.CommonTimeout
 }

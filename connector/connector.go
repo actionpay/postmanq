@@ -90,7 +90,7 @@ waitConnect:
 		)
 	} else {
 		logger.Debug("connector#%d can't find free connections, wait...", c.id)
-		time.Sleep(common.SleepTimeout)
+		time.Sleep(common.App.Timeout().Sleep)
 		goto receiveConnect
 	}
 	return
@@ -103,7 +103,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	if err == nil {
 		logger.Debug("connector#%d resolve tcp address %s", c.id, tcpAddr.String())
 		dialer := &net.Dialer{
-			Timeout:   common.HelloTimeout,
+			Timeout:   common.App.Timeout().Connection,
 			LocalAddr: tcpAddr,
 		}
 		hostname := net.JoinHostPort(mxServer.hostname, "25")
@@ -111,7 +111,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
 			logger.Debug("connector#%d connect to %s", c.id, hostname)
-			connection.SetDeadline(time.Now().Add(common.HelloTimeout))
+			connection.SetDeadline(time.Now().Add(common.App.Timeout().Hello))
 			client, err := smtp.NewClient(connection, mxServer.hostname)
 			if err == nil {
 				logger.Debug("connector#%d create client to %s", c.id, mxServer.hostname)

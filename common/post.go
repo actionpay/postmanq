@@ -9,15 +9,6 @@ import (
 )
 
 const (
-	// Таймауты
-	ReceiveConnectionTimeout = 5 * time.Minute
-	SleepTimeout             = 1000 * time.Millisecond
-	HelloTimeout             = 5 * time.Minute
-	MailTimeout              = 5 * time.Minute
-	RcptTimeout              = 5 * time.Minute
-	DataTimeout              = 10 * time.Minute
-	WaitingTimeout           = 30 * time.Second
-
 	// Максимальное количество попыток подключения к почтовику за отправку письма
 	MaxTryConnectionCount = 30
 )
@@ -26,6 +17,40 @@ var (
 	// Регулярка для проверки адреса почты, сразу компилируем, чтобы при отправке не терять на этом время
 	EmailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
 )
+
+type Timeout struct {
+	Sleep      time.Duration `yaml:"sleep"`
+	Waiting    time.Duration `yaml:"waiting"`
+	Connection time.Duration `yaml:"connection"`
+	Hello      time.Duration `yaml:"hello"`
+	Mail       time.Duration `yaml:"mail"`
+	Rcpt       time.Duration `yaml:"rcpt"`
+	Data       time.Duration `yaml:"data"`
+}
+
+func (t *Timeout) Init() {
+	if t.Sleep == 0 {
+		t.Sleep = time.Second
+	}
+	if t.Waiting == 0 {
+		t.Waiting = 30 * time.Second
+	}
+	if t.Connection == 0 {
+		t.Connection = 5 * time.Minute
+	}
+	if t.Hello == 0 {
+		t.Hello = 5 * time.Minute
+	}
+	if t.Mail == 0 {
+		t.Mail = 5 * time.Minute
+	}
+	if t.Rcpt == 0 {
+		t.Rcpt = 5 * time.Minute
+	}
+	if t.Data == 0 {
+		t.Data = 10 * time.Minute
+	}
+}
 
 // Тип отложенной очереди
 type DelayedBindingType int

@@ -50,7 +50,7 @@ func (s *SmtpClient) SetTimeout(timeout time.Duration) {
 // После окончания ожидания соединение разрывается, а статус меняется на отсоединенный
 func (s *SmtpClient) Wait() {
 	s.Status = WaitingSmtpClientStatus
-	s.timer = time.AfterFunc(WaitingTimeout, func() {
+	s.timer = time.AfterFunc(App.Timeout().Waiting, func() {
 		s.Status = DisconnectedSmtpClientStatus
 		s.Worker.Close()
 		s.timer = nil
