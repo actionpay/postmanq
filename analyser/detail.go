@@ -18,6 +18,7 @@ func newDetailTableWriter(fields []interface {}) TableWriter {
 }
 
 func (d *DetailTableWriter) Show() {
+	d.Clean()
 	keyRegex, _ := regexp.Compile(d.keyPattern)
 	valueRegex := regexp.MustCompile(d.valuePattern)
 	addresses := make([]string, 0)
@@ -28,7 +29,7 @@ func (d *DetailTableWriter) Show() {
 				if d.offset == common.InvalidInputInt {
 					if d.limit == common.InvalidInputInt || (d.limit > common.InvalidInputInt && rows < d.limit) {
 						row := d.rows[id]
-						row.WriteRow(d.Table, valueRegex)
+						row.Write(d.Table, valueRegex)
 						if d.necessaryExport {
 							addresses = append(addresses, row.(Report).Recipient)
 						}

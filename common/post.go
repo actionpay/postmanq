@@ -138,15 +138,17 @@ func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 func ReturnMail(event *SendEvent, err error) {
 	// необходимо проверить сообщение на наличие кода ошибки
 	// обычно код идет первым
-	errorMessage := err.Error()
-	parts := strings.Split(errorMessage, " ")
-	if len(parts) > 0 {
-		// пытаемся получить код
-		code, e := strconv.Atoi(strings.TrimSpace(parts[0]))
-		// и создать ошибку
-		// письмо с ошибкой вернется в другую очередь, отличную от письмо без ошибки
-		if e == nil {
-			event.Message.Error = &MailError{errorMessage, code}
+	if err != nil {
+		errorMessage := err.Error()
+		parts := strings.Split(errorMessage, " ")
+		if len(parts) > 0 {
+			// пытаемся получить код
+			code, e := strconv.Atoi(strings.TrimSpace(parts[0]))
+			// и создать ошибку
+			// письмо с ошибкой вернется в другую очередь, отличную от письмо без ошибки
+			if e == nil {
+				event.Message.Error = &MailError{errorMessage, code}
+			}
 		}
 	}
 

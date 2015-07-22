@@ -48,7 +48,7 @@ func (c *Consumer) consume(id int) {
 	// выбираем из очереди сообщения с запасом
 	// это нужно для того, чтобы после отправки письма новое уже было готово к отправке
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
-	channel.Qos(2, 0, false)
+	channel.Qos(c.binding.PrefetchCount, 0, false)
 	deliveries, err := channel.Consume(
 		c.binding.Queue, // name
 		"",              // consumerTag,
@@ -230,7 +230,7 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType comm
 	}
 }
 
-func (c *Consumer) consumeFailMessages(group *sync.WaitGroup) {
+func (c *Consumer) consumeFailureMessages(group *sync.WaitGroup) {
 	channel, err := c.connect.Channel()
 	if err == nil {
 		for _, failureBinding := range c.binding.failureBindings {

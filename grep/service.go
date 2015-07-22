@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 const (
@@ -18,6 +19,7 @@ const (
 var (
 	service          *Service
 	mailIdRegex      = regexp.MustCompile(`mail#(\d)+`)
+	consumerIdRegex  = regexp.MustCompile(`consumer#(\d)+`)
 	limiterIdRegex   = regexp.MustCompile(`limiter#(\d)+`)
 	connectorIdRegex = regexp.MustCompile(`connector#(\d)+`)
 	mailerIdRegex    = regexp.MustCompile(`mailer#(\d)+`)
@@ -79,11 +81,16 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 
 	mailRegex, err := regexp.Compile(expr)
 	if err == nil {
+		wg := new(sync.WaitGroup)
+		var mailsCount int
 		for i, line := range lines {
 			if mailRegex.MatchString(line) {
-				go s.grep(mailIdRegex.FindString(line), lines[i:])
+				mailsCount++
+				go s.grep(mailIdRegex.FindString(line), lines[i:], wg)
 			}
 		}
+		wg.Add(mailsCount)
+		wg.Wait()
 	} else {
 		if hasEnvelope {
 			fmt.Println("invalid recipient")
@@ -95,8 +102,8 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
-func (s *Service) grep(mailId string, lines []string) {
-	var limiterId, connectorId, mailerId string
+func (s *Service) grep(mailId string, lines []string, wg *sync.WaitGroup) {
+	var consumerId, limiterId, connectorId, mailerId string
 	mailRegex, _ := regexp.Compile(mailId)
 	out := new(bytes.Buffer)
 	out.WriteString(eol)
@@ -106,13 +113,20 @@ func (s *Service) grep(mailId string, lines []string) {
 			out.WriteString(line)
 			out.WriteString(eol)
 
+			if consumerIdRegex.MatchString(line) {
+				consumerId = consumerIdRegex.FindString(line)
+			}
+
 			if limiterIdRegex.MatchString(line) {
+				consumerId = common.InvalidInputString
 				limiterId = limiterIdRegex.FindString(line)
 			}
+
 			if connectorIdRegex.MatchString(line) {
 				limiterId = common.InvalidInputString
 				connectorId = connectorIdRegex.FindString(line)
 			}
+
 			if mailerIdRegex.MatchString(line) {
 				connectorId = common.InvalidInputString
 				mailerId = mailerIdRegex.FindString(line)
@@ -120,8 +134,13 @@ func (s *Service) grep(mailId string, lines []string) {
 
 			if strings.Contains(line, "sending error") || strings.Contains(line, "success send") {
 				mailerId = common.InvalidInputString
+				break
 			}
 		} else {
+			if len(consumerId) > 0 && strings.Contains(line, consumerId) {
+				out.WriteString(line)
+				out.WriteString(eol)
+			}
 			if len(limiterId) > 0 && strings.Contains(line, limiterId) {
 				out.WriteString(line)
 				out.WriteString(eol)
@@ -138,6 +157,7 @@ func (s *Service) grep(mailId string, lines []string) {
 	}
 
 	fmt.Print(out.String())
+	wg.Done()
 }
 
 func (s *Service) OnFinish(event *common.ApplicationEvent) {

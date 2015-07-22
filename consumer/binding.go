@@ -108,6 +108,9 @@ type Binding struct {
 	// количество потоков, разбирающих очередь
 	Handlers int `yaml:"workers"`
 
+	// количество сообщений, получаемых одновременно
+	PrefetchCount int `yaml:"prefetchCount"`
+
 	// отложенные очереди
 	delayedBindings map[common.DelayedBindingType]*Binding
 
@@ -138,6 +141,9 @@ func (b *Binding) init() {
 	// по умолчанию очередь разбирают столько рутин сколько ядер
 	if b.Handlers == 0 {
 		b.Handlers = common.DefaultWorkersCount
+	}
+	if b.PrefetchCount == 0 {
+		b.PrefetchCount = 2
 	}
 }
 

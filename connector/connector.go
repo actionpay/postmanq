@@ -2,7 +2,6 @@ package connector
 
 import (
 	"crypto/tls"
-//	"crypto/x509"
 	"errors"
 	"fmt"
 	"github.com/AdOnWeb/postmanq/common"

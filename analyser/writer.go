@@ -3,6 +3,7 @@ package analyser
 import (
 	"github.com/byorty/clitable"
 	"regexp"
+	"sort"
 )
 
 type TableWriter interface {
@@ -21,7 +22,7 @@ type TableWriter interface {
 type RowWriters map[int]RowWriter
 
 type RowWriter interface {
-	WriteRow(*clitable.Table, *regexp.Regexp)
+	Write(*clitable.Table, *regexp.Regexp)
 }
 
 type AbstractTableWriter struct {
@@ -45,6 +46,10 @@ func newAbstractTableWriter(fields []interface{}) *AbstractTableWriter {
 func (a *AbstractTableWriter) Add(key string, id int) {
 	if _, ok := a.ids[key]; !ok {
 		a.ids[key] = make([]int, 0)
+	}
+	idsLen := len(a.ids[key])
+	if sort.Search(idsLen, func(i int) bool { return a.ids[key][i] == id }) == idsLen {
+		a.ids[key] = append(a.ids[key], id)
 	}
 }
 

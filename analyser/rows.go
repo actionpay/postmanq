@@ -15,7 +15,7 @@ type Report struct {
 	CreatedDates []time.Time
 }
 
-func (r Report) WriteRow(table *clitable.Table, valueRegex *regexp.Regexp) {
+func (r Report) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	if valueRegex == nil ||
 		(valueRegex != nil &&
 			(valueRegex.MatchString(r.Envelope) ||
@@ -33,6 +33,6 @@ func (r Report) WriteRow(table *clitable.Table, valueRegex *regexp.Regexp) {
 
 type AggregateRow []int
 
-func (a AggregateRow) WriteRow(table *clitable.Table, valueRegex *regexp.Regexp) {
+func (a AggregateRow) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	table.AddRow(a[0], a[1], a[2], a[3])
 }

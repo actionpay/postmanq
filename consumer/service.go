@@ -8,12 +8,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	"net/url"
 	"sync"
-	"time"
-	"sync/atomic"
-)
-
-const (
-	failBindingName = "%s.fail"
 )
 
 var (
@@ -162,24 +156,27 @@ func (s *Service) Events() chan *common.SendEvent {
 }
 
 func (s *Service) OnShowReport() {
-	var delta int32
 	waiter := newWaiter()
 	group := new(sync.WaitGroup)
 
+	var delta int
+	for _, apps := range s.consumers {
+		for _, app := range apps {
+			delta += app.binding.Handlers
+		}
+	}
+	group.Add(delta)
 	for _, apps := range s.consumers {
 		go func() {
 			for _, app := range apps {
-				atomic.StoreInt32(&delta, int32(app.binding.Handlers))
 				for i := 0; i < app.binding.Handlers; i++ {
-					go app.consumeFailMessages(group)
+					go app.consumeFailureMessages(group)
 				}
 			}
 		}()
 	}
-	group.Add(int(atomic.LoadInt32(&delta)))
 	group.Wait()
 	waiter.Stop()
-	time.Sleep(time.Second)
 
 	sendEvent := common.NewSendEvent(nil)
 	sendEvent.DefaultPrevented = true

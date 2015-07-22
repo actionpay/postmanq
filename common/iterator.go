@@ -11,7 +11,7 @@ type Iterator struct {
 
 // Создает итератор
 func NewIterator(items []interface{}) *Iterator {
-	return &Iterator{items: items}
+	return &Iterator{items: items, current: -1}
 }
 
 // Отдает первый элемент
@@ -23,15 +23,23 @@ func (i Iterator) First() interface{} {
 func (i *Iterator) Next() interface{} {
 	var item interface{}
 	i.current++
-	if i.current < len(i.items) {
+	if i.isValidCurrent() {
 		item = i.items[i.current]
 	}
 	return item
 }
 
+func (i *Iterator) isValidCurrent() bool {
+	return i.current < len(i.items)
+}
+
 // Отдает текущий элемент
 func (i Iterator) Current() interface{} {
-	return i.items[i.current]
+	var item interface{}
+	if i.isValidCurrent() {
+		item = i.items[i.current]
+	}
+	return item
 }
 
 // Сигнализирует об окончании итерации

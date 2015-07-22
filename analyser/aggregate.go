@@ -11,6 +11,7 @@ func newTypeAggregateTableWriter(fields []interface {}) TableWriter {
 }
 
 func (t *TypeAggregateTableWriter) Show() {
+	t.Clean()
 	for key, ids := range t.ids {
 		t.AddRow(key, len(ids))
 	}
@@ -27,10 +28,11 @@ func newAggregateTableWriter(fields []interface {}) TableWriter {
 	}
 }
 
-func (t *AggregateTableWriter) Show() {
-	for key, ids := range t.ids {
-		t.AddRow(key, len(ids))
+func (a *AggregateTableWriter) Show() {
+	a.Clean()
+	for _, row := range a.rows {
+		row.Write(a.Table, nil)
 	}
-	t.Print()
+	a.Print()
 }
 

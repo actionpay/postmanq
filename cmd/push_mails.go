@@ -99,8 +99,9 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 	}
 	fmt.Println("got Channel")
 
-//	messageCount := 1
-	messageCount := 2000
+	//	messageCount := 1
+//	messageCount := 2000
+	messageCount := 200
 
 	//	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
 	//	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
@@ -119,15 +120,15 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 			//				j := rand.Intn(x + 1)
 			//				parts[x], parts[j] = parts[j], parts[x]
 			//			}
-			js, err := json.Marshal(map[string]string{
+			js, err := json.Marshal(map[string]interface{}{
 				//				"envelope": "robot@actionpay.ru",
 				"envelope": "robotron@adnwb.ru",
 
 				//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
-								"recipient": "apmail@adonweb.ru",
-//								"recipient": "asolomonoff@gmail.com",
-//				"recipient": "byorty@yandex.ru",
-//								"recipient": "byorty@mail.ru",
+				"recipient": "apmail@adonweb.ru",
+				//								"recipient": "asolomonoff@gmail.com",
+				//				"recipient": "byorty@yandex.ru",
+				//								"recipient": "byorty@mail.ru",
 				//				"recipient": "byorty@fastmail.com",
 				//				"recipient": "byorty@outlook.com",
 				//				"recipient": "byorty@qip.ru",
@@ -150,9 +151,16 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 				"body": message,
 				//				"body": base64.StdEncoding.EncodeToString([]byte("hello world")),
 				//				"body": base64.StdEncoding.EncodeToString([]byte("привет мир")),
+				"error": map[string]interface{}{
+					"code":    551,
+					"message": "unknown trololo",
+				},
 			})
 			if err = channel.Publish(
-				"postmanq", // publish to an exchange
+//				"postmanq",
+//				"postmanq.failure.connection",
+//				"postmanq.failure.recipient",
+				"postmanq.failure.unknown",
 				//				"postmanq.dlx.minute",   // publish to an exchange
 				"",    // routing to 0 or more queues
 				false, // mandatory

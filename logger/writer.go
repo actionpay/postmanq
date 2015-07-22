@@ -45,15 +45,15 @@ func (w *Writers) init(service *Service) {
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
 				FailExit("directory %s is not exists", dir)
 			} else {
-				w.add(i, &FileWriter{service.Output})
+				w.set(i, &FileWriter{service.Output})
 			}
 		} else if len(service.Output) == 0 || service.Output == "stdout" {
-			w.add(i, &StdoutWriter{})
+			w.set(i, &StdoutWriter{})
 		}
 	}
 }
 
-func (w *Writers) add(i int, writer Writer) {
+func (w *Writers) set(i int, writer Writer) {
 	(*w)[i] = writer
 }
 

@@ -93,10 +93,12 @@ func Inst() common.SendingService {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
+		close(messages)
 		// устанавливаем уровень логирования
 		if existsLevel, ok := logLevelByName[s.LevelName]; ok {
 			level = existsLevel
 		}
+		messages = make(chan *Message)
 		// заново инициализируем вывод для логов
 		writers.init(service)
 		writers.write()

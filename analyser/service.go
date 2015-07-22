@@ -131,7 +131,7 @@ func (s *Service) findReports(args []string) {
 	var offset int
 
 	flagSet := flag.NewFlagSet("service", flag.ContinueOnError)
-	flagSet.BoolVar(&necessaryAll, "s", false, "show all reports")
+	flagSet.BoolVar(&necessaryAll, "a", false, "show all reports")
 	flagSet.StringVar(&necessaryCode, "c", common.InvalidInputString, "show reports by code")
 	flagSet.StringVar(&necessaryEnvelope, "e", common.InvalidInputString, "show reports by envelope")
 	flagSet.StringVar(&necessaryRecipient, "r", common.InvalidInputString, "show reports by recipient")
