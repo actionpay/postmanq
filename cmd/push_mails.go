@@ -101,7 +101,7 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 
 	//	messageCount := 1
 //	messageCount := 2000
-	messageCount := 200
+	messageCount := 20
 
 	//	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
 	//	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
@@ -157,10 +157,10 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 				},
 			})
 			if err = channel.Publish(
-//				"postmanq",
+				"postmanq",
 //				"postmanq.failure.connection",
 //				"postmanq.failure.recipient",
-				"postmanq.failure.unknown",
+//				"postmanq.failure.unknown",
 				//				"postmanq.dlx.minute",   // publish to an exchange
 				"",    // routing to 0 or more queues
 				false, // mandatory

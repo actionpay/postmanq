@@ -158,10 +158,8 @@ func (b *Binding) declare(channel *amqp.Channel) {
 		false,          // noWait
 		b.ExchangeArgs, // arguments
 	)
-	if err == nil {
-		logger.Debug("declare exchange - %s", b.Exchange)
-	} else {
-		logger.FailExit("can't declare exchange %s, error - %v", b.Exchange, err)
+	if err != nil {
+		logger.FailExit("consumer can't declare exchange %s, error - %v", b.Exchange, err)
 	}
 
 	_, err = channel.QueueDeclare(
@@ -172,10 +170,8 @@ func (b *Binding) declare(channel *amqp.Channel) {
 		false,       // noWait
 		b.QueueArgs, // arguments
 	)
-	if err == nil {
-		logger.Debug("declare queue - %s", b.Queue)
-	} else {
-		logger.FailExit("can't declare queue %s, error - %v", b.Queue, err)
+	if err != nil {
+		logger.FailExit("consumer can't declare queue %s, error - %v", b.Queue, err)
 	}
 
 	err = channel.QueueBind(
@@ -185,9 +181,7 @@ func (b *Binding) declare(channel *amqp.Channel) {
 		false,      // noWait
 		nil,        // arguments
 	)
-	if err == nil {
-		logger.Debug("queue %s bind to exchange %s with routing key '%s'", b.Queue, b.Exchange, b.Routing)
-	} else {
+	if err != nil {
 		logger.FailExit("consumer can't bind queue %s to exchange %s, error - %v", b.Queue, b.Exchange, err)
 	}
 }

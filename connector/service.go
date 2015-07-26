@@ -79,7 +79,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 				s.pool = x509.NewCertPool()
 				s.pool.AddCert(s.cert)
 			} else {
-				logger.FailExit("service can't read certificate, error - %v", err)
+				logger.FailExit("connection service can't read certificate, error - %v", err)
 			}
 		} else {
 			logger.Debug("certificate is not defined")
@@ -92,7 +92,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			s.ConnectorsCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.FailExit("service can't unmarshal config, error - %v", err)
+		logger.FailExit("connection service can't unmarshal config, error - %v", err)
 	}
 }
 

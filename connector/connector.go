@@ -36,7 +36,7 @@ func (c *Connector) run() {
 
 // Устанавливает соединение к почтовому сервису
 func (c *Connector) connect(event *ConnectionEvent) {
-	logger.Debug("connector#%d find connection for mail#%d", c.id, event.Message.Id)
+	logger.Debug("connector#%d-%d try find connection", c.id, event.Message.Id)
 	goto receiveConnect
 
 receiveConnect:
@@ -45,14 +45,14 @@ receiveConnect:
 
 	// смотрим все mx сервера почтового сервиса
 	for _, mxServer := range event.server.mxServers {
-		logger.Debug("connector#%d try receive connection for %s", c.id, mxServer.hostname)
+		logger.Debug("connector#%d-%d try receive connection for %s", c.id, event.Message.Id, mxServer.hostname)
 
 		// пробуем получить клиента
 		event.Queue, _ = mxServer.queues[event.address]
 		client := event.Queue.Pop()
 		if client != nil {
 			targetClient = client.(*common.SmtpClient)
-			logger.Debug("connector%d found free smtp client#%d", c.id, targetClient.Id)
+			logger.Debug("connector%d-%d found free smtp client#%d", c.id, event.Message.Id, targetClient.Id)
 		}
 
 		// создаем новое соединение к почтовому сервису
@@ -60,7 +60,7 @@ receiveConnect:
 		// или клиент разорвал соединение
 		if (targetClient == nil && !event.Queue.HasLimit()) ||
 			(targetClient != nil && targetClient.Status == common.DisconnectedSmtpClientStatus) {
-			logger.Debug("connector#%d can't find free smtp client for %s", c.id, mxServer.hostname)
+			logger.Debug("connector#%d-%d can't find free smtp client for %s", c.id, event.Message.Id, mxServer.hostname)
 			c.createSmtpClient(mxServer, event, &targetClient)
 		}
 
@@ -88,7 +88,7 @@ waitConnect:
 			errors.New(fmt.Sprintf("connector#%d can't connect to %s", c.id, event.Message.HostnameTo)),
 		)
 	} else {
-		logger.Debug("connector#%d can't find free connections, wait...", c.id)
+		logger.Debug("connector#%d-%d can't find free connections, wait...", c.id, event.Message.Id)
 		time.Sleep(common.App.Timeout().Sleep)
 		goto receiveConnect
 	}
@@ -100,7 +100,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	// устанавливаем ip, с которого бцдем отсылать письмо
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
 	if err == nil {
-		logger.Debug("connector#%d resolve tcp address %s", c.id, tcpAddr.String())
+		logger.Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
 		dialer := &net.Dialer{
 			Timeout:   common.App.Timeout().Connection,
 			LocalAddr: tcpAddr,
@@ -109,19 +109,19 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 		// создаем соединение к почтовому сервису
 		connection, err := dialer.Dial("tcp", hostname)
 		if err == nil {
-			logger.Debug("connector#%d connect to %s", c.id, hostname)
+			logger.Debug("connector#%d-%d connect to %s", c.id, event.Message.Id, hostname)
 			connection.SetDeadline(time.Now().Add(common.App.Timeout().Hello))
 			client, err := smtp.NewClient(connection, mxServer.hostname)
 			if err == nil {
-				logger.Debug("connector#%d create client to %s", c.id, mxServer.hostname)
+				logger.Debug("connector#%d-%d create client to %s", c.id, event.Message.Id, mxServer.hostname)
 				err = client.Hello(event.Message.HostnameFrom)
 				if err == nil {
-					logger.Debug("connector#%d send command HELLO: %s", c.id, event.Message.HostnameFrom)
+					logger.Debug("connector#%d-%d send command HELLO: %s", c.id, event.Message.Id, event.Message.HostnameFrom)
 					// проверяем доступно ли TLS
 					if mxServer.useTLS {
 						mxServer.useTLS, _ = client.Extension("STARTTLS")
 					}
-					logger.Debug("connector#%d use TLS %v", c.id, mxServer.useTLS)
+					logger.Debug("connector#%d-%d use TLS %v", c.id, event.Message.Id, mxServer.useTLS)
 					// создаем TLS или обычное соединение
 					if mxServer.useTLS {
 						c.initTlsSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
@@ -130,7 +130,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 					}
 				} else {
 					client.Quit()
-					logger.Debug("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
+					logger.Debug("connector#%d-%d can't create client to %s, err - %v", c.id, event.Message.Id, mxServer.hostname, err)
 				}
 			} else {
 				// если не удалось создать клиента,
@@ -138,17 +138,17 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 				// ставим лимит очереди, чтобы не пытаться открывать новые соединения и не создавать новые клиенты
 				event.Queue.HasLimitOn()
 				connection.Close()
-				logger.Warn("connector#%d can't create client to %s, err - %v", c.id, mxServer.hostname, err)
+				logger.Warn("connector#%d-%d can't create client to %s, err - %v", c.id, event.Message.Id, mxServer.hostname, err)
 			}
 		} else {
 			// если не удалось установить соединение,
 			// возможно, на почтовом сервисе стоит ограничение на количество соединений
 			// ставим лимит очереди, чтобы не пытаться открывать новые соединения
 			event.Queue.HasLimitOn()
-			logger.Warn("connector#%d can't dial to %s, err - %v", c.id, hostname, err)
+			logger.Warn("connector#%d-%d can't dial to %s, err - %v", c.id, event.Message.Id, hostname, err)
 		}
 	} else {
-		logger.Warn("connector#%d can't resolve tcp address %s, err - %v", c.id, tcpAddr.String(), err)
+		logger.Warn("connector#%d-%d can't resolve tcp address %s, err - %v", c.id, event.Message.Id, tcpAddr.String(), err)
 	}
 }
 
@@ -160,7 +160,7 @@ func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent
 		// пытаем создать сертификат
 //		cert, err := x509.ParseCertificate(event.CertBytes)
 //		if err == nil {
-			logger.Debug("connector#%d parse certificate for %s", c.id, event.Message.HostnameFrom)
+//			logger.Debug("connector#%d parse certificate for %s", c.id, event.Message.HostnameFrom)
 			// задаем сертификату IP сервера
 //			cert.IPAddresses = mxServer.ips
 //			pool.AddCert(service.cert)
@@ -212,8 +212,8 @@ func (c *Connector) initSmtpClient(mxServer *MxServer, event *ConnectionEvent, p
 	smtpClient.Worker = client
 	smtpClient.ModifyDate = time.Now()
 	if isNil {
-		logger.Debug("connector#%d create smtp client#%d for %s", c.id, smtpClient.Id, mxServer.hostname)
+		logger.Debug("connector#%d-%d create smtp client#%d for %s", c.id, event.Message.Id, smtpClient.Id, mxServer.hostname)
 	} else {
-		logger.Debug("connector#%d reopen smtp client#%d for %s", c.id, smtpClient.Id, mxServer.hostname)
+		logger.Debug("connector#%d-%d reopen smtp client#%d for %s", c.id, event.Message.Id, smtpClient.Id, mxServer.hostname)
 	}
 }

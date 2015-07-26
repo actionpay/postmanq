@@ -42,16 +42,10 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	if err == nil {
 		appsCount := 0
 		for _, config := range s.Configs {
-			logger.Debug("consumer service connect to %s", config.URI)
-
 			connect, err := amqp.Dial(config.URI)
 			if err == nil {
-				logger.Debug("consumer service got connection to %s, getting channel", config.URI)
-
 				channel, err := connect.Channel()
 				if err == nil {
-					logger.Debug("consumer service got channel for %s", config.URI)
-
 					apps := make([]*Consumer, len(config.Bindings))
 					for i, binding := range config.Bindings {
 						binding.init()
@@ -78,7 +72,6 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 						appsCount++
 						app := NewConsumer(appsCount, connect, binding)
 						apps[i] = app
-						logger.Debug("consumer service create consumer#%d", app.id)
 					}
 					s.connections[config.URI] = connect
 					s.consumers[config.URI] = apps

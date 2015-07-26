@@ -12,17 +12,9 @@ import (
 	"sync"
 )
 
-const (
-	eol = "\n"
-)
-
 var (
-	service          *Service
-	mailIdRegex      = regexp.MustCompile(`mail#(\d)+`)
-	consumerIdRegex  = regexp.MustCompile(`consumer#(\d)+`)
-	limiterIdRegex   = regexp.MustCompile(`limiter#(\d)+`)
-	connectorIdRegex = regexp.MustCompile(`connector#(\d)+`)
-	mailerIdRegex    = regexp.MustCompile(`mailer#(\d)+`)
+	service     *Service
+	mailIdRegex = regexp.MustCompile(`mail#((\d)+)+`)
 )
 
 type Service struct {
@@ -79,84 +71,38 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 		expr = fmt.Sprintf("recipient - %s to mailer", event.GetStringArg("recipient"))
 	}
 
-	mailRegex, err := regexp.Compile(expr)
-	if err == nil {
-		wg := new(sync.WaitGroup)
-		var mailsCount int
-		for i, line := range lines {
-			if mailRegex.MatchString(line) {
-				mailsCount++
-				go s.grep(mailIdRegex.FindString(line), lines[i:], wg)
-			}
-		}
-		wg.Add(mailsCount)
-		wg.Wait()
-	} else {
-		if hasEnvelope {
-			fmt.Println("invalid recipient")
-		} else {
-			fmt.Println("invalid recipient or envelope")
+	var mailsCount int
+	for _, line := range lines {
+		if strings.Contains(line, expr) {
+			mailsCount++
 		}
 	}
+	wg := new(sync.WaitGroup)
+	wg.Add(mailsCount)
+	for i, line := range lines {
+		if strings.Contains(line, expr) {
+			results := mailIdRegex.FindStringSubmatch(line)
+			if len(results) == 3 {
+				go s.grep(results[1], lines[i:], wg)
+			}
+		}
+	}
+	wg.Wait()
 
 	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
 func (s *Service) grep(mailId string, lines []string, wg *sync.WaitGroup) {
-	var consumerId, limiterId, connectorId, mailerId string
-	mailRegex, _ := regexp.Compile(mailId)
 	out := new(bytes.Buffer)
-	out.WriteString(eol)
 
 	for _, line := range lines {
-		if mailRegex.MatchString(line) {
+		if strings.Contains(line, mailId) {
 			out.WriteString(line)
-			out.WriteString(eol)
-
-			if consumerIdRegex.MatchString(line) {
-				consumerId = consumerIdRegex.FindString(line)
-			}
-
-			if limiterIdRegex.MatchString(line) {
-				consumerId = common.InvalidInputString
-				limiterId = limiterIdRegex.FindString(line)
-			}
-
-			if connectorIdRegex.MatchString(line) {
-				limiterId = common.InvalidInputString
-				connectorId = connectorIdRegex.FindString(line)
-			}
-
-			if mailerIdRegex.MatchString(line) {
-				connectorId = common.InvalidInputString
-				mailerId = mailerIdRegex.FindString(line)
-			}
-
-			if strings.Contains(line, "sending error") || strings.Contains(line, "success send") {
-				mailerId = common.InvalidInputString
-				break
-			}
-		} else {
-			if len(consumerId) > 0 && strings.Contains(line, consumerId) {
-				out.WriteString(line)
-				out.WriteString(eol)
-			}
-			if len(limiterId) > 0 && strings.Contains(line, limiterId) {
-				out.WriteString(line)
-				out.WriteString(eol)
-			}
-			if len(connectorId) > 0 && strings.Contains(line, connectorId) {
-				out.WriteString(line)
-				out.WriteString(eol)
-			}
-			if len(mailerId) > 0 && strings.Contains(line, mailerId) {
-				out.WriteString(line)
-				out.WriteString(eol)
-			}
+			out.WriteString("\n")
 		}
 	}
 
-	fmt.Print(out.String())
+	fmt.Println(out.String())
 	wg.Done()
 }
 
