@@ -8,21 +8,26 @@ import (
 	"github.com/byorty/dkim"
 )
 
+// отправитель письма
 type Mailer struct {
+	// идентификатор для логов
 	id int
 }
 
+// создает нового отправителя
 func newMailer(id int) {
 	mailer := &Mailer{id}
 	mailer.run()
 }
 
+// запускает отправителя
 func (m *Mailer) run() {
 	for event := range events {
 		m.sendMail(event)
 	}
 }
 
+// подписывает dkim и отправляет письмо
 func (m *Mailer) sendMail(event *common.SendEvent) {
 	message := event.Message
 	if common.EmailRegexp.MatchString(message.Envelope) && common.EmailRegexp.MatchString(message.Recipient) {
@@ -33,6 +38,7 @@ func (m *Mailer) sendMail(event *common.SendEvent) {
 	}
 }
 
+// подписывает dkim
 func (m *Mailer) prepare(message *common.MailMessage) {
 	conf, err := dkim.NewConf(message.HostnameFrom, service.DkimSelector)
 	if err == nil {
@@ -55,6 +61,7 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 	}
 }
 
+// отправляет письмо
 func (m *Mailer) send(event *common.SendEvent) {
 	message := event.Message
 	worker := event.Client.Worker

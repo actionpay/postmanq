@@ -1,22 +1,25 @@
 package analyser
 
 import (
-	"regexp"
-	"github.com/AdOnWeb/postmanq/common"
 	"fmt"
+	"github.com/AdOnWeb/postmanq/common"
+	"regexp"
 	"strings"
 )
 
+// автор таблиц, выводящий детализированные отчеты об ошибке
 type DetailTableWriter struct {
 	*AbstractTableWriter
 }
 
-func newDetailTableWriter(fields []interface {}) TableWriter {
+// создает нового автора таблицы, выводящего детализированные отчеты
+func newDetailTableWriter(fields []interface{}) TableWriter {
 	return &DetailTableWriter{
 		newAbstractTableWriter(fields),
 	}
 }
 
+// записывает данные в таблицу
 func (d *DetailTableWriter) Show() {
 	d.Clean()
 	keyRegex, _ := regexp.Compile(d.keyPattern)

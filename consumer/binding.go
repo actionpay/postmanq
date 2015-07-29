@@ -17,12 +17,20 @@ const (
 	TopicExchangeType               = "topic"
 )
 
+// тип точки обмена для неотправленного письма
 type FailureBindingType int
 
 const (
+	// проблемы с адресатом
 	RecipientFailureBindingType FailureBindingType = iota
+
+	// технические проблемы: неверная последовательность команд, косяки с dns
 	TechnicalFailureBindingType
+
+	// проблемы с подключеним к почтовому сервису
 	ConnectionFailureBindingType
+
+	// неизвестная проблема
 	UnknownFailureBindingType
 )
 
@@ -33,9 +41,7 @@ var (
 		ConnectionFailureBindingType: "%s.failure.connection",
 		UnknownFailureBindingType:    "%s.failure.unknown",
 	}
-)
 
-var (
 	// отложенные очереди вообще
 	// письмо отправляется повторно при возниковении ошибки во время отправки
 	delayedBindings = map[common.DelayedBindingType]*Binding{
@@ -118,6 +124,7 @@ type Binding struct {
 	failureBindings map[FailureBindingType]*Binding
 }
 
+// создает связку обложенной точки обмена и очереди
 func newDelayedBinding(name string, duration time.Duration) *Binding {
 	binding := newBinding(name)
 	binding.QueueArgs = amqp.Table{
@@ -126,10 +133,12 @@ func newDelayedBinding(name string, duration time.Duration) *Binding {
 	return binding
 }
 
+// создает связку точки обмена и очереди
 func newBinding(name string) *Binding {
 	return &Binding{Name: name}
 }
 
+// инициализирует связку параметрами по умолчанию
 func (b *Binding) init() {
 	if len(b.Type) == 0 {
 		b.Type = FanoutExchangeType
@@ -186,6 +195,7 @@ func (b *Binding) declare(channel *amqp.Channel) {
 	}
 }
 
+// объявляет отложенную точку обмена и очередь и связывает их
 func (b *Binding) declareDelayed(binding *Binding, channel *amqp.Channel) {
 	b.Exchange = fmt.Sprintf(b.Name, binding.Exchange)
 	b.Queue = fmt.Sprintf(b.Name, binding.Queue)

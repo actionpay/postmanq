@@ -1,20 +1,23 @@
 package consumer
 
 import (
-	"time"
 	"fmt"
+	"time"
 )
 
+// ожидающий
 type Waiter struct {
 	*time.Ticker
 }
 
+// создает нового ожидающего
 func newWaiter() *Waiter {
 	waiter := &Waiter{time.NewTicker(time.Millisecond * 250)}
 	go waiter.run()
 	return waiter
 }
 
+// запускает нового ожидающего
 func (w *Waiter) run() {
 	commas := []string{
 		".  ",

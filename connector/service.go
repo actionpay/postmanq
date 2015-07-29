@@ -1,67 +1,59 @@
 package connector
 
 import (
+	"crypto/x509"
 	"encoding/pem"
 	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
-	"crypto/x509"
 )
 
 var (
-	// Сервис создания соединения
+	// сервис создания соединения
 	service *Service
 
-	// Канал для приема событий отправки писем
+	// канал для приема событий отправки писем
 	events = make(chan *common.SendEvent)
 
-	// Почтовые сервисы будут хранится в карте по домену
+	// почтовые сервисы будут хранится в карте по домену
 	mailServers = make(map[string]*MailServer)
 )
 
-// Сервис, управляющий соединениями к почтовым сервисам
-// Письма могут отсылаться в несколько потоков, почтовый сервис может разрешить несколько подключений с одного IP
-// Количество подключений может быть не равно количеству отсылающих потоков
-// Если доверить управление подключениями отправляющим потокам, тогда это затруднит общее управление подключениями
-// Поэтому создание подключений и предоставление имеющихся подключений отправляющим потокам вынесено в отдельный сервис
+// сервис, управляющий соединениями к почтовым сервисам
+// письма могут отсылаться в несколько потоков, почтовый сервис может разрешить несколько подключений с одного IP
+// количество подключений может быть не равно количеству отсылающих потоков
+// если доверить управление подключениями отправляющим потокам, тогда это затруднит общее управление подключениями
+// поэтому создание подключений и предоставление имеющихся подключений отправляющим потокам вынесено в отдельный сервис
 type Service struct {
-	// Количество горутин устанавливающих соединения к почтовым сервисам
+	// количество горутин устанавливающих соединения к почтовым сервисам
 	ConnectorsCount int `yaml:"workers"`
 
-	// Путь до файла с закрытым ключом
+	// путь до файла с закрытым ключом
 	PrivateKeyFilename string `yaml:"privateKey"`
 
-	// Путь до файла с сертификатом
+	// путь до файла с сертификатом
 	CertFilename string `yaml:"certificate"`
 
-	// IP с которых будем рассылать письма
+	// ip с которых будем рассылать письма
 	Addresses []string `yaml:"ips"`
 
-	// Количество IP
+	// количество ip
 	addressesLen int
 
-	// Сертификат в байтах
-	certBytes []byte
-
-	// Длина сертификата
-	certBytesLen int
-
-	cert *x509.Certificate
-
+	// пул сертификатов
 	pool *x509.CertPool
 }
 
-// Создает новый сервис соединений
+// создает новый сервис соединений
 func Inst() *Service {
 	if service == nil {
 		service = new(Service)
-		service.certBytes = []byte{}
 	}
 	return service
 }
 
-// Инициализирует сервис соединений
+// инициализирует сервис соединений
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
@@ -72,12 +64,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			if err == nil {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
-				s.certBytes = pemBlock.Bytes
-				// и считаем его длину, чтобы не делать это при создании каждого сертификата
-				s.certBytesLen = len(s.certBytes)
-				s.cert, _ = x509.ParseCertificate(pemBlock.Bytes)
+				cert, _ := x509.ParseCertificate(pemBlock.Bytes)
 				s.pool = x509.NewCertPool()
-				s.pool.AddCert(s.cert)
+				s.pool.AddCert(cert)
 			} else {
 				logger.FailExit("connection service can't read certificate, error - %v", err)
 			}
@@ -96,7 +85,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	}
 }
 
-// Запускает горутины
+// запускает горутины
 func (s *Service) OnRun() {
 	for i := 0; i < s.ConnectorsCount; i++ {
 		id := i + 1
@@ -106,29 +95,29 @@ func (s *Service) OnRun() {
 	}
 }
 
-// Канал для приема событий отправки писем
+// канал для приема событий отправки писем
 func (s *Service) Events() chan *common.SendEvent {
 	return events
 }
 
-// Завершает работу сервиса соединений
+// завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	close(events)
 }
 
-// Событие создания соединения
+// событие создания соединения
 type ConnectionEvent struct {
 	*common.SendEvent
 
-	// Канал для получения почтового сервиса после поиска информации о его серверах
+	// канал для получения почтового сервиса после поиска информации о его серверах
 	servers chan *MailServer
 
-	// Почтовый сервис, которому будет отправлено письмо
+	// почтовый сервис, которому будет отправлено письмо
 	server *MailServer
 
-	// Идентификатор заготовщика запросившего поиск информации о почтовом сервисе
+	// идентификатор заготовщика запросившего поиск информации о почтовом сервисе
 	connectorId int
 
-	// Адрес, с которого будет отправлено письмо
+	// адрес, с которого будет отправлено письмо
 	address string
 }

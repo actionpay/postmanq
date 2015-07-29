@@ -1,16 +1,19 @@
 package analyser
 
-type TypeAggregateTableWriter struct {
+// автор таблиц, агрегирующий отчеты по ключу, например по коду ошибки
+type KeyAggregateTableWriter struct {
 	*AbstractTableWriter
 }
 
-func newTypeAggregateTableWriter(fields []interface {}) TableWriter {
-	return &TypeAggregateTableWriter{
+// создает нового автора таблицы, агрегирующего отчеты по ключу
+func newKeyAggregateTableWriter(fields []interface{}) TableWriter {
+	return &KeyAggregateTableWriter{
 		newAbstractTableWriter(fields),
 	}
 }
 
-func (t *TypeAggregateTableWriter) Show() {
+// записывает данные в таблицу
+func (t *KeyAggregateTableWriter) Show() {
 	t.Clean()
 	for key, ids := range t.ids {
 		t.AddRow(key, len(ids))
@@ -18,16 +21,19 @@ func (t *TypeAggregateTableWriter) Show() {
 	t.Print()
 }
 
+// автор таблиц, агрегирующий данные
 type AggregateTableWriter struct {
 	*AbstractTableWriter
 }
 
-func newAggregateTableWriter(fields []interface {}) TableWriter {
+// создает нового автора таблицы, агрегирующего данные
+func newAggregateTableWriter(fields []interface{}) TableWriter {
 	return &AggregateTableWriter{
 		newAbstractTableWriter(fields),
 	}
 }
 
+// записывает данные в таблицу
 func (a *AggregateTableWriter) Show() {
 	a.Clean()
 	for _, row := range a.rows {
@@ -35,4 +41,3 @@ func (a *AggregateTableWriter) Show() {
 	}
 	a.Print()
 }
-

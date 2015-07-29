@@ -1,18 +1,19 @@
 package mailer
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/byorty/dkim"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
-	"crypto/rsa"
-	"encoding/pem"
-	"crypto/x509"
 )
 
 var (
-	service        *Service
+	// сервис отправки писем
+	service *Service
 	// канал для писем
 	events = make(chan *common.SendEvent)
 )
@@ -86,10 +87,12 @@ func (s *Service) OnRun() {
 	}
 }
 
+// канал для приема событий отправки писем
 func (s *Service) Events() chan *common.SendEvent {
 	return events
 }
 
+// завершает работу сервиса отправки писем
 func (s *Service) OnFinish() {
 	close(events)
 }

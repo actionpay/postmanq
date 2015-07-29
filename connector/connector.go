@@ -15,26 +15,26 @@ var (
 	connectorEvents = make(chan *ConnectionEvent)
 )
 
-// Соединитель, устанавливает соединение к почтовому сервису
+// соединитель, устанавливает соединение к почтовому сервису
 type Connector struct {
 	// Идентификатор для логов
 	id int
 }
 
-// Создает и запускает новый соединитель
+// создает и запускает новый соединитель
 func newConnector(id int) {
 	connector := &Connector{id}
 	connector.run()
 }
 
-// Запускает прослушивание событий создания соединений
+// запускает прослушивание событий создания соединений
 func (c *Connector) run() {
 	for event := range connectorEvents {
 		c.connect(event)
 	}
 }
 
-// Устанавливает соединение к почтовому сервису
+// устанавливает соединение к почтовому сервису
 func (c *Connector) connect(event *ConnectionEvent) {
 	logger.Debug("connector#%d-%d try find connection", c.id, event.Message.Id)
 	goto receiveConnect
@@ -95,7 +95,7 @@ waitConnect:
 	return
 }
 
-// Создает соединение к почтовому сервису
+// создает соединение к почтовому сервису
 func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient) {
 	// устанавливаем ip, с которого бцдем отсылать письмо
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
@@ -152,48 +152,35 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	}
 }
 
-// Открывает защищенное соединение
+// открывает защищенное соединение
 func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
 	// если есть какие данные о сертификате и к серверу можно создать TLS соединение
 	if service.pool != nil && mxServer.useTLS {
-//		pool := x509.NewCertPool()
-		// пытаем создать сертификат
-//		cert, err := x509.ParseCertificate(event.CertBytes)
-//		if err == nil {
-//			logger.Debug("connector#%d parse certificate for %s", c.id, event.Message.HostnameFrom)
-			// задаем сертификату IP сервера
-//			cert.IPAddresses = mxServer.ips
-//			pool.AddCert(service.cert)
-			// открываем TLS соединение
-			err := client.StartTLS(&tls.Config{
-				ClientCAs:  service.pool,
-				ServerName: mxServer.realServerName,
-			})
-			// если все нормально, создаем клиента
-			if err == nil {
-				c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
-			} else {
-				// если не удалось создать TLS соединение
-				// говорим, что не надо больше создавать TLS соединение
-				mxServer.dontUseTLS()
-				// разрываем созданое соединение
-				// это необходимо, т.к. не все почтовые сервисы позволяют продолжить отправку письма
-				// после неудачной попытке создать TLS соединение
-				client.Quit()
-				// создаем обычное соединие
-				c.createSmtpClient(mxServer, event, ptrSmtpClient)
-			}
-//		} else {
-//			logger.Debug("connector#%d can't parse certificate for %s, err - %v", c.id, event.Message.HostnameFrom, err)
-//			mxServer.dontUseTLS()
-//			c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
-//		}
+		// открываем TLS соединение
+		err := client.StartTLS(&tls.Config{
+			ClientCAs:  service.pool,
+			ServerName: mxServer.realServerName,
+		})
+		// если все нормально, создаем клиента
+		if err == nil {
+			c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
+		} else {
+			// если не удалось создать TLS соединение
+			// говорим, что не надо больше создавать TLS соединение
+			mxServer.dontUseTLS()
+			// разрываем созданое соединение
+			// это необходимо, т.к. не все почтовые сервисы позволяют продолжить отправку письма
+			// после неудачной попытке создать TLS соединение
+			client.Quit()
+			// создаем обычное соединие
+			c.createSmtpClient(mxServer, event, ptrSmtpClient)
+		}
 	} else {
 		c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 	}
 }
 
-// Создает или инициализирует клиента
+// создает или инициализирует клиента
 func (c *Connector) initSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
 	isNil := *ptrSmtpClient == nil
 	if isNil {

@@ -6,15 +6,28 @@ import (
 	"time"
 )
 
+// отчет об ошибке
 type Report struct {
-	Id           int
-	Envelope     string
-	Recipient    string
-	Code         int
-	Message      string
+	// идентификатор
+	Id int
+
+	// отправитель
+	Envelope string
+
+	// получатель
+	Recipient string
+
+	// код ошибки
+	Code int
+
+	// сообщение об ошибке
+	Message string
+
+	// даты отправок
 	CreatedDates []time.Time
 }
 
+// записывает отчет в таблицу
 func (r Report) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	if valueRegex == nil ||
 		(valueRegex != nil &&
@@ -31,8 +44,10 @@ func (r Report) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	}
 }
 
+// агрегированная строка
 type AggregateRow []int
 
+// записывает строку в таблицу
 func (a AggregateRow) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	table.AddRow(a[0], a[1], a[2], a[3])
 }

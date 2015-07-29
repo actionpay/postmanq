@@ -36,18 +36,24 @@ var (
 type Limit struct {
 	// максимально допустимое количество писем
 	Value int32 `json:"value"`
+
 	// тип ограничения
 	Kind Kind `json:"type"`
+
 	// текущее количество писем
 	currentValue int32
+
 	// промежуток времени, за который проверяется количество отправленных писем
 	duration time.Duration
+
 	// дата последнего обнуления количества отправленных писем
 	modifyDate time.Time
+
 	// тип очереди, в которую необходимо положить письмо, если превышено количество отправленных писем
 	bindingType common.DelayedBindingType
 }
 
+// инициализирует значения по умолчанию
 func (l *Limit) init() {
 	if duration, ok := limitDurations[l.Kind]; ok {
 		l.duration = duration

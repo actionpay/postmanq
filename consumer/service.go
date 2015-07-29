@@ -11,19 +11,26 @@ import (
 )
 
 var (
+	// сервис получения сообщений
 	service common.SendingService
-	events  = make(chan *common.SendEvent)
+
+	// канал для получения событий
+	events = make(chan *common.SendEvent)
 )
 
+// сервис получения сообщений
 type Service struct {
 	// настройка получателей сообщений
 	Configs []*Config `yaml:"consumers"`
+
 	// подключения к очередям
 	connections map[string]*amqp.Connection
+
 	// получатели сообщений из очереди
 	consumers map[string][]*Consumer
 }
 
+// создает новый сервис получения сообщений
 func Inst() common.SendingService {
 	if service == nil {
 		service := new(Service)
@@ -116,7 +123,7 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 	}
 }
 
-// запускает получателей
+// запускает сервис
 func (s *Service) OnRun() {
 	logger.Debug("run consumers...")
 	for _, apps := range s.consumers {
@@ -124,6 +131,7 @@ func (s *Service) OnRun() {
 	}
 }
 
+// запускает получателей
 func (s *Service) runConsumers(apps []*Consumer) {
 	for _, app := range apps {
 		go app.run()
@@ -144,10 +152,12 @@ func (s *Service) OnFinish() {
 	close(events)
 }
 
+// канал для приема событий отправки писем
 func (s *Service) Events() chan *common.SendEvent {
 	return events
 }
 
+// запускает получение сообщений с ошибками и пересылает их другому сервису
 func (s *Service) OnShowReport() {
 	waiter := newWaiter()
 	group := new(sync.WaitGroup)
@@ -172,10 +182,10 @@ func (s *Service) OnShowReport() {
 	waiter.Stop()
 
 	sendEvent := common.NewSendEvent(nil)
-	sendEvent.DefaultPrevented = true
 	sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
 }
 
+// перекладывает сообщения из очереди в очередь
 func (s *Service) OnPublish(event *common.ApplicationEvent) {
 	group := new(sync.WaitGroup)
 	delta := 0

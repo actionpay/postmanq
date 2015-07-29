@@ -18,6 +18,7 @@ var (
 	EmailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
 )
 
+// таймауты приложения
 type Timeout struct {
 	Sleep      time.Duration `yaml:"sleep"`
 	Waiting    time.Duration `yaml:"waiting"`
@@ -28,6 +29,7 @@ type Timeout struct {
 	Data       time.Duration `yaml:"data"`
 }
 
+// инициализирует значения таймаутов по умолчанию
 func (t *Timeout) Init() {
 	if t.Sleep == 0 {
 		t.Sleep = time.Second
@@ -52,7 +54,7 @@ func (t *Timeout) Init() {
 	}
 }
 
-// Тип отложенной очереди
+// тип отложенной очереди
 type DelayedBindingType int
 
 const (
@@ -72,48 +74,47 @@ const (
 	NotSendDelayedBinding
 )
 
-// Ошибка во время отпрвки письма
+// ошибка во время отпрвки письма
 type MailError struct {
-	// Сообщение
+	// сообщение
 	Message string `json:"message"`
 
-	// Код ошибки
+	// код ошибки
 	Code int `json:"code"`
 }
 
-// Письмо
+// письмо
 type MailMessage struct {
-	// Идентификатор для логов
+	// идентификатор для логов
 	Id int64 `json:"-"`
 
-	// Отправитель
+	// отправитель
 	Envelope string `json:"envelope"`
 
-	// Получатель
+	// получатель
 	Recipient string `json:"recipient"`
 
-	// Тело письма
+	// тело письма
 	Body string `json:"body"`
 
-	// Домен отправителя, удобно сразу получить и использовать далее
+	// домен отправителя, удобно сразу получить и использовать далее
 	HostnameFrom string `json:"-"`
 
 	// Домен получателя, удобно сразу получить и использовать далее
-	HostnameTo string `json:"-"`
+	нostnameTo string `json:"-"`
 
-	// Дата создания, используется в основном сервисом ограничений
+	// дата создания, используется в основном сервисом ограничений
 	CreatedDate time.Time `json:"-"`
 
-	// Тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
+	// тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
 	BindingType DelayedBindingType `json:"bindingType"`
 
-	// Ошибка отправки
+	// ошибка отправки
 	Error *MailError `json:"error"`
 }
 
-// Инициализирует письмо
+// инициализирует письмо
 func (this *MailMessage) Init() {
-	// удобно во время отладки просматривать, что происходит с письмом
 	this.Id = time.Now().UnixNano()
 	this.CreatedDate = time.Now()
 	if hostname, err := this.getHostnameFromEmail(this.Envelope); err == nil {
@@ -124,7 +125,7 @@ func (this *MailMessage) Init() {
 	}
 }
 
-// Получает домен из адреса
+// получает домен из адреса
 func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 	matches := EmailRegexp.FindAllStringSubmatch(email, -1)
 	if len(matches) == 1 && len(matches[0]) == 2 {
@@ -134,7 +135,7 @@ func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
 	}
 }
 
-// Возвращает письмо обратно в очередь после ошибки во время отправки
+// возвращает письмо обратно в очередь после ошибки во время отправки
 func ReturnMail(event *SendEvent, err error) {
 	// необходимо проверить сообщение на наличие кода ошибки
 	// обычно код идет первым

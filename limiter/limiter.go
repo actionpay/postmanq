@@ -6,21 +6,27 @@ import (
 	"sync/atomic"
 )
 
+// ограничитель, проверяет количество отправленных писем почтовому сервису
 type Limiter struct {
+	// идентификатор для логов
 	id int
 }
 
+// создает нового ограничителя
 func newLimiter(id int) {
 	limiter := &Limiter{id}
 	limiter.run()
 }
 
+// запускает ограничителя
 func (l *Limiter) run() {
 	for event := range events {
 		l.check(event)
 	}
 }
 
+// проверяет количество отправленных писем почтовому сервису
+// если количество превышено, отправляет письмо в отложенную очередь
 func (l *Limiter) check(event *common.SendEvent) {
 	logger.Info("limiter#%d-%d check limit for mail", l.id, event.Message.Id)
 	// пытаемся найти ограничения для почтового сервиса

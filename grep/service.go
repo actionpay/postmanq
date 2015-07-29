@@ -13,15 +13,23 @@ import (
 )
 
 var (
-	service     *Service
+	// сервис ищущий сообщения в логе об отправке письма
+	service *Service
+
+	// регулярное выражение, по которому находим начало отправки
 	mailIdRegex = regexp.MustCompile(`mail#((\d)+)+`)
 )
 
+// сервис ищущий сообщения в логе об отправке письма
 type Service struct {
-	Output  string `yaml:"logOutput"` // название вывода логов
+	// путь до файла с логами
+	Output string `yaml:"logOutput"`
+
+	// файл с логами
 	logFile *os.File
 }
 
+// создает новый сервис поиска по логам
 func Inst() common.GrepService {
 	if service == nil {
 		service = new(Service)
@@ -29,6 +37,7 @@ func Inst() common.GrepService {
 	return service
 }
 
+// инициализирует сервис
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	var err error
 	err = yaml.Unmarshal(event.Data, s)
@@ -49,6 +58,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	}
 }
 
+// ищет логи об отправке письма
 func (s *Service) OnGrep(event *common.ApplicationEvent) {
 	scanner := bufio.NewScanner(s.logFile)
 	scanner.Split(bufio.ScanLines)
@@ -83,7 +93,7 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 		if strings.Contains(line, expr) {
 			results := mailIdRegex.FindStringSubmatch(line)
 			if len(results) == 3 {
-				go s.grep(results[1], lines[i:], wg)
+				go s.print(results[1], lines[i:], wg)
 			}
 		}
 	}
@@ -92,7 +102,8 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
-func (s *Service) grep(mailId string, lines []string, wg *sync.WaitGroup) {
+// выводит логи в терминал
+func (s *Service) print(mailId string, lines []string, wg *sync.WaitGroup) {
 	out := new(bytes.Buffer)
 
 	for _, line := range lines {
@@ -106,6 +117,7 @@ func (s *Service) grep(mailId string, lines []string, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
+// завершает работу сервиса
 func (s *Service) OnFinish(event *common.ApplicationEvent) {
 	s.logFile.Close()
 }

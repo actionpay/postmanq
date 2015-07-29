@@ -8,15 +8,23 @@ import (
 )
 
 var (
+	// сервис ограничений
 	service *Service
-	ticker  *time.Ticker // таймер, работает каждую секунду
-	events  = make(chan *common.SendEvent)
+
+	// таймер, работает каждую секунду
+	ticker *time.Ticker
+
+	// канал для приема событий отправки писем
+	events = make(chan *common.SendEvent)
 )
 
 // сервис ограничений, следит за тем, чтобы почтовым сервисам не отправилось больше писем, чем нужно
 type Service struct {
-	LimitersCount int               `yaml:"workers"`
-	Limits        map[string]*Limit `yaml:"limits"` // ограничения для почтовых сервисов, в качестве ключа используется домен
+	// количество горутин проверяющих количество отправленных писем
+	LimitersCount int `yaml:"workers"`
+
+	// ограничения для почтовых сервисов, в качестве ключа используется домен
+	Limits map[string]*Limit `yaml:"limits"`
 }
 
 // создает сервис ограничений
@@ -47,6 +55,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	}
 }
 
+// запускает проверку ограничений и очистку значений лимитов
 func (s *Service) OnRun() {
 	// сразу запускаем проверку значений ограничений
 	go newCleaner()
@@ -55,10 +64,12 @@ func (s *Service) OnRun() {
 	}
 }
 
+// канал для приема событий отправки писем
 func (s *Service) Events() chan *common.SendEvent {
 	return events
 }
 
+// завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	close(events)
 }

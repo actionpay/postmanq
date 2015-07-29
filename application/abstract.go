@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// базовое приложение
 type Abstract struct {
 	// путь до конфигурационного файла
 	configFilename string
@@ -23,10 +24,12 @@ type Abstract struct {
 	CommonTimeout common.Timeout `yaml:"timeouts"`
 }
 
+// проверяет валидность пути к файлу с настройками
 func (a *Abstract) IsValidConfigFilename(filename string) bool {
 	return len(filename) > 0 && filename != common.ExampleConfigYaml
 }
 
+// запускает основной цикл приложения
 func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 	app.SetDone(make(chan bool))
 	// создаем каналы для событий
@@ -73,45 +76,58 @@ func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 	<-app.Done()
 }
 
+// устанавливает путь к файлу с настройками
 func (a *Abstract) SetConfigFilename(configFilename string) {
 	a.configFilename = configFilename
 }
 
+// устанавливает канал событий приложения
 func (a *Abstract) SetEvents(events chan *common.ApplicationEvent) {
 	a.events = events
 }
 
+// возвращает канал событий приложения
 func (a *Abstract) Events() chan *common.ApplicationEvent {
 	return a.events
 }
 
+// устанавливает канал завершения приложения
 func (a *Abstract) SetDone(done chan bool) {
 	a.done = done
 }
 
+// возвращает канал завершения приложения
 func (a *Abstract) Done() chan bool {
 	return a.done
 }
 
+// возвращает сервисы, используемые приложением
 func (a *Abstract) Services() []interface{} {
 	return a.services
 }
 
+// инициализирует сервисы
 func (a *Abstract) FireInit(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.Service)
 	service.OnInit(event)
 }
 
+// инициализирует приложение
 func (a *Abstract) Init(event *common.ApplicationEvent) {}
 
+// запускает приложение
 func (a *Abstract) Run() {}
 
+// запускает приложение с аргументами
 func (a *Abstract) RunWithArgs(args ...interface{}) {}
 
+// запускает сервисы приложения
 func (a *Abstract) FireRun(event *common.ApplicationEvent, abstractService interface{}) {}
 
+// останавливает сервисы приложения
 func (a *Abstract) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {}
 
+// возвращает таймауты приложения
 func (a *Abstract) Timeout() common.Timeout {
 	return a.CommonTimeout
 }

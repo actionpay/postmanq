@@ -49,8 +49,10 @@ var (
 type Message struct {
 	// сообщение для лога, может содержать параметры
 	Message string
+
 	// уровень логирования записи, необходим для отсечения лишних записей
 	Level Level
+
 	// аргументы для параметров сообщения
 	Args []interface{}
 }
@@ -68,12 +70,16 @@ func NewMessage(level Level, message string, args ...interface{}) *Message {
 type Service struct {
 	// название уровня логирования, устанавливается в конфиге
 	LevelName string `yaml:"logLevel"`
+
 	// название вывода логов
 	Output string `yaml:"logOutput"`
+
 	// уровень логов, ниже этого уровня логи писаться не будут
 	level Level
+
 	// куда пишем логи stdout или файл
 	writer Writer
+
 	// канал логирования
 	messages chan *Message
 }
@@ -83,7 +89,7 @@ func Inst() common.SendingService {
 	if service == nil {
 		service = new(Service)
 		// запускаем запись логов в отдельном потоке
-		writers.init(service)
+		writers.init()
 		writers.write()
 	}
 	return service
@@ -93,22 +99,24 @@ func Inst() common.SendingService {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		close(messages)
+		s.OnFinish()
 		// устанавливаем уровень логирования
 		if existsLevel, ok := logLevelByName[s.LevelName]; ok {
 			level = existsLevel
 		}
 		messages = make(chan *Message)
 		// заново инициализируем вывод для логов
-		writers.init(service)
+		writers.init()
 		writers.write()
 	} else {
 		FailExitWithErr(err)
 	}
 }
 
+// ничего не делает, авторы логов уже пишут
 func (s *Service) OnRun() {}
 
+// не учавствеут в отправке писем
 func (s *Service) Events() chan *common.SendEvent {
 	return nil
 }

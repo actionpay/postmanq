@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	// обработчики результата отправки письма
 	resultHandlers = map[common.SendEventResult]func(*Consumer, *amqp.Channel, *common.MailMessage){
 		common.ErrorSendEventResult:     (*Consumer).handleErrorSend,
 		common.DelaySendEventResult:     (*Consumer).handleDelaySend,
@@ -42,7 +43,7 @@ func (c *Consumer) run() {
 	}
 }
 
-// получает сообщения из очереди
+// подключается к очереди для получения сообщений
 func (c *Consumer) consume(id int) {
 	channel, err := c.connect.Channel()
 	// выбираем из очереди сообщения с запасом
@@ -65,6 +66,7 @@ func (c *Consumer) consume(id int) {
 	}
 }
 
+// получает сообщения из очереди и отправляет их другим сервисам
 func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <-chan amqp.Delivery) {
 	for delivery := range deliveries {
 		message := new(common.MailMessage)
@@ -115,6 +117,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 	}
 }
 
+// обрабатывает письма, которые не удалось отправить
 func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMessage) {
 	// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
 	// или получили какую то ошибку от почтового сервиса, что он не может
@@ -170,6 +173,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 	}
 }
 
+// обрабатывает письма, которые нужно отправить позже
 func (c *Consumer) handleDelaySend(channel *amqp.Channel, message *common.MailMessage) {
 	logger.Debug(
 		"consumer%d-%d find dlx queue",
@@ -194,6 +198,7 @@ func (c *Consumer) handleDelaySend(channel *amqp.Channel, message *common.MailMe
 	c.publishDelayedMessage(channel, bindingType, message)
 }
 
+// обрабатывает письма, которые превысили лимит отправки
 func (c *Consumer) handleOverlimitSend(channel *amqp.Channel, message *common.MailMessage) {
 	bindingType := common.UnknownDelayedBinding
 	logger.Debug("consumer#%d-%d detect overlimit, find dlx queue", c.id, message.Id)
@@ -206,6 +211,7 @@ func (c *Consumer) handleOverlimitSend(channel *amqp.Channel, message *common.Ma
 	c.publishDelayedMessage(channel, bindingType, message)
 }
 
+// кладет письмо обратно в одну из отложенных очередей
 func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType common.DelayedBindingType, message *common.MailMessage) {
 	// получаем очередь, проверяем, что она реально есть
 	// а что? а вдруг нет)
@@ -238,6 +244,7 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType comm
 	}
 }
 
+// получает письма из всех очередей с ошибками
 func (c *Consumer) consumeFailureMessages(group *sync.WaitGroup) {
 	channel, err := c.connect.Channel()
 	if err == nil {
@@ -262,6 +269,7 @@ func (c *Consumer) consumeFailureMessages(group *sync.WaitGroup) {
 	}
 }
 
+// получает сообщения из одной очереди и кладет их в другую
 func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, group *sync.WaitGroup) {
 	channel, err := c.connect.Channel()
 	if err == nil {
@@ -340,6 +348,7 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 	}
 }
 
+// ищет связку по имени
 func (c *Consumer) findBindingByQueueName(queueName string) *Binding {
 	var binding *Binding
 

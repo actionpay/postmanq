@@ -15,26 +15,26 @@ var (
 	seekerMutex = new(sync.Mutex)
 )
 
-// Искатель, ищет информацию о сервере
+// искатель, ищет информацию о сервере
 type Seeker struct {
 	// Идентификатор для логов
 	id int
 }
 
-// Создает и запускает нового искателя
+// создает и запускает нового искателя
 func newSeeker(id int) {
 	seeker := &Seeker{id}
 	seeker.run()
 }
 
-// Запускает прослушивание событий поиска информации о сервере
+// запускает прослушивание событий поиска информации о сервере
 func (s *Seeker) run() {
 	for event := range seekerEvents {
 		s.seek(event)
 	}
 }
 
-// Ищет информацию о сервере
+// ищет информацию о сервере
 func (s *Seeker) seek(event *ConnectionEvent) {
 	hostnameTo := event.Message.HostnameTo
 	// добавляем новый почтовый домен

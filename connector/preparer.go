@@ -8,26 +8,26 @@ import (
 	"time"
 )
 
-// Заготовщик, подготавливает событие соединения
+// заготовщик, подготавливает событие соединения
 type Preparer struct {
 	// Идентификатор для логов
 	id int
 }
 
-// Создает и запускает нового заготовщика
+// создает и запускает нового заготовщика
 func newPreparer(id int) {
 	preparer := &Preparer{id}
 	preparer.run()
 }
 
-// Запускает прослушивание событий отправки писем
+// запускает прослушивание событий отправки писем
 func (p *Preparer) run() {
 	for event := range events {
 		p.prepare(event)
 	}
 }
 
-// Подготавливает и запускает событие создание соединения
+// подготавливает и запускает событие создание соединения
 func (p *Preparer) prepare(event *common.SendEvent) {
 	logger.Info("preparer#%d-%d try create connection", p.id, event.Message.Id)
 
@@ -35,7 +35,7 @@ func (p *Preparer) prepare(event *common.SendEvent) {
 		SendEvent:   event,
 		servers:     make(chan *MailServer, 1),
 		connectorId: p.id,
-		address:     service.Addresses[p.id % service.addressesLen],
+		address:     service.Addresses[p.id%service.addressesLen],
 	}
 	goto connectToMailServer
 

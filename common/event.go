@@ -2,100 +2,99 @@ package common
 
 import "time"
 
-// Тип события приложения
+// тип события приложения
 type ApplicationEventKind int
 
 const (
-	// Инициализации сервисов
+	// инициализации сервисов
 	InitApplicationEventKind ApplicationEventKind = iota
 
-	// Запуска сервисов
+	// запуск сервисов
 	RunApplicationEventKind
 
-	// Завершение сервисов
+	// завершение сервисов
 	FinishApplicationEventKind
 )
 
-// Событие приложения
+// событие приложения
 type ApplicationEvent struct {
-	// Тип события
+	// тип события
 	Kind ApplicationEventKind
 
-	// Данные из файла настроек
+	// данные из файла настроек
 	Data []byte
 
-	// Аргументы командной строки
+	// аргументы командной строки
 	Args map[string]interface{}
 }
 
+// возвращает аргумент, как булевый тип
 func (e *ApplicationEvent) GetBoolArg(key string) bool {
 	return e.Args[key].(bool)
 }
 
+// возвращает аргумент, как число
 func (e *ApplicationEvent) GetIntArg(key string) int {
 	return e.Args[key].(int)
 }
 
+// возвращает аргумент, как строку
 func (e *ApplicationEvent) GetStringArg(key string) string {
 	return e.Args[key].(string)
 }
 
-// Создает событие с указанным типом
+// создает событие с указанным типом
 func NewApplicationEvent(kind ApplicationEventKind) *ApplicationEvent {
 	return &ApplicationEvent{Kind: kind}
 }
 
-// Результат отправки письма
+// результат отправки письма
 type SendEventResult int
 
 const (
-	// Успех
+	// успех
 	SuccessSendEventResult SendEventResult = iota
 
-	// Превышение лимита
+	// превышение лимита
 	OverlimitSendEventResult
 
-	// Ошибка
+	// ошибка
 	ErrorSendEventResult
 
-	// Повторная отправка через некоторое время
+	// повторная отправка через некоторое время
 	DelaySendEventResult
 
-	// Отмена отправки
+	// отмена отправки
 	RevokeSendEventResult
 )
 
-// Событие отправки письма
+// событие отправки письма
 type SendEvent struct {
-	// Клиент для отправки писем
+	// елиент для отправки писем
 	Client *SmtpClient
 
-	// Письмо, полученное из очереди
+	// письмо, полученное из очереди
 	Message *MailMessage
 
-	// Флаг, сигнализирующий обрабатывать ли событие
-	DefaultPrevented bool
-
-	// Дата создания необходима при получении подключения к почтовому сервису
+	// дата создания необходима при получении подключения к почтовому сервису
 	CreateDate time.Time
 
-	// Результат
+	// результат
 	Result chan SendEventResult
 
-	// Количество попыток отправок письма
+	// количество попыток отправок письма
 	TryCount int
 
-	// Итератор сервисов, участвующих в отправке письма
+	// итератор сервисов, участвующих в отправке письма
 	Iterator *Iterator
 
-	// Очередь, в которую необходимо будет положить клиента после отправки письма
+	// очередь, в которую необходимо будет положить клиента после отправки письма
 	Queue *LimitedQueue
 }
 
-// Создает событие отправки сообщения
+// создает событие отправки сообщения
 func NewSendEvent(message *MailMessage) *SendEvent {
 	event := new(SendEvent)
-	event.DefaultPrevented = false
 	event.Message = message
 	event.CreateDate = time.Now()
 	event.Result = make(chan SendEventResult)

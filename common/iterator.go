@@ -1,25 +1,25 @@
 package common
 
-// Итератор, используется для слабой связи между сервисами приложения
+// итератор, используется для слабой связи между сервисами приложения
 type Iterator struct {
-	// Элементы
+	// элементы
 	items []interface{}
 
-	// Указатель на текущий элемент
+	// указатель на текущий элемент
 	current int
 }
 
-// Создает итератор
+// создает итератор
 func NewIterator(items []interface{}) *Iterator {
 	return &Iterator{items: items, current: -1}
 }
 
-// Отдает первый элемент
+// отдает первый элемент
 func (i Iterator) First() interface{} {
 	return i.items[0]
 }
 
-// Отдает следующий элемент
+// отдает следующий элемент
 func (i *Iterator) Next() interface{} {
 	var item interface{}
 	i.current++
@@ -29,11 +29,12 @@ func (i *Iterator) Next() interface{} {
 	return item
 }
 
+// проверяет, что указатель на элемент не превысил количества элементов
 func (i *Iterator) isValidCurrent() bool {
 	return i.current < len(i.items)
 }
 
-// Отдает текущий элемент
+// отдает текущий элемент
 func (i Iterator) Current() interface{} {
 	var item interface{}
 	if i.isValidCurrent() {
@@ -42,7 +43,7 @@ func (i Iterator) Current() interface{} {
 	return item
 }
 
-// Сигнализирует об окончании итерации
+// сигнализирует об окончании итерации
 func (i Iterator) IsDone() bool {
 	return i.current >= len(i.items)
 }

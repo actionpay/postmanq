@@ -2,26 +2,31 @@ package logger
 
 import (
 	"fmt"
+	"github.com/AdOnWeb/postmanq/common"
 	"os"
 	"path/filepath"
 	"time"
-	"github.com/AdOnWeb/postmanq/common"
 )
 
+// автор логов
 type Writer interface {
 	writeString(string)
 }
 
+// автор логов пишущий в стандартный вывод
 type StdoutWriter struct{}
 
+// пишет логи в стандартный вывод
 func (this *StdoutWriter) writeString(str string) {
 	os.Stdout.WriteString(str)
 }
 
+// автор логов пишущий в файл
 type FileWriter struct {
 	filename string
 }
 
+// пишет логи в файл
 func (this *FileWriter) writeString(str string) {
 	f, err := os.OpenFile(this.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, os.ModePerm)
 	if err == nil {
@@ -30,13 +35,16 @@ func (this *FileWriter) writeString(str string) {
 	}
 }
 
+// авторы логов
 type Writers []Writer
 
+// количество авторов
 func (w Writers) len() int {
 	return len(w)
 }
 
-func (w *Writers) init(service *Service) {
+// инициализирует авторов логов
+func (w *Writers) init() {
 	for i := 0; i < w.len(); i++ {
 		if common.FilenameRegex.MatchString(service.Output) { // проверяем получили ли из настроек имя файла
 			// получаем директорию, в которой лежит файл
@@ -53,22 +61,26 @@ func (w *Writers) init(service *Service) {
 	}
 }
 
+// добавляет автора в список
 func (w *Writers) set(i int, writer Writer) {
 	(*w)[i] = writer
 }
 
+// запускает авторов
 func (w Writers) write() {
 	for _, writer := range w {
 		go w.listenMessages(writer)
 	}
 }
 
+// подписывает авторов на получение сообщений для логирования
 func (w *Writers) listenMessages(writer Writer) {
 	for message := range messages {
 		w.writeMessage(writer, message)
 	}
 }
 
+// пишет сообщение в лог
 func (w *Writers) writeMessage(writer Writer, message *Message) {
 	writer.writeString(
 		fmt.Sprintf(

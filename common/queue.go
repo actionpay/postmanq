@@ -2,19 +2,19 @@ package common
 
 import "sync"
 
-// Потоко-безопасная очередь
+// потоко-безопасная очередь
 type Queue struct {
-	// Флаг, сигнализирующий, что очередь пуста
+	// флаг, сигнализирующий, что очередь пуста
 	empty bool
 
-	// Элементы очереди
+	// элементы очереди
 	items []interface{}
 
-	// Семафор
+	// семафор
 	mutex *sync.Mutex
 }
 
-// Создает новую очередь
+// создает новую очередь
 func NewQueue() *Queue {
 	return &Queue{
 		empty: true,
@@ -23,7 +23,7 @@ func NewQueue() *Queue {
 	}
 }
 
-// Добавляет элемент в конец очереди
+// добавляет элемент в конец очереди
 func (q *Queue) Push(item interface{}) {
 	q.mutex.Lock()
 	if q.empty {
@@ -33,7 +33,7 @@ func (q *Queue) Push(item interface{}) {
 	q.mutex.Unlock()
 }
 
-// Достает первый элемент из очереди
+// достает первый элемент из очереди
 func (q *Queue) Pop() interface{} {
 	var item interface{}
 	q.mutex.Lock()
@@ -42,7 +42,7 @@ func (q *Queue) Pop() interface{} {
 		oldItemsLen := len(oldItems)
 		if oldItemsLen > 0 {
 			item = oldItems[oldItemsLen-1]
-			q.items = oldItems[0:oldItemsLen-1]
+			q.items = oldItems[0 : oldItemsLen-1]
 		} else {
 			q.empty = true
 		}
@@ -51,7 +51,7 @@ func (q *Queue) Pop() interface{} {
 	return item
 }
 
-// Сигнализирует, что очередь пуста
+// сигнализирует, что очередь пуста
 func (q *Queue) Empty() bool {
 	var empty bool
 	q.mutex.Lock()
@@ -60,7 +60,7 @@ func (q *Queue) Empty() bool {
 	return empty
 }
 
-// Возвращает длину очереди
+// возвращает длину очереди
 func (q *Queue) Len() int {
 	var itemsLen int
 	q.mutex.Lock()
@@ -69,29 +69,29 @@ func (q *Queue) Len() int {
 	return itemsLen
 }
 
-// Статус очереди
+// статус очереди
 type queueStatus int
 
 const (
-	// Лимитированная очередь
+	// лимитированная очередь
 	limitedQueueStatus queueStatus = iota
 
-	// Безлимитная очередь
+	// безлимитная очередь
 	unlimitedQueueStatus
 )
 
-// Лимитированная очередь, в ней будут храниться клиенты к почтовым сервисам
+// лимитированная очередь, в ней будут храниться клиенты к почтовым сервисам
 type LimitedQueue struct {
 	*Queue
 
-	// Статус, говорящий заблокирована очередь или нет
+	// статус, говорящий заблокирована очередь или нет
 	status queueStatus
 
-	// Максимальное количество элементов, которое было в очереди
+	// максимальное количество элементов, которое было в очереди
 	maxLen int
 }
 
-// Создает новую лимитированную очередь
+// создает новую лимитированную очередь
 func NewLimitQueue() *LimitedQueue {
 	return &LimitedQueue{
 		Queue:  NewQueue(),
@@ -99,7 +99,7 @@ func NewLimitQueue() *LimitedQueue {
 	}
 }
 
-// Сигнализирует, что очередь имеет лимит
+// сигнализирует, что очередь имеет лимит
 func (l *LimitedQueue) HasLimit() bool {
 	l.mutex.Lock()
 	hasLimit := l.status == limitedQueueStatus
@@ -107,26 +107,26 @@ func (l *LimitedQueue) HasLimit() bool {
 	return hasLimit
 }
 
-// Устанавливает лимит очереди
+// устанавливает лимит очереди
 func (l *LimitedQueue) HasLimitOn() {
 	if l.MaxLen() > 0 && !l.HasLimit() {
 		l.setStatus(limitedQueueStatus)
 	}
 }
 
-// Снимает лимит очереди
+// снимает лимит очереди
 func (l *LimitedQueue) HasLimitOff() {
 	l.setStatus(unlimitedQueueStatus)
 }
 
-// Устанавливает статус очереди
+// устанавливает статус очереди
 func (l *LimitedQueue) setStatus(status queueStatus) {
 	l.mutex.Lock()
 	l.status = status
 	l.mutex.Unlock()
 }
 
-// Максимальная длина очереди до того момента, как был установлен лимит
+// максимальная длина очереди до того момента, как был установлен лимит
 func (l *LimitedQueue) MaxLen() int {
 	l.mutex.Lock()
 	maxLen := l.maxLen
@@ -134,7 +134,7 @@ func (l *LimitedQueue) MaxLen() int {
 	return maxLen
 }
 
-// Увеличивает максимальную длину очереди
+// увеличивает максимальную длину очереди
 func (l *LimitedQueue) AddMaxLen() {
 	l.mutex.Lock()
 	l.maxLen++

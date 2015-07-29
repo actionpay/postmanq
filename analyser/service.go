@@ -13,16 +13,22 @@ import (
 )
 
 var (
+	// сервис аналитики
 	service = new(Service)
 
+	// поля для агрегации по коду
 	codeFields = []interface{}{
 		"Code",
 		"Mails count",
 	}
+
+	// поля для агрегации по адресу
 	addressFields = []interface{}{
 		"Address",
 		"Mails count",
 	}
+
+	// поля для отчета
 	detailFields = []interface{}{
 		"Envelope",
 		"Recipient",
@@ -30,11 +36,21 @@ var (
 		"Message",
 		"Sending count",
 	}
-	codesWriter      = newDetailTableWriter(detailFields)
+
+	// автор таблицы с кодами
+	codesWriter = newDetailTableWriter(detailFields)
+
+	// автор таблицы с получателями
 	recipientsWriter = newDetailTableWriter(detailFields)
-	envelopesWriter  = newDetailTableWriter(detailFields)
-	allWriter        = newDetailTableWriter(detailFields)
-	aggrWriter       = newAggregateTableWriter([]interface {}{
+
+	// автор таблицы с отправителями
+	envelopesWriter = newDetailTableWriter(detailFields)
+
+	// автор таблицы со всеми отчетами
+	allWriter = newDetailTableWriter(detailFields)
+
+	// автор агрегированной таблицы
+	aggrWriter = newAggregateTableWriter([]interface{}{
 		"Mails count",
 		"Code count",
 		"Envelopes count",
@@ -42,23 +58,31 @@ var (
 	})
 )
 
+// сервис получает и анализирует неотправленные письма
 type Service struct {
-	mutex                *sync.Mutex
-	events               chan *common.SendEvent
-	reports              RowWriters
-	tableAggregateFields []interface{}
+	// семафор
+	mutex *sync.Mutex
+
+	// канал для получения событий отправки
+	events chan *common.SendEvent
+
+	// отчеты
+	reports RowWriters
 }
 
+// возвращает объект сервиса
 func Inst() *Service {
 	return service
 }
 
+// инициализирует сервис
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	s.events = make(chan *common.SendEvent)
 	s.reports = make(RowWriters)
 	s.mutex = new(sync.Mutex)
 }
 
+// запускает получение событий и данных от пользователя
 func (s *Service) OnShowReport() {
 	for i := 0; i < common.DefaultWorkersCount; i++ {
 		go s.receiveMessages()
@@ -69,19 +93,23 @@ func (s *Service) OnShowReport() {
 	}
 }
 
+// слушает канал получения событий
 func (s *Service) receiveMessages() {
 	for event := range s.events {
 		s.receiveMessage(event)
 	}
 }
 
+// получает событие
 func (s *Service) receiveMessage(event *common.SendEvent) {
-	if event.DefaultPrevented {
+	if event.Message == nil {
 		close(s.events)
 		s.findReports([]string{})
 	} else {
 		var message = event.Message
 		var report *Report
+
+		// пытаемся потоко безопасно найти или создать отчет
 		s.mutex.Lock()
 		reportsLen := len(s.reports)
 		for _, rawExistsReport := range s.reports {
@@ -104,6 +132,7 @@ func (s *Service) receiveMessage(event *common.SendEvent) {
 			report.CreatedDates = make([]time.Time, 0)
 			s.reports[report.Id] = report
 		}
+		s.mutex.Unlock()
 
 		report.CreatedDates = append(report.CreatedDates, message.CreatedDate)
 		isValidCode := report.Code > 0
@@ -114,10 +143,10 @@ func (s *Service) receiveMessage(event *common.SendEvent) {
 		}
 		envelopesWriter.Add(report.Envelope, report.Id)
 		recipientsWriter.Add(report.Recipient, report.Id)
-		s.mutex.Unlock()
 	}
 }
 
+// принимает от пользователя команды из терминала и выводит соответствующую таблицу с данными
 func (s *Service) findReports(args []string) {
 	var writer TableWriter
 	var necessaryAll bool
@@ -146,7 +175,7 @@ func (s *Service) findReports(args []string) {
 		switch {
 		case len(necessaryCode) > 0:
 			if necessaryOnly {
-				writer = newTypeAggregateTableWriter(codeFields)
+				writer = newKeyAggregateTableWriter(codeFields)
 				writer.Export(codesWriter)
 			} else {
 				writer = codesWriter
@@ -154,7 +183,7 @@ func (s *Service) findReports(args []string) {
 			}
 		case len(necessaryEnvelope) > 0:
 			if necessaryOnly {
-				writer = newTypeAggregateTableWriter(addressFields)
+				writer = newKeyAggregateTableWriter(addressFields)
 				writer.Export(envelopesWriter)
 			} else {
 				writer = envelopesWriter
@@ -162,7 +191,7 @@ func (s *Service) findReports(args []string) {
 			}
 		case len(necessaryRecipient) > 0:
 			if necessaryOnly {
-				writer = newTypeAggregateTableWriter(addressFields)
+				writer = newKeyAggregateTableWriter(addressFields)
 				writer.Export(recipientsWriter)
 			} else {
 				writer = recipientsWriter
@@ -198,6 +227,7 @@ func (s *Service) findReports(args []string) {
 	writer.Show()
 }
 
+// выводит подсказку по работе с сервисом
 func (s *Service) printUsage(flagSet *flag.FlagSet) {
 	fmt.Println()
 	fmt.Println("Usage: -acer *|regex [-s] [-E] [-O] [-l] [-o]")
@@ -209,6 +239,7 @@ func (s *Service) printUsage(flagSet *flag.FlagSet) {
 	fmt.Println("  -c * -l 100 -o 200  show reports with limit and offset")
 }
 
+// возвращает канал для отправки событий
 func (s *Service) Events() chan *common.SendEvent {
 	return s.events
 }
