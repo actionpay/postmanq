@@ -86,7 +86,7 @@ Selector-ом может быть любым словом на латинице.
     export GOBIN=/some/path/postmanq/bin/
     go get github.com/AdOnWeb/postmanq
     cd src/github.com/AdOnWeb/postmanq
-    git checkout v.3
+    git checkout v.3.1
     go install cmd/postmanq.go
     go install cmd/pmq-grep.go
     go install cmd/pmq-publish.go
