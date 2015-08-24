@@ -101,7 +101,7 @@ type MailMessage struct {
 	HostnameFrom string `json:"-"`
 
 	// Домен получателя, удобно сразу получить и использовать далее
-	нostnameTo string `json:"-"`
+	HostnameTo string `json:"-"`
 
 	// дата создания, используется в основном сервисом ограничений
 	CreatedDate time.Time `json:"-"`
