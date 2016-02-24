@@ -2,7 +2,7 @@
 
 PostmanQ - это высоко производительный почтовый сервер(MTA). 
 На сервере под управлением Ubuntu 12.04 с 8-ми ядерным процессором и 32ГБ оперативной памяти 
-PostmanQ рассылает более 10000 писем в минуту.
+PostmanQ рассылает около 20000 писем в минуту.
 
 Для работы PostmanQ потребуется AMQP-сервер, в котором будут храниться письма. 
 
@@ -54,12 +54,19 @@ PostmanQ разбирает одну или несколько очередей 
 Затем необходимо создать подписанный сертификат. Он будет использоваться для создания TLS соединений к удаленным почтовым сервисами.
 
     cd /some/path
-    /System/Library/OpenSSL/misc/CA.pl -newca                                                # создаем центр авторизации
-    echo "unique_subject = no" > someNameCA/index.txt.attr                                   # 
-    openssl req -new -x509 -key private.key -out cert.pem                                    # создаем неподписанный сертификат
-    cat cert.pem private.key | openssl x509 -x509toreq -signkey private.key -out certreq.csr # создаем CSR
-    openssl ca -in certreq.csr -out cert.pem                                                 # создаем подписанный сертификат
-    rm certreq.csr
+    # создаем корневой ключ
+    openssl genrsa -out rootCA.key 2048 
+    # создаем корневой сертификат на 10000 дней
+    openssl req -x509 -new -key rootCA.key -days 10000 -out rootCA.crt
+    # создаем приватный ключ
+    openssl genrsa -out private.key 2048
+    # создаем запрос на сертификат
+    openssl req -new -key private.key -out request.csr
+    # подписываем сертификат
+    openssl x509 -req -in request.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out example.crt -days 5000
+    # создаем публичный ключ из приватного
+    openssl rsa -in private.key -pubout > public.key
+    
     
 Далее добавляем DKIM и SPF записи в DNS:
     
@@ -82,9 +89,9 @@ Selector-ом может быть любым словом на латинице.
 Сначала уcтанавливаем [go](http://golang.org/doc/install). Затем устанавливаем postmanq:
 
     cd /some/path && mkdir postmanq && cd postmanq/
-    export GOPATH=/some/path/postmanq/
+    export GOPATH=/some/path/postmanq/src/
     export GOBIN=/some/path/postmanq/bin/
-    go get github.com/AdOnWeb/postmanq
+    go get -d github.com/AdOnWeb/postmanq/cmd
     cd src/github.com/AdOnWeb/postmanq
     git checkout v.3.1
     go install cmd/postmanq.go

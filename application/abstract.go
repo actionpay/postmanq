@@ -45,7 +45,7 @@ func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 						event.Data = bytes
 						app.Init(event)
 					} else {
-						logger.FailExit("application can't read configuration file, error -  %v", err)
+						logger.All().FailExit("application can't read configuration file, error -  %v", err)
 					}
 				}
 

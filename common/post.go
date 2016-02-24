@@ -11,6 +11,7 @@ import (
 const (
 	// Максимальное количество попыток подключения к почтовику за отправку письма
 	MaxTryConnectionCount = 30
+	AllDomains = "*"
 )
 
 var (

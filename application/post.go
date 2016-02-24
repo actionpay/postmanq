@@ -51,9 +51,9 @@ func (p *Post) Init(event *common.ApplicationEvent) {
 	if err == nil {
 		p.CommonTimeout.Init()
 		common.DefaultWorkersCount = p.Workers
-		logger.Debug("app workers count %d", p.Workers)
+		logger.All().Debug("app workers count %d", p.Workers)
 	} else {
-		logger.FailExitWithErr(err)
+		logger.All().FailExitWithErr(err)
 	}
 }
 

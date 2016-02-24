@@ -20,11 +20,11 @@ var (
 
 // сервис ограничений, следит за тем, чтобы почтовым сервисам не отправилось больше писем, чем нужно
 type Service struct {
+	Config
 	// количество горутин проверяющих количество отправленных писем
 	LimitersCount int `yaml:"workers"`
 
-	// ограничения для почтовых сервисов, в качестве ключа используется домен
-	Limits map[string]*Limit `yaml:"limits"`
+	Configs map[string]Config `yaml:"domains"`
 }
 
 // создает сервис ограничений
@@ -39,19 +39,26 @@ func Inst() common.SendingService {
 
 // инициализирует сервис
 func (s *Service) OnInit(event *common.ApplicationEvent) {
-	logger.Debug("init limits...")
+	logger.All().Debug("init limits...")
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		// инициализируем ограничения
-		for host, limit := range s.Limits {
-			limit.init()
-			logger.Debug("create limit for %s with type %v and duration %v", host, limit.bindingType, limit.duration)
+		s.init(&s.Config, common.AllDomains)
+		for name, config := range s.Configs {
+			s.init(&config, name)
 		}
 		if s.LimitersCount == 0 {
 			s.LimitersCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.FailExitWithErr(err)
+		logger.All().FailExitWithErr(err)
+	}
+}
+
+func (s *Service) init(conf *Config, hostname string) {
+	// инициализируем ограничения
+	for host, limit := range conf.Limits {
+		limit.init()
+		logger.By(hostname).Debug("create limit for %s with type %v and duration %v", host, limit.bindingType, limit.duration)
 	}
 }
 
@@ -72,4 +79,17 @@ func (s *Service) Events() chan *common.SendEvent {
 // завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	close(events)
+}
+
+func (s Service) getLimit(hostnameFrom, hostnameTo string) (Limit, bool) {
+	if config, ok := service.Configs[hostnameFrom]; ok {
+		return config.Limits[hostnameTo]
+	} else {
+		return service.Limits[hostnameTo]
+	}
+}
+
+type Config struct {
+	// ограничения для почтовых сервисов, в качестве ключа используется домен
+	Limits map[string]*Limit `yaml:"limits"`
 }

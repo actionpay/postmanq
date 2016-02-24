@@ -16,14 +16,12 @@ var (
 
 // сервис блокирующий отправку писем
 type Service struct {
-	// хосты, на которую блокируется отправка писем
-	Hostnames []string `yaml:"exclude"`
-
-	// длина массива хостов, необходима для посика
-	hostnameLen int
+	Config
 
 	// количество горутин блокирующий отправку писем к почтовым сервисам
 	GuardiansCount int `yaml:"workers"`
+
+	Configs map[string]Config `yaml:"domains"`
 }
 
 // создает новый сервис блокировок
@@ -36,15 +34,14 @@ func Inst() common.SendingService {
 
 // инициализирует сервис блокировок
 func (s *Service) OnInit(event *common.ApplicationEvent) {
-	logger.Debug("init guardians...")
+	logger.All().Debug("init guardians...")
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		s.hostnameLen = len(s.Hostnames)
 		if s.GuardiansCount == 0 {
 			s.GuardiansCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.FailExitWithErr(err)
+		logger.All().FailExitWithErr(err)
 	}
 }
 
@@ -63,4 +60,17 @@ func (s *Service) Events() chan *common.SendEvent {
 // завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	close(events)
+}
+
+func (s Service) getExcludes(hostname string) []string {
+	if conf, ok := s.Configs[hostname]; ok {
+		return conf.Excludes
+	} else {
+		return s.Config.Excludes
+	}
+}
+
+type Config struct {
+	// хосты, на которую блокируется отправка писем
+	Excludes       []string `yaml:"exclude"`
 }

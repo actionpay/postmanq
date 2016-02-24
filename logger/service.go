@@ -3,6 +3,10 @@ package logger
 import (
 	"github.com/AdOnWeb/postmanq/common"
 	yaml "gopkg.in/yaml.v2"
+	"path/filepath"
+	"os"
+	"fmt"
+	"time"
 )
 
 // уровень логирования
@@ -39,60 +43,106 @@ var (
 		WarningLevelName: WarningLevel,
 		ErrorLevelName:   ErrorLevel,
 	}
+	// канал логирования
 	messages = make(chan *Message)
-	writers  = make(Writers, common.DefaultWorkersCount)
-	level    = WarningLevel
+	messagesChanPool = make(map[string] chan *Message)
 	service  *Service
 )
 
-// запись логирования
-type Message struct {
-	// сообщение для лога, может содержать параметры
-	Message string
-
-	// уровень логирования записи, необходим для отсечения лишних записей
-	Level Level
-
-	// аргументы для параметров сообщения
-	Args []interface{}
-}
-
-// созадние новой записи логирования
-func NewMessage(level Level, message string, args ...interface{}) *Message {
-	logMessage := new(Message)
-	logMessage.Level = level
-	logMessage.Message = message
-	logMessage.Args = args
-	return logMessage
-}
-
 // сервис логирования
 type Service struct {
-	// название уровня логирования, устанавливается в конфиге
-	LevelName string `yaml:"logLevel"`
+	Config
 
-	// название вывода логов
-	Output string `yaml:"logOutput"`
-
-	// уровень логов, ниже этого уровня логи писаться не будут
-	level Level
-
-	// куда пишем логи stdout или файл
-	writer Writer
-
-	// канал логирования
-	messages chan *Message
+	Configs map[string]Config `yaml:"domains"`
 }
 
 // создает новый сервис логирования
 func Inst() common.SendingService {
 	if service == nil {
 		service = new(Service)
-		// запускаем запись логов в отдельном потоке
-		writers.init()
-		writers.write()
+		for i := 0; i < common.DefaultWorkersCount; i++ {
+			go service.listenCommonMessags()
+		}
+		service.Configs = map[string]Config{
+			"default": Config{
+				LevelName: "debug",
+				Output: "stdout",
+			},
+		}
+		service.init()
 	}
 	return service
+}
+
+func (s *Service) listenCommonMessags() {
+	for message := range messages {
+		if message.Hostname == common.AllDomains {
+			for _, messagesChan := range messagesChanPool {
+				messagesChan <- message
+			}
+		} else {
+			if messagesChan, ok := messagesChanPool[message.Hostname]; ok {
+				messagesChan <- message
+			}
+		}
+	}
+}
+
+func (s *Service) init() {
+	for name, config := range s.Configs {
+		messagesChan := make(chan *Message)
+		var level Level
+		if existsLevel, ok := logLevelByName[config.LevelName]; ok {
+			level = existsLevel
+		} else {
+			level = DebugLevel
+		}
+		for i := 0; i < common.DefaultWorkersCount; i++ {
+			var writer Writer
+			if common.FilenameRegex.MatchString(config.Output) { // проверяем получили ли из настроек имя файла
+				// получаем директорию, в которой лежит файл
+				dir := filepath.Dir(config.Output)
+				// смотрим, что она реально существует
+				if _, err := os.Stat(dir); os.IsNotExist(err) {
+					All().FailExit("directory %s is not exists", dir)
+				} else {
+					writer = &FileWriter{
+						filename: config.Output,
+						level: level,
+					}
+				}
+			} else if len(config.Output) == 0 || config.Output == "stdout" {
+				writer = &StdoutWriter{
+					level: level,
+				}
+			}
+			if writer != nil {
+				go s.listenMessages(messagesChan, writer)
+			}
+		}
+		messagesChanPool[name] = messagesChan
+	}
+}
+
+// подписывает авторов на получение сообщений для логирования
+func (s *Service) listenMessages(messagesChan chan *Message, writer Writer) {
+	for message := range messagesChan {
+		if writer.getLevel() <= message.Level {
+			s.writeMessage(writer, message)
+		}
+	}
+}
+
+// пишет сообщение в лог
+func (s *Service) writeMessage(writer Writer, message *Message) {
+	writer.writeString(
+		fmt.Sprintf(
+			"PostmanQ | %v | %s: %s\n",
+			time.Now().Format("2006-01-02 15:04:05"),
+			logLevelById[message.Level],
+			fmt.Sprintf(message.Message, message.Args...),
+		),
+	)
 }
 
 // инициализирует сервис логирования
@@ -100,16 +150,11 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
 		s.OnFinish()
-		// устанавливаем уровень логирования
-		if existsLevel, ok := logLevelByName[s.LevelName]; ok {
-			level = existsLevel
-		}
-		messages = make(chan *Message)
 		// заново инициализируем вывод для логов
-		writers.init()
-		writers.write()
+		messagesChanPool = make(map[string] chan *Message)
+		s.init()
 	} else {
-		FailExitWithErr(err)
+		All().FailExitWithErr(err)
 	}
 }
 
@@ -123,5 +168,18 @@ func (s *Service) Events() chan *common.SendEvent {
 
 // закрывает канал логирования
 func (s *Service) OnFinish() {
-	close(messages)
+//	close(messages)
+	for name, messagesChan := range messagesChanPool {
+		close(messagesChan)
+		delete(messagesChanPool, name)
+	}
+	messagesChanPool = nil
+}
+
+type Config struct {
+	// название уровня логирования, устанавливается в конфиге
+	LevelName string `yaml:"logLevel"`
+
+	// название вывода логов
+	Output string `yaml:"logOutput"`
 }

@@ -49,15 +49,15 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 			signed, err := signer.Sign([]byte(message.Body))
 			if err == nil {
 				message.Body = string(signed)
-				logger.Debug("mailer#%d-%d success sign mail", m.id, message.Id)
+				logger.By(message.HostnameFrom).Debug("mailer#%d-%d success sign mail", m.id, message.Id)
 			} else {
-				logger.Warn("mailer#%d-%d can't sign mail, error - %v", m.id, message.Id, err)
+				logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't sign mail, error - %v", m.id, message.Id, err)
 			}
 		} else {
-			logger.Warn("mailer#%d-%d can't create dkim signer, error - %v", m.id, message.Id, err)
+			logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't create dkim signer, error - %v", m.id, message.Id, err)
 		}
 	} else {
-		logger.Warn("mailer#%d-%d can't create dkim config, error - %v", m.id, message.Id, err)
+		logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't create dkim config, error - %v", m.id, message.Id, err)
 	}
 }
 
@@ -65,33 +65,33 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 func (m *Mailer) send(event *common.SendEvent) {
 	message := event.Message
 	worker := event.Client.Worker
-	logger.Info("mailer#%d-%d begin sending mail", m.id, message.Id)
-	logger.Debug("mailer#%d-%d receive smtp client#%d", m.id, message.Id, event.Client.Id)
+	logger.By(event.Message.HostnameFrom).Info("mailer#%d-%d begin sending mail", m.id, message.Id)
+	logger.By(message.HostnameFrom).Debug("mailer#%d-%d receive smtp client#%d", m.id, message.Id, event.Client.Id)
 
 	success := false
 	event.Client.SetTimeout(common.App.Timeout().Mail)
 	err := worker.Mail(message.Envelope)
 	if err == nil {
-		logger.Debug("mailer#%d-%d send command MAIL FROM: %s", m.id, message.Id, message.Envelope)
+		logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command MAIL FROM: %s", m.id, message.Id, message.Envelope)
 		event.Client.SetTimeout(common.App.Timeout().Rcpt)
 		err = worker.Rcpt(message.Recipient)
 		if err == nil {
-			logger.Debug("mailer#%d-%d send command RCPT TO: %s", m.id, message.Id, message.Recipient)
+			logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command RCPT TO: %s", m.id, message.Id, message.Recipient)
 			event.Client.SetTimeout(common.App.Timeout().Data)
 			wc, err := worker.Data()
 			if err == nil {
-				logger.Debug("mailer#%d-%d send command DATA", m.id, message.Id)
+				logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command DATA", m.id, message.Id)
 				_, err = fmt.Fprint(wc, message.Body)
 				if err == nil {
 					wc.Close()
-					logger.Debug("%s", message.Body)
-					logger.Debug("mailer#%d-%d send command .", m.id, message.Id)
+					logger.By(message.HostnameFrom).Debug("%s", message.Body)
+					logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command .", m.id, message.Id)
 					// стараемся слать письма через уже созданное соединение,
 					// поэтому после отправки письма не закрываем соединение
 					err = worker.Reset()
 					if err == nil {
-						logger.Debug("mailer#%d-%d send command RSET", m.id, message.Id)
-						logger.Info("mailer#%d-%d success send mail#%d", m.id, message.Id, message.Id)
+						logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command RSET", m.id, message.Id)
+						logger.By(event.Message.HostnameFrom).Info("mailer#%d-%d success send mail#%d", m.id, message.Id, message.Id)
 						success = true
 					}
 				}

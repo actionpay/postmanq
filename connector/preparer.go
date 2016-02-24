@@ -29,13 +29,13 @@ func (p *Preparer) run() {
 
 // подготавливает и запускает событие создание соединения
 func (p *Preparer) prepare(event *common.SendEvent) {
-	logger.Info("preparer#%d-%d try create connection", p.id, event.Message.Id)
+	logger.By(event.Message.HostnameFrom).Info("preparer#%d-%d try create connection", p.id, event.Message.Id)
 
 	connectionEvent := &ConnectionEvent{
 		SendEvent:   event,
 		servers:     make(chan *MailServer, 1),
 		connectorId: p.id,
-		address:     service.Addresses[p.id%service.addressesLen],
+		address:     service.getAddress(event.Message.HostnameFrom, p.id),
 	}
 	goto connectToMailServer
 
@@ -58,7 +58,7 @@ connectToMailServer:
 	return
 
 waitLookup:
-	logger.Debug("preparer#%d-%d wait ending look up mail server %s...", p.id, event.Message.Id, event.Message.HostnameTo)
+	logger.By(event.Message.HostnameFrom).Debug("preparer#%d-%d wait ending look up mail server %s...", p.id, event.Message.Id, event.Message.HostnameTo)
 	time.Sleep(common.App.Timeout().Sleep)
 	goto connectToMailServer
 	return

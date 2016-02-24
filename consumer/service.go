@@ -43,7 +43,7 @@ func Inst() common.SendingService {
 
 // инициализирует сервис
 func (s *Service) OnInit(event *common.ApplicationEvent) {
-	logger.Debug("init consumer service")
+	logger.All().Debug("init consumer service")
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
@@ -85,14 +85,14 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 					// слушаем закрытие соединения
 					s.reconnect(connect, config)
 				} else {
-					logger.FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
+					logger.All().FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
 				}
 			} else {
-				logger.FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
+				logger.All().FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
 			}
 		}
 	} else {
-		logger.FailExit("consumer service can't unmarshal config, error - %v", err)
+		logger.All().FailExit("consumer service can't unmarshal config, error - %v", err)
 	}
 }
 
@@ -105,7 +105,7 @@ func (s *Service) reconnect(connect *amqp.Connection, config *Config) {
 // слушает закрытие соединения
 func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error) {
 	for closeError := range closeErrors {
-		logger.Warn("consumer service close connection %s with error - %v, restart...", config.URI, closeError)
+		logger.All().Warn("consumer service close connection %s with error - %v, restart...", config.URI, closeError)
 		connect, err := amqp.Dial(config.URI)
 		if err == nil {
 			s.connections[config.URI] = connect
@@ -116,16 +116,16 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 				}
 				s.reconnect(connect, config)
 			}
-			logger.Debug("consumer service reconnect to amqp server %s", config.URI)
+			logger.All().Debug("consumer service reconnect to amqp server %s", config.URI)
 		} else {
-			logger.Warn("consumer service can't reconnect to amqp server %s with error - %v", config.URI, err)
+			logger.All().Warn("consumer service can't reconnect to amqp server %s with error - %v", config.URI, err)
 		}
 	}
 }
 
 // запускает сервис
 func (s *Service) OnRun() {
-	logger.Debug("run consumers...")
+	logger.All().Debug("run consumers...")
 	for _, apps := range s.consumers {
 		s.runConsumers(apps)
 	}
@@ -140,12 +140,12 @@ func (s *Service) runConsumers(apps []*Consumer) {
 
 // останавливает получателей
 func (s *Service) OnFinish() {
-	logger.Debug("stop consumers...")
+	logger.All().Debug("stop consumers...")
 	for _, connect := range s.connections {
 		if connect != nil {
 			err := connect.Close()
 			if err != nil {
-				logger.WarnWithErr(err)
+				logger.All().WarnWithErr(err)
 			}
 		}
 	}

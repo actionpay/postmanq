@@ -89,3 +89,19 @@ timeouts:
 
   # время ожидания ответа команде DATA, необязательный параметр, по умолчанию 10 минут
   data: 10m
+
+domains:
+  example.com:
+    logLevel: debug
+    logOutput: stdout
+    dkimSelector: mail
+    privateKey: /path/to/private/key_rsa1
+    certificate: /path/to/cert1
+    ips: [1.1.1.1, 2.2.2.2, 3.3.3.3]
+    exclude: [bad.address1.com, bad.address2.com]
+    limits:
+      yandex.ru:
+        type: day
+        value: 150
+
+

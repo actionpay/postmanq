@@ -53,9 +53,9 @@ type MxServer struct {
 }
 
 // создает новый почтовый сервер
-func newMxServer(hostname string) *MxServer {
+func newMxServer(hostname, hostnameFrom string) *MxServer {
 	queues := make(map[string]*common.LimitedQueue)
-	for _, address := range service.Addresses {
+	for _, address := range service.getAddresses(hostnameFrom) {
 		queues[address] = common.NewLimitQueue()
 	}
 
