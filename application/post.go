@@ -9,6 +9,7 @@ import (
 	"github.com/AdOnWeb/postmanq/logger"
 	"github.com/AdOnWeb/postmanq/mailer"
 	yaml "gopkg.in/yaml.v2"
+	"runtime"
 )
 
 // приложение, рассылающее письма
@@ -51,6 +52,7 @@ func (p *Post) Init(event *common.ApplicationEvent) {
 	if err == nil {
 		p.CommonTimeout.Init()
 		common.DefaultWorkersCount = p.Workers
+		runtime.GOMAXPROCS(common.DefaultWorkersCount * 2)
 		logger.Debug("app workers count %d", p.Workers)
 	} else {
 		logger.FailExitWithErr(err)
