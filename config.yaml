@@ -19,10 +19,32 @@ consumers:
   # серверы, с которых получаем письма
   - uri: amqp://guest:guest@127.0.0.1:5672/postmanq
 
+    assistants:
+
+      # имя обменника
+      - exchange: example
+
+        # имя очереди
+        queue: example
+
+        # direct|fanout|topic, по умолчанию fanout, необязательный параметр
+        type: fanout
+
+        # по умолчанию пустая строка, необязательный параметр
+        routing: example
+
+        # количество обработчиков очереди, по умолчанию количество ядер процессора, необязательный параметр
+        workers: 20
+
+        dest:
+          - postmanq
+          - postmanq2
+          - postmanq3
+
     bindings:
 
-      - # имя обменника
-        exchange: postmanq
+      # имя обменника
+      - exchange: postmanq
 
         # имя очереди
         queue: postmanq

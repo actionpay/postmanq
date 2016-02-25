@@ -21,13 +21,13 @@ var (
 // сервис получения сообщений
 type Service struct {
 	// настройка получателей сообщений
-	Configs []*Config `yaml:"consumers"`
+	Configs     []*Config `yaml:"consumers"`
 
 	// подключения к очередям
 	connections map[string]*amqp.Connection
 
 	// получатели сообщений из очереди
-	consumers map[string][]*Consumer
+	consumers   map[string][]*Consumer
 }
 
 // создает новый сервис получения сообщений
@@ -218,6 +218,7 @@ func (s *Service) OnPublish(event *common.ApplicationEvent) {
 
 // получатель сообщений из очереди
 type Config struct {
-	URI      string     `yaml:"uri"`
-	Bindings []*Binding `yaml:"bindings"`
+	URI        string     `yaml:"uri"`
+	Assistants []*Assistant `yaml:"assistants"`
+	Bindings   []*Binding `yaml:"bindings"`
 }
