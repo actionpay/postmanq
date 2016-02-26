@@ -132,7 +132,6 @@ func (s *Service) receiveMessage(event *common.SendEvent) {
 			report.CreatedDates = make([]time.Time, 0)
 			s.reports[report.Id] = report
 		}
-		s.mutex.Unlock()
 
 		report.CreatedDates = append(report.CreatedDates, message.CreatedDate)
 		isValidCode := report.Code > 0
@@ -143,6 +142,7 @@ func (s *Service) receiveMessage(event *common.SendEvent) {
 		}
 		envelopesWriter.Add(report.Envelope, report.Id)
 		recipientsWriter.Add(report.Recipient, report.Id)
+		s.mutex.Unlock()
 	}
 }
 

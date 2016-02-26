@@ -74,14 +74,12 @@ func (a *AbstractTableWriter) Add(key string, id int) {
 	if _, ok := a.ids[key]; !ok {
 		a.ids[key] = make([]int, 0)
 	}
-	existsIds := a.ids[key]
-	for _, existsId := range existsIds {
+	for _, existsId := range a.ids[key] {
 		if existsId != id {
-			existsIds = append(existsIds, id)
+			a.ids[key] = append(a.ids[key], id)
 			break
 		}
 	}
-	a.ids[key] = existsIds
 }
 
 // экспортирует данные от одного автора другому
