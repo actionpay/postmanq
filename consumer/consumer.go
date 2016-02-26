@@ -128,7 +128,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 	// и пусть отправители сами с ними разбираются
 	if message.Error.Code >= 500 && message.Error.Code < 600 {
 		failureBinding = c.binding.failureBindings[errorSignsMap.BindingType(message)]
-	} else if message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
+	} else if message.Error.Code == 450 || message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
 		failureBinding = delayedBindings[common.ThirtyMinutesDelayedBinding]
 	} else {
 		failureBinding = c.binding.failureBindings[UnknownFailureBindingType]
