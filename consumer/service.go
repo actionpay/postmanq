@@ -28,6 +28,8 @@ type Service struct {
 
 	// получатели сообщений из очереди
 	consumers   map[string][]*Consumer
+
+	assistants  map[string][]*Assistant
 }
 
 // создает новый сервис получения сообщений
@@ -36,6 +38,7 @@ func Inst() common.SendingService {
 		service := new(Service)
 		service.connections = make(map[string]*amqp.Connection)
 		service.consumers = make(map[string][]*Consumer)
+		service.assistants = make(map[string][]*Assistant)
 		return service
 	}
 	return service
@@ -47,13 +50,14 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		appsCount := 0
+		consumersCount := 0
+		assistantsCount := 0
 		for _, config := range s.Configs {
 			connect, err := amqp.Dial(config.URI)
 			if err == nil {
 				channel, err := connect.Channel()
 				if err == nil {
-					apps := make([]*Consumer, len(config.Bindings))
+					consumers := make([]*Consumer, len(config.Bindings))
 					for i, binding := range config.Bindings {
 						binding.init()
 						// объявляем очередь
@@ -76,12 +80,37 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 							binding.failureBindings[failureBindingType] = failureBinding
 						}
 
-						appsCount++
-						app := NewConsumer(appsCount, connect, binding)
-						apps[i] = app
+						consumersCount++
+						consumers[i] = NewConsumer(consumersCount, connect, binding)
 					}
+					assistants := make([]*Assistant, len(config.Assistants))
+					for i, assistantBinding := range config.Assistants {
+						assistantBinding.init()
+						// объявляем очередь
+						assistantBinding.declare(channel)
+
+						destBindings := make(map[string]*Binding)
+						for domain, exchange := range assistantBinding.Dest {
+							for _, consumer := range consumers {
+								if consumer.binding.Exchange == exchange {
+									destBindings[domain] = consumer.binding
+									break
+								}
+							}
+						}
+
+						assistantsCount++
+						assistants[i] = &Assistant{
+							id: assistantsCount,
+							connect: connect,
+							srcBinding: assistantBinding,
+							destBindings: destBindings,
+						}
+					}
+
 					s.connections[config.URI] = connect
-					s.consumers[config.URI] = apps
+					s.consumers[config.URI] = consumers
+					s.assistants[config.URI] = assistants
 					// слушаем закрытие соединения
 					s.reconnect(connect, config)
 				} else {
@@ -126,15 +155,24 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 // запускает сервис
 func (s *Service) OnRun() {
 	logger.All().Debug("run consumers...")
-	for _, apps := range s.consumers {
-		s.runConsumers(apps)
+	for _, consumers := range s.consumers {
+		s.runConsumers(consumers)
+	}
+	for _, assistants := range s.assistants {
+		s.runAssistants(assistants)
 	}
 }
 
 // запускает получателей
-func (s *Service) runConsumers(apps []*Consumer) {
-	for _, app := range apps {
-		go app.run()
+func (s *Service) runConsumers(consumers []*Consumer) {
+	for _, consumer := range consumers {
+		go consumer.run()
+	}
+}
+
+func (s *Service) runAssistants(assistants []*Assistant) {
+	for _, assistant := range assistants {
+		go assistant.run()
 	}
 }
 
@@ -218,7 +256,7 @@ func (s *Service) OnPublish(event *common.ApplicationEvent) {
 
 // получатель сообщений из очереди
 type Config struct {
-	URI        string     `yaml:"uri"`
-	Assistants []*Assistant `yaml:"assistants"`
-	Bindings   []*Binding `yaml:"bindings"`
+	URI        string              `yaml:"uri"`
+	Assistants []*AssistantBinding `yaml:"assistants"`
+	Bindings   []*Binding          `yaml:"bindings"`
 }

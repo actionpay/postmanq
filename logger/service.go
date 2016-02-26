@@ -168,7 +168,7 @@ func (s *Service) Events() chan *common.SendEvent {
 
 // закрывает канал логирования
 func (s *Service) OnFinish() {
-//	close(messages)
+	close(messages)
 	for name, messagesChan := range messagesChanPool {
 		close(messagesChan)
 		delete(messagesChanPool, name)

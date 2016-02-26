@@ -37,9 +37,9 @@ consumers:
         workers: 20
 
         dest:
-          - postmanq
-          - postmanq2
-          - postmanq3
+          example1.com: postmanq1
+          example2.com: postmanq2
+          example3.com: postmanq3
 
     bindings:
 
