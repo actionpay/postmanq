@@ -3,7 +3,6 @@ package analyser
 import (
 	"github.com/byorty/clitable"
 	"regexp"
-	"sort"
 )
 
 // автор таблиц
