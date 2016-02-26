@@ -81,6 +81,7 @@ func (a *AbstractTableWriter) Add(key string, id int) {
 			break
 		}
 	}
+	a.ids[key] = existsIds
 }
 
 // экспортирует данные от одного автора другому
