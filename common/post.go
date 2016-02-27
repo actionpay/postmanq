@@ -166,6 +166,10 @@ func ReturnMail(event *SendEvent, err error) {
 	if event.Message.Error == nil {
 		event.Result <- DelaySendEventResult
 	} else {
-		event.Result <- ErrorSendEventResult
+		if event.Message.Error.Code == 421 {
+			event.Result <- DelaySendEventResult
+		} else {
+			event.Result <- ErrorSendEventResult
+		}
 	}
 }

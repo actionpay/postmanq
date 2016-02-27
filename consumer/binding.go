@@ -13,24 +13,24 @@ type ExchangeType string
 
 const (
 	DirectExchangeType ExchangeType = "direct"
-	FanoutExchangeType = "fanout"
-	TopicExchangeType = "topic"
+	FanoutExchangeType              = "fanout"
+	TopicExchangeType               = "topic"
 )
 
 // тип точки обмена для неотправленного письма
 type FailureBindingType int
 
 const (
-// проблемы с адресатом
+	// проблемы с адресатом
 	RecipientFailureBindingType FailureBindingType = iota
 
-// технические проблемы: неверная последовательность команд, косяки с dns
+	// технические проблемы: неверная последовательность команд, косяки с dns
 	TechnicalFailureBindingType
 
-// проблемы с подключеним к почтовому сервису
+	// проблемы с подключеним к почтовому сервису
 	ConnectionFailureBindingType
 
-// неизвестная проблема
+	// неизвестная проблема
 	UnknownFailureBindingType
 )
 
@@ -42,8 +42,8 @@ var (
 		UnknownFailureBindingType:    "%s.failure.unknown",
 	}
 
-// отложенные очереди вообще
-// письмо отправляется повторно при возниковении ошибки во время отправки
+	// отложенные очереди вообще
+	// письмо отправляется повторно при возниковении ошибки во время отправки
 	delayedBindings = map[common.DelayedBindingType]*Binding{
 		common.SecondDelayedBinding:        newDelayedBinding("%s.dlx.second", time.Second),
 		common.ThirtySecondDelayedBinding:  newDelayedBinding("%s.dlx.thirty.second", time.Second * 30),
@@ -60,7 +60,7 @@ var (
 		common.NotSendDelayedBinding:       newBinding("%s.not.send"),
 	}
 
-// отложенные очереди для лимитов
+	// отложенные очереди для лимитов
 	limitBindings = []common.DelayedBindingType{
 		common.SecondDelayedBinding,
 		common.MinuteDelayedBinding,
@@ -70,8 +70,8 @@ var (
 
 	limitBindingsLen = len(limitBindings)
 
-// цепочка очередей, используемых для повторной отправки писем
-// в качестве ключа используется текущий тип очереди, а в качестве значения следующий
+	// цепочка очередей, используемых для повторной отправки писем
+	// в качестве ключа используется текущий тип очереди, а в качестве значения следующий
 	bindingsChain = map[common.DelayedBindingType]common.DelayedBindingType{
 		common.UnknownDelayedBinding:       common.SecondDelayedBinding,
 		common.SecondDelayedBinding:        common.ThirtySecondDelayedBinding,
@@ -159,12 +159,12 @@ func (b *Binding) init() {
 // объявляет точку обмена и очередь и связывает их
 func (b *Binding) declare(channel *amqp.Channel) {
 	err := channel.ExchangeDeclare(
-		b.Exchange, // name of the exchange
+		b.Exchange,     // name of the exchange
 		string(b.Type), // type
-		true, // durable
-		false, // delete when complete
-		false, // internal
-		false, // noWait
+		true,           // durable
+		false,          // delete when complete
+		false,          // internal
+		false,          // noWait
 		b.ExchangeArgs, // arguments
 	)
 	if err != nil {
@@ -172,11 +172,11 @@ func (b *Binding) declare(channel *amqp.Channel) {
 	}
 
 	_, err = channel.QueueDeclare(
-		b.Queue, // name of the queue
-		true, // durable
-		false, // delete when usused
-		false, // exclusive
-		false, // noWait
+		b.Queue,     // name of the queue
+		true,        // durable
+		false,       // delete when usused
+		false,       // exclusive
+		false,       // noWait
 		b.QueueArgs, // arguments
 	)
 	if err != nil {
@@ -184,11 +184,11 @@ func (b *Binding) declare(channel *amqp.Channel) {
 	}
 
 	err = channel.QueueBind(
-		b.Queue, // name of the queue
-		b.Routing, // bindingKey
+		b.Queue,    // name of the queue
+		b.Routing,  // bindingKey
 		b.Exchange, // sourceExchange
-		false, // noWait
-		nil, // arguments
+		false,      // noWait
+		nil,        // arguments
 	)
 	if err != nil {
 		logger.All().FailExit("consumer can't bind queue %s to exchange %s, error - %v", b.Queue, b.Exchange, err)

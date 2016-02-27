@@ -76,7 +76,7 @@ func (a *AbstractTableWriter) Add(key string, id int) {
 		a.ids[key] = make([]int, 0)
 	}
 	idsLen := len(a.ids[key])
-	if sort.Search(idsLen, func(i int) bool { return a.ids[key][i] == id }) == idsLen {
+	if sort.Search(idsLen, func(i int) bool { return a.ids[key][i] >= id }) == idsLen {
 		a.ids[key] = append(a.ids[key], id)
 	}
 }
