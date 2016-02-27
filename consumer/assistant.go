@@ -48,6 +48,18 @@ func (a *Assistant) publish(id int, channel *amqp.Channel, deliveries <-chan amq
 		err := json.Unmarshal(delivery.Body, message)
 		if err == nil {
 			message.Init()
+			logger.
+				By(message.HostnameFrom).
+				Info(
+					"assistant#%d-%d, handler#%d requeue mail#%d: envelope - %s, recipient - %s to %s",
+					a.id,
+					message.Id,
+					id,
+					message.Id,
+					message.Envelope,
+					message.Recipient,
+					message.HostnameFrom,
+				)
 			if binding, ok := a.destBindings[message.HostnameFrom]; ok {
 				err = channel.Publish(
 					binding.Exchange,
@@ -60,11 +72,43 @@ func (a *Assistant) publish(id int, channel *amqp.Channel, deliveries <-chan amq
 						DeliveryMode: amqp.Transient,
 					},
 				)
+				if err == nil {
+					logger.
+						By(message.HostnameFrom).
+						Info(
+							"assistant#%d-%d publish mail#%d to exchange %s",
+							a.id,
+							message.Id,
+							message.Id,
+							binding.Exchange,
+						)
+					delivery.Ack(true)
+					return
+				} else {
+					logger.
+						By(message.HostnameFrom).
+						Warn(
+							"assistant#%d-%d can't publish mail#%d, error - %v",
+							a.id,
+							message.Id,
+							message.Id,
+							err,
+						)
+				}
 			} else {
-
+				logger.
+					By(message.HostnameFrom).
+					Warn(
+						"assistant#%d-%d can't publish mail#%d, not found exchange for %s",
+						a.id,
+						message.Id,
+						message.Id,
+						message.HostnameFrom,
+					)
 			}
 		} else {
-
+			logger.All().Warn("assistant#%d can't unmarshal delivery body, body should be json, %v given, error - %v", a.id, delivery.Body, err)
 		}
+		delivery.Nack(true, true)
 	}
 }

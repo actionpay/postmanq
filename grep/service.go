@@ -76,9 +76,9 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 	var expr string
 	hasEnvelope := len(event.GetStringArg("envelope")) > 0
 	if hasEnvelope {
-		expr = fmt.Sprintf("envelope - %s, recipient - %s to mailer", event.GetStringArg("envelope"), event.GetStringArg("recipient"))
+		expr = fmt.Sprintf("envelope - %s, recipient - %s", event.GetStringArg("envelope"), event.GetStringArg("recipient"))
 	} else {
-		expr = fmt.Sprintf("recipient - %s to mailer", event.GetStringArg("recipient"))
+		expr = fmt.Sprintf("recipient - %s", event.GetStringArg("recipient"))
 	}
 
 	var mailsCount int

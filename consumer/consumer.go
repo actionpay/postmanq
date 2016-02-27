@@ -110,7 +110,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 					DeliveryMode: amqp.Transient,
 				},
 			)
-			logger.All().Warn("consumer#%d can't unmarshal delivery body, body should be json, body is %s", c.id, string(delivery.Body))
+			logger.All().Warn("consumer#%d can't unmarshal delivery body, body should be json, %s given", c.id, string(delivery.Body))
 		}
 		// всегда подтверждаем получение сообщения
 		// даже если во время отправки письма возникли ошибки,
