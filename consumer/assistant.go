@@ -1,16 +1,16 @@
 package consumer
 
 import (
-	"github.com/streadway/amqp"
-	"github.com/AdOnWeb/postmanq/logger"
-	"github.com/AdOnWeb/postmanq/common"
 	"encoding/json"
+	"github.com/AdOnWeb/postmanq/common"
+	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/streadway/amqp"
 )
 
 type Assistant struct {
 	id           int
 	connect      *amqp.Connection
-	srcBinding   *Binding
+	srcBinding   *AssistantBinding
 	destBindings map[string]*Binding
 }
 
@@ -28,12 +28,12 @@ func (a *Assistant) consume(id int) {
 	channel.Qos(a.srcBinding.PrefetchCount, 0, false)
 	deliveries, err := channel.Consume(
 		a.srcBinding.Queue, // name
-		"", // consumerTag,
-		false, // noAck
-		false, // exclusive
-		false, // noLocal
-		false, // noWait
-		nil, // arguments
+		"",                 // consumerTag,
+		false,              // noAck
+		false,              // exclusive
+		false,              // noLocal
+		false,              // noWait
+		nil,                // arguments
 	)
 	if err == nil {
 		go a.publish(id, channel, deliveries)
@@ -51,15 +51,15 @@ func (a *Assistant) publish(id int, channel *amqp.Channel, deliveries <-chan amq
 			logger.
 				By(message.HostnameFrom).
 				Info(
-					"assistant#%d-%d, handler#%d requeue mail#%d: envelope - %s, recipient - %s to %s",
-					a.id,
-					message.Id,
-					id,
-					message.Id,
-					message.Envelope,
-					message.Recipient,
-					message.HostnameFrom,
-				)
+				"assistant#%d-%d, handler#%d requeue mail#%d: envelope - %s, recipient - %s to %s",
+				a.id,
+				message.Id,
+				id,
+				message.Id,
+				message.Envelope,
+				message.Recipient,
+				message.HostnameFrom,
+			)
 			if binding, ok := a.destBindings[message.HostnameFrom]; ok {
 				err = channel.Publish(
 					binding.Exchange,
@@ -76,35 +76,35 @@ func (a *Assistant) publish(id int, channel *amqp.Channel, deliveries <-chan amq
 					logger.
 						By(message.HostnameFrom).
 						Info(
-							"assistant#%d-%d publish mail#%d to exchange %s",
-							a.id,
-							message.Id,
-							message.Id,
-							binding.Exchange,
-						)
+						"assistant#%d-%d publish mail#%d to exchange %s",
+						a.id,
+						message.Id,
+						message.Id,
+						binding.Exchange,
+					)
 					delivery.Ack(true)
 					return
 				} else {
 					logger.
 						By(message.HostnameFrom).
 						Warn(
-							"assistant#%d-%d can't publish mail#%d, error - %v",
-							a.id,
-							message.Id,
-							message.Id,
-							err,
-						)
+						"assistant#%d-%d can't publish mail#%d, error - %v",
+						a.id,
+						message.Id,
+						message.Id,
+						err,
+					)
 				}
 			} else {
 				logger.
 					By(message.HostnameFrom).
 					Warn(
-						"assistant#%d-%d can't publish mail#%d, not found exchange for %s",
-						a.id,
-						message.Id,
-						message.Id,
-						message.HostnameFrom,
-					)
+					"assistant#%d-%d can't publish mail#%d, not found exchange for %s",
+					a.id,
+					message.Id,
+					message.Id,
+					message.HostnameFrom,
+				)
 			}
 		} else {
 			logger.All().Warn("assistant#%d can't unmarshal delivery body, body should be json, %v given, error - %v", a.id, delivery.Body, err)

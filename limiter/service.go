@@ -81,11 +81,13 @@ func (s *Service) OnFinish() {
 	close(events)
 }
 
-func (s Service) getLimit(hostnameFrom, hostnameTo string) (Limit, bool) {
+func (s Service) getLimit(hostnameFrom, hostnameTo string) (*Limit, bool) {
 	if config, ok := service.Configs[hostnameFrom]; ok {
-		return config.Limits[hostnameTo]
+		limit, has := config.Limits[hostnameTo]
+		return limit, has
 	} else {
-		return service.Limits[hostnameTo]
+		limit, has := service.Limits[hostnameTo]
+		return limit, has
 	}
 }
 

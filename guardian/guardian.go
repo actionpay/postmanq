@@ -3,7 +3,6 @@ package guardian
 import (
 	"github.com/AdOnWeb/postmanq/common"
 	"github.com/AdOnWeb/postmanq/logger"
-	"sort"
 )
 
 // защитник, блокирует отправку на указанные почтовые сервисы

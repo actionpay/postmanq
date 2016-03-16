@@ -114,7 +114,7 @@ func (s Service) getAddresses(hostname string) []string {
 	}
 }
 
-func (s Service) getAddress(hostname string, id int) []string {
+func (s Service) getAddress(hostname string, id int) string {
 	if conf, ok := s.Configs[hostname]; ok {
 		return conf.Addresses[id%conf.addressesLen]
 	} else {
