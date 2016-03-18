@@ -3,8 +3,8 @@ package connector
 import (
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
 )
@@ -26,9 +26,10 @@ var (
 // если доверить управление подключениями отправляющим потокам, тогда это затруднит общее управление подключениями
 // поэтому создание подключений и предоставление имеющихся подключений отправляющим потокам вынесено в отдельный сервис
 type Service struct {
-	Config
+	// количество горутин устанавливающих соединения к почтовым сервисам
+	ConnectorsCount int `yaml:"workers"`
 
-	Configs map[string]Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"domains"`
 }
 
 // создает новый сервис соединений
@@ -43,9 +44,8 @@ func Inst() *Service {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		s.init(&s.Config, common.AllDomains)
 		for name, config := range s.Configs {
-			s.init(&config, name)
+			s.init(config, name)
 		}
 		if s.ConnectorsCount == 0 {
 			s.ConnectorsCount = common.DefaultWorkersCount
@@ -70,11 +70,11 @@ func (s *Service) init(conf *Config, hostname string) {
 			logger.By(hostname).FailExit("connection service can't read certificate %s, error - %v", conf.CertFilename, err)
 		}
 	} else {
-		logger.By(hostname).Debug("certificate is not defined")
+		logger.By(hostname).Debug("connection service - certificate is not defined")
 	}
 	conf.addressesLen = len(conf.Addresses)
 	if conf.addressesLen == 0 {
-		logger.By(hostname).FailExit("ips should be defined")
+		logger.By(hostname).FailExit("connection service - ips should be defined")
 	}
 }
 
@@ -102,7 +102,8 @@ func (s Service) getPool(hostname string) *x509.CertPool {
 	if conf, ok := s.Configs[hostname]; ok {
 		return conf.pool
 	} else {
-		return s.pool
+		logger.By(hostname).Err("connection service can't find cert by %s", hostname)
+		return nil
 	}
 }
 
@@ -110,7 +111,8 @@ func (s Service) getAddresses(hostname string) []string {
 	if conf, ok := s.Configs[hostname]; ok {
 		return conf.Addresses
 	} else {
-		return s.Addresses
+		logger.By(hostname).Err("connection service can't find ips by %s", hostname)
+		return common.EmptyStrSlice
 	}
 }
 
@@ -118,7 +120,8 @@ func (s Service) getAddress(hostname string, id int) string {
 	if conf, ok := s.Configs[hostname]; ok {
 		return conf.Addresses[id%conf.addressesLen]
 	} else {
-		return s.Addresses[id%s.addressesLen]
+		logger.By(hostname).Err("connection service can't find ip by %s", hostname)
+		return common.EmptyStr
 	}
 }
 
@@ -140,9 +143,6 @@ type ConnectionEvent struct {
 }
 
 type Config struct {
-	// количество горутин устанавливающих соединения к почтовым сервисам
-	ConnectorsCount int `yaml:"workers"`
-
 	// путь до файла с закрытым ключом
 	PrivateKeyFilename string `yaml:"privateKey"`
 

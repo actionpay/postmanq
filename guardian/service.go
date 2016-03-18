@@ -1,8 +1,8 @@
 package guardian
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -16,12 +16,10 @@ var (
 
 // сервис блокирующий отправку писем
 type Service struct {
-	Config
-
 	// количество горутин блокирующий отправку писем к почтовым сервисам
 	GuardiansCount int `yaml:"workers"`
 
-	Configs map[string]Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"domains"`
 }
 
 // создает новый сервис блокировок
@@ -66,11 +64,11 @@ func (s Service) getExcludes(hostname string) []string {
 	if conf, ok := s.Configs[hostname]; ok {
 		return conf.Excludes
 	} else {
-		return s.Config.Excludes
+		return common.EmptyStrSlice
 	}
 }
 
 type Config struct {
 	// хосты, на которую блокируется отправка писем
-	Excludes       []string `yaml:"exclude"`
+	Excludes []string `yaml:"exclude"`
 }

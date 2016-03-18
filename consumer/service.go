@@ -2,8 +2,8 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/streadway/amqp"
 	yaml "gopkg.in/yaml.v2"
 	"net/url"
@@ -21,15 +21,15 @@ var (
 // сервис получения сообщений
 type Service struct {
 	// настройка получателей сообщений
-	Configs     []*Config `yaml:"consumers"`
+	Configs []*Config `yaml:"consumers"`
 
 	// подключения к очередям
 	connections map[string]*amqp.Connection
 
 	// получатели сообщений из очереди
-	consumers   map[string][]*Consumer
+	consumers map[string][]*Consumer
 
-	assistants  map[string][]*Assistant
+	assistants map[string][]*Assistant
 }
 
 // создает новый сервис получения сообщений
@@ -101,9 +101,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 
 						assistantsCount++
 						assistants[i] = &Assistant{
-							id: assistantsCount,
-							connect: connect,
-							srcBinding: assistantBinding,
+							id:           assistantsCount,
+							connect:      connect,
+							srcBinding:   assistantBinding,
 							destBindings: destBindings,
 						}
 					}

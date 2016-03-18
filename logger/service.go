@@ -1,11 +1,11 @@
 package logger
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	yaml "gopkg.in/yaml.v2"
-	"path/filepath"
-	"os"
 	"fmt"
+	"github.com/actionpay/postmanq/common"
+	yaml "gopkg.in/yaml.v2"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -44,16 +44,16 @@ var (
 		ErrorLevelName:   ErrorLevel,
 	}
 	// канал логирования
-	messages = make(chan *Message)
-	messagesChanPool = make(map[string] chan *Message)
-	service  *Service
+	messages         = make(chan *Message)
+	messagesChanPool = make(map[string]chan *Message)
+	service          *Service
 )
 
 // сервис логирования
 type Service struct {
 	Config
 
-	Configs map[string]Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"domains"`
 }
 
 // создает новый сервис логирования
@@ -63,10 +63,10 @@ func Inst() common.SendingService {
 		for i := 0; i < common.DefaultWorkersCount; i++ {
 			go service.listenCommonMessags()
 		}
-		service.Configs = map[string]Config{
-			"default": Config{
+		service.Configs = map[string]*Config{
+			"default": &Config{
 				LevelName: "debug",
-				Output: "stdout",
+				Output:    "stdout",
 			},
 		}
 		service.init()
@@ -108,7 +108,7 @@ func (s *Service) init() {
 				} else {
 					writer = &FileWriter{
 						filename: config.Output,
-						level: level,
+						level:    level,
 					}
 				}
 			} else if len(config.Output) == 0 || config.Output == "stdout" {
@@ -151,7 +151,12 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	if err == nil {
 		s.OnFinish()
 		// заново инициализируем вывод для логов
-		messagesChanPool = make(map[string] chan *Message)
+		delete(service.Configs, "default")
+		messages = make(chan *Message)
+		messagesChanPool = make(map[string]chan *Message)
+		for i := 0; i < common.DefaultWorkersCount; i++ {
+			go s.listenCommonMessags()
+		}
 		s.init()
 	} else {
 		All().FailExitWithErr(err)

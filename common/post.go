@@ -10,13 +10,15 @@ import (
 
 const (
 	// Максимальное количество попыток подключения к почтовику за отправку письма
-	MaxTryConnectionCount = 30
-	AllDomains = "*"
+	MaxTryConnectionCount int    = 30
+	AllDomains            string = "*"
+	EmptyStr              string = ""
 )
 
 var (
 	// Регулярка для проверки адреса почты, сразу компилируем, чтобы при отправке не терять на этом время
-	EmailRegexp = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
+	EmailRegexp   = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,4})$`)
+	EmptyStrSlice = []string{}
 )
 
 // таймауты приложения

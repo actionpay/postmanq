@@ -4,8 +4,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/byorty/dkim"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -20,11 +20,10 @@ var (
 
 // сервис отправки писем
 type Service struct {
-	Config
 	// количество отправителей
 	MailersCount int `yaml:"workers"`
 
-	Configs map[string]Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"domains"`
 }
 
 // создает новый сервис отправки писем
@@ -39,9 +38,8 @@ func Inst() common.SendingService {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		s.init(&s.Config, common.AllDomains)
 		for name, config := range s.Configs {
-			s.init(&config, name)
+			s.init(config, name)
 		}
 		// указываем заголовки для DKIM
 		dkim.StdSignableHeaders = []string{
@@ -58,20 +56,19 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 }
 
 func (s *Service) init(conf *Config, hostname string) {
-	logger.By(hostname).Debug("read private key file %s", conf.PrivateKeyFilename)
 	// закрытый ключ должен быть указан обязательно
 	// поэтому даже не проверяем что указано в переменной
 	privateKey, err := ioutil.ReadFile(conf.PrivateKeyFilename)
 	if err == nil {
-		logger.By(hostname).Debug("private key %s read success", conf.PrivateKeyFilename)
+		logger.By(hostname).Debug("mailer service private key %s read success", conf.PrivateKeyFilename)
 		der, _ := pem.Decode(privateKey)
 		conf.privateKey, err = x509.ParsePKCS1PrivateKey(der.Bytes)
 		if err != nil {
-			logger.By(hostname).Debug("can't decode or parse private key %s", conf.PrivateKeyFilename)
+			logger.By(hostname).Err("mailer service can't decode or parse private key %s", conf.PrivateKeyFilename)
 			logger.By(hostname).FailExitWithErr(err)
 		}
 	} else {
-		logger.By(hostname).Debug("can't read private key %s", conf.PrivateKeyFilename)
+		logger.By(hostname).Err("mailer service can't read private key %s", conf.PrivateKeyFilename)
 		logger.By(hostname).FailExitWithErr(err)
 	}
 	// если не задан селектор, устанавливаем селектор по умолчанию
@@ -96,6 +93,24 @@ func (s *Service) Events() chan *common.SendEvent {
 // завершает работу сервиса отправки писем
 func (s *Service) OnFinish() {
 	close(events)
+}
+
+func (s *Service) getDkimSelector(hostname string) string {
+	if conf, ok := s.Configs[hostname]; ok {
+		return conf.DkimSelector
+	} else {
+		logger.By(hostname).Err("mailer service can't find dkim selector by %s", hostname)
+		return common.EmptyStr
+	}
+}
+
+func (s *Service) getPrivateKey(hostname string) *rsa.PrivateKey {
+	if conf, ok := s.Configs[hostname]; ok {
+		return conf.privateKey
+	} else {
+		logger.By(hostname).Err("mailer service can't find private key by %s", hostname)
+		return nil
+	}
 }
 
 type Config struct {

@@ -2,7 +2,7 @@
 
 PostmanQ - это высокопроизводительный почтовый сервер(MTA). 
 На сервере под управлением Ubuntu 12.04 с 8-ми ядерным процессором и 32ГБ оперативной памяти 
-PostmanQ рассылает около 20000 писем в минуту.
+PostmanQ рассылает более 300 писем в секунду.
 
 Для работы PostmanQ потребуется AMQP-сервер, в котором будут храниться письма. 
 
@@ -93,8 +93,8 @@ Selector-ом может быть любым словом на латинице.
     cd /some/path && mkdir postmanq && cd postmanq/
     export GOPATH=/some/path/postmanq/src/
     export GOBIN=/some/path/postmanq/bin/
-    go get -d github.com/AdOnWeb/postmanq/cmd
-    cd src/github.com/AdOnWeb/postmanq
+    go get -d github.com/actionpay/postmanq/cmd
+    cd src/github.com/actionpay/postmanq
     git checkout v.3.1
     go install cmd/postmanq.go
     go install cmd/pmq-grep.go

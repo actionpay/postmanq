@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"io/ioutil"
 	"time"
 )

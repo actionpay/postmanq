@@ -1,8 +1,8 @@
 package limiter
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"time"
 )
@@ -20,18 +20,16 @@ var (
 
 // сервис ограничений, следит за тем, чтобы почтовым сервисам не отправилось больше писем, чем нужно
 type Service struct {
-	Config
 	// количество горутин проверяющих количество отправленных писем
 	LimitersCount int `yaml:"workers"`
 
-	Configs map[string]Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"domains"`
 }
 
 // создает сервис ограничений
 func Inst() common.SendingService {
 	if service == nil {
 		service = new(Service)
-		service.Limits = make(map[string]*Limit)
 		ticker = time.NewTicker(time.Second)
 	}
 	return service
@@ -42,9 +40,8 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.All().Debug("init limits...")
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		s.init(&s.Config, common.AllDomains)
 		for name, config := range s.Configs {
-			s.init(&config, name)
+			s.init(config, name)
 		}
 		if s.LimitersCount == 0 {
 			s.LimitersCount = common.DefaultWorkersCount
@@ -81,13 +78,15 @@ func (s *Service) OnFinish() {
 	close(events)
 }
 
-func (s Service) getLimit(hostnameFrom, hostnameTo string) (*Limit, bool) {
+func (s Service) getLimit(hostnameFrom, hostnameTo string) *Limit {
 	if config, ok := service.Configs[hostnameFrom]; ok {
-		limit, has := config.Limits[hostnameTo]
-		return limit, has
+		if limit, has := config.Limits[hostnameTo]; has {
+			return limit
+		} else {
+			return nil
+		}
 	} else {
-		limit, has := service.Limits[hostnameTo]
-		return limit, has
+		return nil
 	}
 }
 

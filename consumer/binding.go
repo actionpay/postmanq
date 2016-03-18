@@ -2,8 +2,8 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/streadway/amqp"
 	"time"
 )
@@ -46,17 +46,17 @@ var (
 	// письмо отправляется повторно при возниковении ошибки во время отправки
 	delayedBindings = map[common.DelayedBindingType]*Binding{
 		common.SecondDelayedBinding:        newDelayedBinding("%s.dlx.second", time.Second),
-		common.ThirtySecondDelayedBinding:  newDelayedBinding("%s.dlx.thirty.second", time.Second * 30),
+		common.ThirtySecondDelayedBinding:  newDelayedBinding("%s.dlx.thirty.second", time.Second*30),
 		common.MinuteDelayedBinding:        newDelayedBinding("%s.dlx.minute", time.Minute),
-		common.FiveMinutesDelayedBinding:   newDelayedBinding("%s.dlx.five.minutes", time.Minute * 5),
-		common.TenMinutesDelayedBinding:    newDelayedBinding("%s.dlx.ten.minutes", time.Minute * 10),
-		common.TwentyMinutesDelayedBinding: newDelayedBinding("%s.dlx.twenty.minutes", time.Minute * 20),
-		common.ThirtyMinutesDelayedBinding: newDelayedBinding("%s.dlx.thirty.minutes", time.Minute * 30),
-		common.FortyMinutesDelayedBinding:  newDelayedBinding("%s.dlx.forty.minutes", time.Minute * 40),
-		common.FiftyMinutesDelayedBinding:  newDelayedBinding("%s.dlx.fifty.minutes", time.Minute * 50),
+		common.FiveMinutesDelayedBinding:   newDelayedBinding("%s.dlx.five.minutes", time.Minute*5),
+		common.TenMinutesDelayedBinding:    newDelayedBinding("%s.dlx.ten.minutes", time.Minute*10),
+		common.TwentyMinutesDelayedBinding: newDelayedBinding("%s.dlx.twenty.minutes", time.Minute*20),
+		common.ThirtyMinutesDelayedBinding: newDelayedBinding("%s.dlx.thirty.minutes", time.Minute*30),
+		common.FortyMinutesDelayedBinding:  newDelayedBinding("%s.dlx.forty.minutes", time.Minute*40),
+		common.FiftyMinutesDelayedBinding:  newDelayedBinding("%s.dlx.fifty.minutes", time.Minute*50),
 		common.HourDelayedBinding:          newDelayedBinding("%s.dlx.hour", time.Hour),
-		common.SixHoursDelayedBinding:      newDelayedBinding("%s.dlx.six.hours", time.Hour * 6),
-		common.DayDelayedBinding:           newDelayedBinding("%s.dlx.day", time.Hour * 24),
+		common.SixHoursDelayedBinding:      newDelayedBinding("%s.dlx.six.hours", time.Hour*6),
+		common.DayDelayedBinding:           newDelayedBinding("%s.dlx.day", time.Hour*24),
 		common.NotSendDelayedBinding:       newBinding("%s.not.send"),
 	}
 
@@ -91,31 +91,31 @@ var (
 // связка точки обмена и очереди
 type Binding struct {
 	// имя точки обмена и очереди
-	Name            string `yaml:"name"`
+	Name string `yaml:"name"`
 
 	// имя точки обмена
-	Exchange        string `yaml:"exchange"`
+	Exchange string `yaml:"exchange"`
 
 	// аргументы точки обмена
-	ExchangeArgs    amqp.Table
+	ExchangeArgs amqp.Table
 
 	// имя очереди
-	Queue           string `yaml:"queue"`
+	Queue string `yaml:"queue"`
 
 	// аргументы очереди
-	QueueArgs       amqp.Table
+	QueueArgs amqp.Table
 
 	// тип точки обмена
-	Type            ExchangeType `yaml:"type"`
+	Type ExchangeType `yaml:"type"`
 
 	// ключ маршрутизации
-	Routing         string `yaml:"routing"`
+	Routing string `yaml:"routing"`
 
 	// количество потоков, разбирающих очередь
-	Handlers        int `yaml:"workers"`
+	Handlers int `yaml:"workers"`
 
 	// количество сообщений, получаемых одновременно
-	PrefetchCount   int `yaml:"prefetchCount"`
+	PrefetchCount int `yaml:"prefetchCount"`
 
 	// отложенные очереди
 	delayedBindings map[common.DelayedBindingType]*Binding
@@ -209,7 +209,7 @@ func (b *Binding) declareDelayed(binding *Binding, channel *amqp.Channel) {
 type AssistantBinding struct {
 	Binding
 
-	Dest         map[string]string `yaml:"dest"`
+	Dest map[string]string `yaml:"dest"`
 
 	destBindings []*Binding
 }

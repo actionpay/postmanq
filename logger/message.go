@@ -1,13 +1,12 @@
 package logger
 
 import (
+	"github.com/actionpay/postmanq/common"
 	"runtime/debug"
-	"github.com/AdOnWeb/postmanq/common"
 )
 
 // запись логирования
 type Message struct {
-
 	Hostname string
 	// сообщение для лога, может содержать параметры
 	Message string

@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/grep"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/grep"
 )
 
 // приложение, ищущее логи по адресату или получателю

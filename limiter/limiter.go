@@ -1,8 +1,8 @@
 package limiter
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"sync/atomic"
 )
 
@@ -29,9 +29,11 @@ func (l *Limiter) run() {
 // если количество превышено, отправляет письмо в отложенную очередь
 func (l *Limiter) check(event *common.SendEvent) {
 	logger.By(event.Message.HostnameFrom).Info("limiter#%d-%d check limit for mail", l.id, event.Message.Id)
-	limit, hasLimit := service.getLimit(event.Message.HostnameFrom, event.Message.HostnameTo)
+	limit := service.getLimit(event.Message.HostnameFrom, event.Message.HostnameTo)
 	// пытаемся найти ограничения для почтового сервиса
-	if hasLimit {
+	if limit == nil {
+		logger.By(event.Message.HostnameFrom).Debug("limiter#%d-%d not found limit for %s", l.id, event.Message.Id, event.Message.HostnameTo)
+	} else {
 		logger.By(event.Message.HostnameFrom).Debug("limiter#%d-%d found limit for %s", l.id, event.Message.Id, event.Message.HostnameTo)
 		// если оно нашлось, проверяем, что отправка нового письма происходит в тот промежуток времени,
 		// в который нам необходимо следить за ограничениями
@@ -52,8 +54,6 @@ func (l *Limiter) check(event *common.SendEvent) {
 		} else {
 			logger.By(event.Message.HostnameFrom).Debug("limiter#%d-%d duration great then %v", l.id, event.Message.Id, limit.duration)
 		}
-	} else {
-		logger.By(event.Message.HostnameFrom).Debug("limiter#%d-%d not found limit for %s", l.id, event.Message.Id, event.Message.HostnameTo)
 	}
 	event.Iterator.Next().(common.SendingService).Events() <- event
 }

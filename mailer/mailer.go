@@ -3,8 +3,8 @@ package mailer
 import (
 	"errors"
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/byorty/dkim"
 )
 
@@ -40,11 +40,11 @@ func (m *Mailer) sendMail(event *common.SendEvent) {
 
 // подписывает dkim
 func (m *Mailer) prepare(message *common.MailMessage) {
-	conf, err := dkim.NewConf(message.HostnameFrom, service.DkimSelector)
+	conf, err := dkim.NewConf(message.HostnameFrom, service.getDkimSelector(message.HostnameFrom))
 	if err == nil {
 		conf[dkim.AUIDKey] = message.Envelope
 		conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
-		signer := dkim.NewByKey(conf, service.privateKey)
+		signer := dkim.NewByKey(conf, service.getPrivateKey(message.HostnameFrom))
 		if err == nil {
 			signed, err := signer.Sign([]byte(message.Body))
 			if err == nil {

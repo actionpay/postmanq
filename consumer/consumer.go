@@ -3,8 +3,8 @@ package consumer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/streadway/amqp"
 	"regexp"
 	"sync"
@@ -77,14 +77,14 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 			logger.
 				By(message.HostnameFrom).
 				Info(
-					"consumer#%d-%d, handler#%d send mail#%d: envelope - %s, recipient - %s to mailer",
-					c.id,
-					message.Id,
-					id,
-					message.Id,
-					message.Envelope,
-					message.Recipient,
-				)
+				"consumer#%d-%d, handler#%d send mail#%d: envelope - %s, recipient - %s to mailer",
+				c.id,
+				message.Id,
+				id,
+				message.Id,
+				message.Envelope,
+				message.Recipient,
+			)
 
 			event := common.NewSendEvent(message)
 			logger.By(message.HostnameFrom).Debug("consumer#%d-%d send event", c.id, message.Id)
@@ -153,25 +153,25 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 			logger.
 				By(message.HostnameFrom).
 				Debug(
-					"consumer#%d-%d publish failure mail to queue %s, message: %s, code: %d",
-					c.id,
-					message.Id,
-					failureBinding.Queue,
-					message.Error.Message,
-					message.Error.Code,
-				)
+				"consumer#%d-%d publish failure mail to queue %s, message: %s, code: %d",
+				c.id,
+				message.Id,
+				failureBinding.Queue,
+				message.Error.Message,
+				message.Error.Code,
+			)
 		} else {
 			logger.
 				By(message.HostnameFrom).
 				Debug(
-					"consumer#%d-%d can't publish failure mail to queue %s, message: %s, code: %d, publish error% %v",
-					c.id,
-					message.Id,
-					failureBinding.Queue,
-					message.Error.Message,
-					message.Error.Code,
-					err,
-				)
+				"consumer#%d-%d can't publish failure mail to queue %s, message: %s, code: %d, publish error% %v",
+				c.id,
+				message.Id,
+				failureBinding.Queue,
+				message.Error.Message,
+				message.Error.Code,
+				err,
+			)
 			logger.By(message.HostnameFrom).WarnWithErr(err)
 		}
 	} else {
@@ -184,30 +184,30 @@ func (c *Consumer) handleDelaySend(channel *amqp.Channel, message *common.MailMe
 	logger.
 		By(message.HostnameFrom).
 		Debug(
-			"consumer%d-%d find dlx queue",
-			c.id,
-			message.Id,
-		)
+		"consumer%d-%d find dlx queue",
+		c.id,
+		message.Id,
+	)
 	bindingType := common.UnknownDelayedBinding
 	if message.Error != nil {
 		logger.
 			By(message.HostnameFrom).
 			Debug(
-				"consumer%d-%d detect error, message: %s, code: %d",
-				c.id,
-				message.Id,
-				message.Error.Message,
-				message.Error.Code,
-			)
+			"consumer%d-%d detect error, message: %s, code: %d",
+			c.id,
+			message.Id,
+			message.Error.Message,
+			message.Error.Code,
+		)
 	}
 	logger.
 		By(message.HostnameFrom).
 		Debug(
-			"consumer%d-%d detect old dlx queue type#%v",
-			c.id,
-			message.Id,
-			message.BindingType,
-		)
+		"consumer%d-%d detect old dlx queue type#%v",
+		c.id,
+		message.Id,
+		message.BindingType,
+	)
 	// если нам просто не удалось отправить письмо, берем следующую очередь из цепочки
 	if chainBinding, ok := bindingsChain[message.BindingType]; ok {
 		bindingType = chainBinding
