@@ -91,7 +91,7 @@ Selector-ом может быть любым словом на латинице.
 Сначала уcтанавливаем [go](http://golang.org/doc/install). Затем устанавливаем PostmanQ:
 
     cd /some/path && mkdir postmanq && cd postmanq/
-    export GOPATH=/some/path/postmanq/src/
+    export GOPATH=/some/path/postmanq/
     export GOBIN=/some/path/postmanq/bin/
     go get -d github.com/actionpay/postmanq/cmd
     cd src/github.com/actionpay/postmanq
