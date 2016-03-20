@@ -53,7 +53,7 @@ func (m *Message) log(message string, necessaryLevel Level, args ...interface{})
 
 // пишет ошибку в лог
 func (m *Message) Err(message string, args ...interface{}) {
-	m.log(message, ErrorLevel, args...)
+	go m.log(message, ErrorLevel, args...)
 }
 
 // пишет произвольную ошибку в лог и завершает программу
@@ -69,7 +69,7 @@ func (m *Message) FailExitWithErr(err error) {
 
 // пишет произвольное предупреждение
 func (m *Message) Warn(message string, args ...interface{}) {
-	m.log(message, WarningLevel, args...)
+	go m.log(message, WarningLevel, args...)
 }
 
 // пишет системное предупреждение
@@ -79,10 +79,10 @@ func (m *Message) WarnWithErr(err error) {
 
 // пишет информационное сообщение
 func (m *Message) Info(message string, args ...interface{}) {
-	m.log(message, InfoLevel, args...)
+	go m.log(message, InfoLevel, args...)
 }
 
 // пишет сообщение для отладки
 func (m *Message) Debug(message string, args ...interface{}) {
-	m.log(message, DebugLevel, args...)
+	go m.log(message, DebugLevel, args...)
 }

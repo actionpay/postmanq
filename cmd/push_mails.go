@@ -8,15 +8,42 @@ import (
 )
 
 func main() {
-	message := `Message-ID: <13b071582807e1983ebc15382445e443f4064014.1424304184.3801@actionpay.ru>
-MIME-Version: 1.0
+
+	//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
+	amqpURI := "amqp://solomonov:123123123@localhost:5672/postmanq"
+	messageCount := 10
+	//	hasError := true
+	hasError := false
+	exchange := "postmanq"
+	//	exchange := "postmanq.failure.recipient"
+	envelope := "robotron@ap-ok.ru"
+	recipient := "solomonov@leadmix.ru"
+	//	recipient := "asolomonoff@gmail.com"
+	//	recipient := "byorty@yandex.ru""
+	//	recipient := "byorty@mail.ru"
+	//	recipient := "byorty@fastmail.com"
+	//	recipient := "byorty@outlook.com"
+	//	recipient := "byorty@qip.ru"
+	//	recipient := "byorty@tut.by"
+	//	recipient := "asolomonoff@yahoo.com"
+	//	recipient := "byorty@nextmail.ru"
+	//	recipient := "byorty@rambler.ru"
+	//	recipient := "solomonov@km.ru"
+	//	recipient := "byorty@zmail.ru"
+	//	recipient := "byorty@meta.ua"
+	//	recipient := "byorty@e1.ru"
+	//	recipient := "byorty@inet.ua"
+	//	recipient := "recipient": "byorty@bigmir.net"
+	//	recipient := "byorty@chat.ru"
+
+	message := `MIME-Version: 1.0
 Content-Type: multipart/mixed;
 	boundary="=_cb8a36ec3e182808407241c0bfcb545b";
 Content-Transfer-Encoding: 7bit
 Subject: =?utf-8?B?0JLQvtGB0YHRgtCw0L3QvtCy0LvQtdC90LjQtSDQv9Cw0YDQvtC70Y8g0L3QsCBhY3Rpb25wYXkucnU=?=
-To: =?utf-8?B?0KHQvtC70L7QvNC+0L3QvtCyINCQ0LvQtdC60YHQtdC5?= <byorty@yandex.ru>
-From: =?utf-8?B?QWN0aW9ucGF5?= <robot@actionpay.ru>
-Return-Path: robot@actionpay.ru
+To: =?utf-8?B?0KHQvtC70L7QvNC+0L3QvtCyINCQ0LvQtdC60YHQtdC5?= <` + recipient + `>
+From: =?utf-8?B?QWN0aW9ucGF5?= <` + envelope + `>
+Return-Path: ` + envelope + `
 
 
 --=_cb8a36ec3e182808407241c0bfcb545b
@@ -83,8 +110,7 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 
 --=_cb8a36ec3e182808407241c0bfcb545b--
 `
-	//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
-	amqpURI := "amqp://solomonov:solomonov@192.168.13.32:5672/solomonov"
+
 	fmt.Println("dialing ", amqpURI)
 	connection, err := amqp.Dial(amqpURI)
 	if err != nil {
@@ -99,69 +125,24 @@ br />=0a	</p>=0a	<p style=3d"margin-top: 50px; color: #999; font-size: 11px;=
 	}
 	fmt.Println("got Channel")
 
-	//	messageCount := 1
-	//	messageCount := 2000
-	messageCount := 20
-
-	//	clearRegexp := regexp.MustCompile(`[^\w\d\sА-Яа-я]`)
-	//	whiteSpaceRegexp := regexp.MustCompile(`\s+`)
-
 	group := new(sync.WaitGroup)
 	group.Add(messageCount)
+	msg := map[string]interface{}{
+		"envelope":  envelope,
+		"recipient": recipient,
+		"body":      message,
+	}
+	if hasError {
+		msg["error"] = map[string]interface{}{
+			"code":    551,
+			"message": "unknown trololo",
+		}
+	}
+	js, err := json.Marshal(msg)
 	for i := 0; i < messageCount; i++ {
 		go func() {
-			//			rand.Seed(time.Now().UnixNano())
-			//			partMessage := message[:rand.Intn(int(len(message) / 25))]
-			//			partMessage = clearRegexp.ReplaceAllString(partMessage, " ")
-			//			partMessage = whiteSpaceRegexp.ReplaceAllString(partMessage, " ")
-
-			//			parts := strings.Split(partMessage, " ")
-			//			for x := range parts {
-			//				j := rand.Intn(x + 1)
-			//				parts[x], parts[j] = parts[j], parts[x]
-			//			}
-			js, err := json.Marshal(map[string]interface{}{
-				//				"envelope": "robot@actionpay.ru",
-				"envelope": "robotron@adnwb.ru",
-
-				//				"recipient": "abrakadabra-simsalabim@adonweb.ru",
-				"recipient": "apmail@adonweb.ru",
-				//								"recipient": "asolomonoff@gmail.com",
-				//				"recipient": "byorty@yandex.ru",
-				//								"recipient": "byorty@mail.ru",
-				//				"recipient": "byorty@fastmail.com",
-				//				"recipient": "byorty@outlook.com",
-				//				"recipient": "byorty@qip.ru",
-				//				"recipient": "byorty@sibnet.ru",
-				//				"recipient": "byorty@tut.by",
-				//				"recipient": "asolomonoff@yahoo.com",
-				//				"recipient": "byorty@nextmail.ru",
-				//				"recipient": "byorty@rambler.ru",
-				//				"recipient": "solomonov@km.ru",
-				//				"recipient": "byorty@zmail.ru",
-				//				"recipient": "byorty@meta.ua",
-				//				"recipient": "byorty@e1.ru",
-
-				//				"recipient": "byorty@inet.ua",
-
-				//				"recipient": "byorty@bigmir.net",
-				//				"recipient": "byorty@chat.ru",
-
-				//				"body": base64.StdEncoding.EncodeToString([]byte(strings.Join(parts, " "))),
-				"body": message,
-				//				"body": base64.StdEncoding.EncodeToString([]byte("hello world")),
-				//				"body": base64.StdEncoding.EncodeToString([]byte("привет мир")),
-				"error": map[string]interface{}{
-					"code":    551,
-					"message": "unknown trololo",
-				},
-			})
 			if err = channel.Publish(
-				"postmanq",
-				//				"postmanq.failure.connection",
-				//				"postmanq.failure.recipient",
-				//				"postmanq.failure.unknown",
-				//				"postmanq.dlx.minute",   // publish to an exchange
+				exchange,
 				"",    // routing to 0 or more queues
 				false, // mandatory
 				false, // immediate
