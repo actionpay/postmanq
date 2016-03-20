@@ -41,6 +41,7 @@ var (
 // проект содержит несколько приложений: pmq-grep, pmq-publish, pmq-report, postmanq и т.д.
 // чтобы упростить и стандартизировать приложения, разработан этот интерфейс
 type Application interface {
+	GetConfigFilename() string
 	// устанавливает путь к файлу с настройками
 	SetConfigFilename(string)
 

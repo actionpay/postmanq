@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+type FireAction interface {
+	Fire(common.Application, *common.ApplicationEvent, interface{})
+}
+
+type PreFireAction interface {
+	FireAction
+	PreFire(common.Application, *common.ApplicationEvent)
+}
+
+type PostFireAction interface {
+	FireAction
+	PostFire(common.Application, *common.ApplicationEvent)
+}
+
+var (
+	actions = map[common.ApplicationEventKind]FireAction{
+		common.InitApplicationEventKind:   InitFireAction((*Abstract).FireInit),
+		common.RunApplicationEventKind:    RunFireAction((*Abstract).FireRun),
+		common.FinishApplicationEventKind: FinishFireAction((*Abstract).FireFinish),
+	}
+)
+
 // базовое приложение
 type Abstract struct {
 	// путь до конфигурационного файла
@@ -35,45 +57,29 @@ func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 	// создаем каналы для событий
 	app.SetEvents(make(chan *common.ApplicationEvent, 3))
 	go func() {
-		for {
-			select {
-			case event := <-app.Events():
-				if event.Kind == common.InitApplicationEventKind {
-					// пытаемся прочитать конфигурационный файл
-					bytes, err := ioutil.ReadFile(a.configFilename)
-					if err == nil {
-						event.Data = bytes
-						app.Init(event)
-					} else {
-						logger.All().FailExit("application can't read configuration file, error -  %v", err)
-					}
-				}
+		for event := range app.Events() {
+			action := actions[event.Kind]
 
-				for _, service := range app.Services() {
-					switch event.Kind {
-					case common.InitApplicationEventKind:
-						app.FireInit(event, service)
-					case common.RunApplicationEventKind:
-						app.FireRun(event, service)
-					case common.FinishApplicationEventKind:
-						app.FireFinish(event, service)
-					}
-				}
+			if preAction, ok := action.(PreFireAction); ok {
+				preAction.PreFire(app, event)
+			}
 
-				switch event.Kind {
-				case common.InitApplicationEventKind:
-					event.Kind = common.RunApplicationEventKind
-					app.Events() <- event
-				case common.FinishApplicationEventKind:
-					time.Sleep(2 * time.Second)
-					app.Done() <- true
-				}
+			for _, service := range app.Services() {
+				action.Fire(app, event, service)
+			}
+
+			if postAction, ok := action.(PostFireAction); ok {
+				postAction.PostFire(app, event)
 			}
 		}
 		close(app.Events())
 	}()
 	app.Events() <- event
 	<-app.Done()
+}
+
+func (a Abstract) GetConfigFilename() string {
+	return a.configFilename
 }
 
 // устанавливает путь к файлу с настройками
@@ -130,4 +136,43 @@ func (a *Abstract) FireFinish(event *common.ApplicationEvent, abstractService in
 // возвращает таймауты приложения
 func (a *Abstract) Timeout() common.Timeout {
 	return a.CommonTimeout
+}
+
+type InitFireAction func(*Abstract, *common.ApplicationEvent, interface{})
+
+func (i InitFireAction) Fire(app common.Application, event *common.ApplicationEvent, abstractService interface{}) {
+	app.FireInit(event, abstractService)
+}
+
+func (i InitFireAction) PreFire(app common.Application, event *common.ApplicationEvent) {
+	// пытаемся прочитать конфигурационный файл
+	bytes, err := ioutil.ReadFile(app.GetConfigFilename())
+	if err == nil {
+		event.Data = bytes
+		app.Init(event)
+	} else {
+		logger.All().FailExit("application can't read configuration file, error -  %v", err)
+	}
+}
+
+func (i InitFireAction) PostFire(app common.Application, event *common.ApplicationEvent) {
+	event.Kind = common.RunApplicationEventKind
+	app.Events() <- event
+}
+
+type RunFireAction func(*Abstract, *common.ApplicationEvent, interface{})
+
+func (r RunFireAction) Fire(app common.Application, event *common.ApplicationEvent, abstractService interface{}) {
+	app.FireRun(event, abstractService)
+}
+
+type FinishFireAction func(*Abstract, *common.ApplicationEvent, interface{})
+
+func (f FinishFireAction) Fire(app common.Application, event *common.ApplicationEvent, abstractService interface{}) {
+	app.FireFinish(event, abstractService)
+}
+
+func (f FinishFireAction) PostFire(app common.Application, event *common.ApplicationEvent) {
+	time.Sleep(2 * time.Second)
+	app.Done() <- true
 }
