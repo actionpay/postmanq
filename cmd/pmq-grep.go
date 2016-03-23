@@ -13,7 +13,6 @@ func main() {
 	flag.StringVar(&file, "f", common.ExampleConfigYaml, "configuration yaml file")
 	flag.StringVar(&envelope, "e", common.InvalidInputString, "necessary envelope")
 	flag.StringVar(&recipient, "r", common.InvalidInputString, "necessary recipient")
-	flag.IntVar(&numberLines, "n", common.InvalidInputInt, "output the last n lines")
 	flag.Parse()
 
 	app := application.NewGrep()
@@ -21,7 +20,7 @@ func main() {
 		app.SetConfigFilename(file)
 		app.RunWithArgs(envelope, recipient, numberLines)
 	} else {
-		fmt.Println("Usage: pmq-grep -f -r [-e] [-n]")
+		fmt.Println("Usage: pmq-grep -f -r [-e]")
 		flag.VisitAll(common.PrintUsage)
 		fmt.Println("Example:")
 		fmt.Printf("  pmq-grep -f %s -r mail@example.com\n", common.ExampleConfigYaml)
