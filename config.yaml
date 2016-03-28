@@ -4,6 +4,9 @@ logLevel: debug
 # как будут выводиться логи, в консоль или файл
 # logOutput: stdout | /path/to/file, по умолчанию stdout, необязательный параметр
 
+# домен, с которого будем рассылать письма
+domain: mail.example.com
+
 # селектор dkim, по умолчанию mail, необязательный параметр
 dkimSelector: trololo
 

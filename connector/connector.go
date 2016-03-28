@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"net"
 	"net/smtp"
 	"time"
@@ -114,7 +114,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 			client, err := smtp.NewClient(connection, mxServer.hostname)
 			if err == nil {
 				logger.Debug("connector#%d-%d create client to %s", c.id, event.Message.Id, mxServer.hostname)
-				err = client.Hello(event.Message.HostnameFrom)
+				err = client.Hello(service.Domain)
 				if err == nil {
 					logger.Debug("connector#%d-%d send command HELLO: %s", c.id, event.Message.Id, event.Message.HostnameFrom)
 					// проверяем доступно ли TLS

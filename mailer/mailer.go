@@ -3,8 +3,8 @@ package mailer
 import (
 	"errors"
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/byorty/dkim"
 )
 

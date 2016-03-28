@@ -1,13 +1,13 @@
 package application
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/connector"
-	"github.com/AdOnWeb/postmanq/consumer"
-	"github.com/AdOnWeb/postmanq/guardian"
-	"github.com/AdOnWeb/postmanq/limiter"
-	"github.com/AdOnWeb/postmanq/logger"
-	"github.com/AdOnWeb/postmanq/mailer"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/connector"
+	"github.com/actionpay/postmanq/consumer"
+	"github.com/actionpay/postmanq/guardian"
+	"github.com/actionpay/postmanq/limiter"
+	"github.com/actionpay/postmanq/logger"
+	"github.com/actionpay/postmanq/mailer"
 	yaml "gopkg.in/yaml.v2"
 	"runtime"
 )

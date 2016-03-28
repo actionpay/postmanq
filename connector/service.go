@@ -3,8 +3,8 @@ package connector
 import (
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
 )
@@ -37,6 +37,8 @@ type Service struct {
 
 	// ip с которых будем рассылать письма
 	Addresses []string `yaml:"ips"`
+
+	Domain string `yaml:"domain"`
 
 	// количество ip
 	addressesLen int
@@ -76,6 +78,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 		s.addressesLen = len(s.Addresses)
 		if s.addressesLen == 0 {
 			logger.FailExit("ips should be defined")
+		}
+		if s.Domain == common.InvalidInputString {
+			logger.FailExit("domain should be defined")
 		}
 		if s.ConnectorsCount == 0 {
 			s.ConnectorsCount = common.DefaultWorkersCount

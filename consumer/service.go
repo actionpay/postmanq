@@ -2,8 +2,8 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/logger"
 	"github.com/streadway/amqp"
 	yaml "gopkg.in/yaml.v2"
 	"net/url"

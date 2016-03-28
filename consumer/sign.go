@@ -1,7 +1,7 @@
 package consumer
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
+	"github.com/actionpay/postmanq/common"
 	"strings"
 )
 

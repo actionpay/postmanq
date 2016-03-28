@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
+	"github.com/actionpay/postmanq/common"
 	yaml "gopkg.in/yaml.v2"
 	"os"
 	"regexp"

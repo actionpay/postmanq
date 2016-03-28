@@ -1,7 +1,7 @@
 package limiter
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
+	"github.com/actionpay/postmanq/common"
 	"time"
 )
 

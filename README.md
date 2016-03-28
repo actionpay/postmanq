@@ -84,8 +84,8 @@ Selector-ом может быть любым словом на латинице.
     cd /some/path && mkdir postmanq && cd postmanq/
     export GOPATH=/some/path/postmanq/
     export GOBIN=/some/path/postmanq/bin/
-    go get github.com/AdOnWeb/postmanq
-    cd src/github.com/AdOnWeb/postmanq
+    go get github.com/actionpay/postmanq
+    cd src/github.com/actionpay/postmanq
     git checkout v.3.1
     go install cmd/postmanq.go
     go install cmd/pmq-grep.go

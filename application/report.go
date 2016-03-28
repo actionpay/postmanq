@@ -1,9 +1,9 @@
 package application
 
 import (
-	"github.com/AdOnWeb/postmanq/analyser"
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/consumer"
+	"github.com/actionpay/postmanq/analyser"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/consumer"
 )
 
 // приложение, анализирующее неотправленные сообщения

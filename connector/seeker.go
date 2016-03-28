@@ -1,7 +1,7 @@
 package connector
 
 import (
-	"github.com/AdOnWeb/postmanq/logger"
+	"github.com/actionpay/postmanq/logger"
 	"net"
 	"regexp"
 	"sort"

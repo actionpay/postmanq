@@ -2,7 +2,7 @@ package logger
 
 import (
 	"fmt"
-	"github.com/AdOnWeb/postmanq/common"
+	"github.com/actionpay/postmanq/common"
 	"runtime/debug"
 )
 

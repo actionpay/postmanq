@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
-	"github.com/AdOnWeb/postmanq/consumer"
+	"github.com/actionpay/postmanq/common"
+	"github.com/actionpay/postmanq/consumer"
 )
 
 // приложение, перекладывающее письма из очереди в очередь

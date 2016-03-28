@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"github.com/AdOnWeb/postmanq/common"
+	"github.com/actionpay/postmanq/common"
 	yaml "gopkg.in/yaml.v2"
 )
 
