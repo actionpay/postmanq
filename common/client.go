@@ -52,7 +52,7 @@ func (s *SmtpClient) Wait() {
 	s.Status = WaitingSmtpClientStatus
 	s.timer = time.AfterFunc(App.Timeout().Waiting, func() {
 		s.Status = DisconnectedSmtpClientStatus
-		s.Worker.Close()
+		s.Worker.Quit()
 		s.timer = nil
 	})
 }
