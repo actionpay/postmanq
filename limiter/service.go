@@ -23,7 +23,7 @@ type Service struct {
 	// количество горутин проверяющих количество отправленных писем
 	LimitersCount int `yaml:"workers"`
 
-	Configs map[string]*Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"postmans"`
 }
 
 // создает сервис ограничений

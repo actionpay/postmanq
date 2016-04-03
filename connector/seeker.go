@@ -3,8 +3,6 @@ package connector
 import (
 	"github.com/actionpay/postmanq/logger"
 	"net"
-	"regexp"
-	"sort"
 	"strings"
 	"sync"
 )
@@ -62,63 +60,7 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 				mxHostname := strings.TrimRight(mx.Host, ".")
 				logger.By(event.Message.HostnameFrom).Debug("seeker#%d-%d look up mx domain %s for %s", s.id, event.Message.Id, mxHostname, hostnameTo)
 				mxServer := newMxServer(mxHostname, event.Message.HostnameFrom)
-				// собираем IP адреса для сертификата и проверок
-				ips, err := net.LookupIP(mxHostname)
-				if err == nil {
-					for _, ip := range ips {
-						// берем только IPv4
-						ip = ip.To4()
-						if ip != nil {
-							logger.By(event.Message.HostnameFrom).Debug("seeker#%d-%d look up ip %s for %s", s.id, event.Message.Id, ip.String(), mxHostname)
-							existsIpsLen := len(mxServer.ips)
-							index := sort.Search(existsIpsLen, func(i int) bool {
-								return mxServer.ips[i].Equal(ip)
-							})
-							// избавляемся от повторяющихся IP адресов
-							if existsIpsLen == 0 || (index == -1 && existsIpsLen > 0) {
-								mxServer.ips = append(mxServer.ips, ip)
-							}
-						}
-					}
-					// домен почтового ящика может отличаться от домена почтового сервера,
-					// а домен почтового сервера может отличаться от реальной A записи сервера,
-					// на котором размещен этот почтовый сервер
-					// нам необходимо получить реальный домен, для того чтобы подписать на него сертификат
-					for _, ip := range mxServer.ips {
-						// пытаемся получить адреса сервера
-						addrs, err := net.LookupAddr(ip.String())
-						if err == nil {
-							for _, addr := range addrs {
-								// адрес получаем с точкой на конце, убираем ее
-								addr = strings.TrimRight(addr, ".")
-								// отсекаем адрес, если это IP
-								if net.ParseIP(addr) == nil {
-									logger.By(event.Message.HostnameFrom).Debug("seeker#%d-%d look up addr %s for ip %s", s.id, event.Message.Id, addr, ip.String())
-									if len(mxServer.realServerName) == 0 {
-										// пытаем найти домен почтового сервера в домене почты
-										hostnameMatched, _ := regexp.MatchString(hostnameTo, mxServer.hostname)
-										// пытаемся найти адрес в домене почтового сервиса
-										addrMatched, _ := regexp.MatchString(mxServer.hostname, addr)
-										// если найден домен почтового сервера в домене почты
-										// тогда в адресе будет PTR запись
-										if hostnameMatched && !addrMatched {
-											mxServer.realServerName = addr
-										} else if !hostnameMatched && addrMatched || !hostnameMatched && !addrMatched { // если найден адрес в домене почтового сервиса или нет совпадений
-											mxServer.realServerName = mxServer.hostname
-										}
-									}
-								}
-							}
-						} else {
-							logger.By(event.Message.HostnameFrom).Warn("seeker#%d-%d can't look up addr for ip %s", s.id, event.Message.Id, ip.String())
-						}
-					}
-				} else {
-					logger.By(event.Message.HostnameFrom).Warn("seeker#%d-%d can't look up ips for mx %s", s.id, event.Message.Id, mxHostname)
-				}
-				if len(mxServer.realServerName) == 0 { // если безвыходная ситуация
-					mxServer.realServerName = mxServer.hostname
-				}
+				mxServer.realServerName = s.seekRealServerName(mx.Host)
 				logger.By(event.Message.HostnameFrom).Debug("seeker#%d-%d look up detect real server name %s", s.id, event.Message.Id, mxServer.realServerName)
 				mailServer.mxServers[i] = mxServer
 			}
@@ -130,4 +72,20 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 		}
 	}
 	event.servers <- mailServer
+}
+
+func (s *Seeker) seekRealServerName(hostname string) string {
+	parts := strings.Split(hostname, ".")
+	partsLen := len(parts)
+	hostname = strings.Join(parts[partsLen-3:partsLen-1], ".")
+	mxes, err := net.LookupMX(hostname)
+	if err == nil {
+		if strings.Contains(mxes[0].Host, hostname) {
+			return hostname
+		} else {
+			return s.seekRealServerName(mxes[0].Host)
+		}
+	} else {
+		return hostname
+	}
 }

@@ -19,7 +19,7 @@ type Service struct {
 	// количество горутин блокирующий отправку писем к почтовым сервисам
 	GuardiansCount int `yaml:"workers"`
 
-	Configs map[string]*Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"postmans"`
 }
 
 // создает новый сервис блокировок

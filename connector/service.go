@@ -7,6 +7,8 @@ import (
 	"github.com/actionpay/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
+	"net"
+	"strings"
 )
 
 var (
@@ -29,7 +31,7 @@ type Service struct {
 	// количество горутин устанавливающих соединения к почтовым сервисам
 	ConnectorsCount int `yaml:"workers"`
 
-	Configs map[string]*Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"postmans"`
 }
 
 // создает новый сервис соединений
@@ -75,6 +77,12 @@ func (s *Service) init(conf *Config, hostname string) {
 	conf.addressesLen = len(conf.Addresses)
 	if conf.addressesLen == 0 {
 		logger.By(hostname).FailExit("connection service - ips should be defined")
+	}
+	mxes, err := net.LookupMX(hostname)
+	if err == nil {
+		conf.hostname = strings.TrimRight(mxes[0].Host, ".")
+	} else {
+		logger.By(hostname).FailExit("connection service - can't lookup mx for %s", hostname)
 	}
 }
 
@@ -125,6 +133,15 @@ func (s Service) getAddress(hostname string, id int) string {
 	}
 }
 
+func (s Service) getHostname(hostname string) string {
+	if conf, ok := s.Configs[hostname]; ok {
+		return conf.hostname
+	} else {
+		logger.By(hostname).Err("connection service can't find hostname by %s", hostname)
+		return common.EmptyStr
+	}
+}
+
 // событие создания соединения
 type ConnectionEvent struct {
 	*common.SendEvent
@@ -157,4 +174,6 @@ type Config struct {
 
 	// пул сертификатов
 	pool *x509.CertPool
+
+	hostname string
 }

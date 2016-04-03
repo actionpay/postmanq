@@ -29,7 +29,7 @@ type Config struct {
 
 // сервис ищущий сообщения в логе об отправке письма
 type Service struct {
-	Configs map[string]*Config `yaml:"domains"`
+	Configs map[string]*Config `yaml:"postmans"`
 }
 
 // создает новый сервис поиска по логам
