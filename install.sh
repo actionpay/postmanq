@@ -1,6 +1,4 @@
 #!/bin/bash
-BASE_PATH=`pwd`
-VERSION="v.3.1"
 
 if [[ "$(whoami)" != "root" ]]
 then
@@ -10,16 +8,18 @@ fi
 
 if [[ -z "$(which git)" ]]
 then
-    echo "sorry, git are not installed"
-    exit 1
+    echo "git are not installed!"
+    exit 2
 fi
 
 if [[ -z "$(which go)" ]]
 then
-    echo "sorry, go are not installed"
-    exit 1
+    echo "go are not installed!"
+    exit 3
 fi
 
+BASE_PATH=`pwd`
+VERSION="v.3.1"
 export GOPATH="$BASE_PATH"
 export GOBIN="$BASE_PATH/bin/"
 go get -d github.com/actionpay/postmanq/cmd

@@ -1,7 +1,6 @@
 package connector
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/actionpay/postmanq/common"
@@ -155,13 +154,10 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 // открывает защищенное соединение
 func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient, connection net.Conn, client *smtp.Client) {
 	// если есть какие данные о сертификате и к серверу можно создать TLS соединение
-	pool := service.getPool(event.Message.HostnameFrom)
-	if pool != nil && mxServer.useTLS {
+	conf := service.getTlsConfig(event.Message.HostnameFrom)
+	if conf != nil && mxServer.useTLS {
 		// открываем TLS соединение
-		err := client.StartTLS(&tls.Config{
-			ClientCAs:  pool,
-			ServerName: mxServer.realServerName,
-		})
+		err := client.StartTLS(conf)
 		// если все нормально, создаем клиента
 		if err == nil {
 			c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)

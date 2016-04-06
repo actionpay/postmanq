@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"github.com/actionpay/postmanq/common"
@@ -20,6 +21,17 @@ var (
 
 	// почтовые сервисы будут хранится в карте по домену
 	mailServers = make(map[string]*MailServer)
+
+	cipherSuites = []uint16{
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	}
 )
 
 // сервис, управляющий соединениями к почтовым сервисам
@@ -60,16 +72,33 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 func (s *Service) init(conf *Config, hostname string) {
 	// если указан путь до сертификата
 	if len(conf.CertFilename) > 0 {
+		conf.tlsConfig = &tls.Config{
+			ClientAuth:             tls.RequireAndVerifyClientCert,
+			CipherSuites:           cipherSuites,
+			MinVersion:             tls.VersionTLS12,
+			SessionTicketsDisabled: true,
+		}
+
 		// пытаемся прочитать сертификат
 		pemBytes, err := ioutil.ReadFile(conf.CertFilename)
 		if err == nil {
 			// получаем сертификат
 			pemBlock, _ := pem.Decode(pemBytes)
 			cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-			conf.pool = x509.NewCertPool()
-			conf.pool.AddCert(cert)
+			pool := x509.NewCertPool()
+			pool.AddCert(cert)
+			conf.tlsConfig.RootCAs = pool
+			conf.tlsConfig.ClientCAs = pool
 		} else {
 			logger.By(hostname).FailExit("connection service can't read certificate %s, error - %v", conf.CertFilename, err)
+		}
+		cert, err := tls.LoadX509KeyPair(conf.CertFilename, conf.PrivateKeyFilename)
+		if err == nil {
+			conf.tlsConfig.Certificates = []tls.Certificate{
+				cert,
+			}
+		} else {
+			logger.By(hostname).FailExit("connection service can't load certificate %s, private key %s, error - %v", conf.CertFilename, conf.PrivateKeyFilename, err)
 		}
 	} else {
 		logger.By(hostname).Debug("connection service - certificate is not defined")
@@ -106,11 +135,19 @@ func (s *Service) OnFinish() {
 	close(events)
 }
 
-func (s Service) getPool(hostname string) *x509.CertPool {
+func (s Service) getTlsConfig(hostname string) *tls.Config {
 	if conf, ok := s.Configs[hostname]; ok {
-		return conf.pool
+		//tlsConfig := new(tls.Config)
+		//tlsConfig.Certificates = conf.certs
+		//tlsConfig.RootCAs = conf.pool
+		//tlsConfig.ClientCAs = conf.pool
+		//tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		//tlsConfig.CipherSuites = cipherSuites
+		//tlsConfig.MinVersion = tls.VersionTLS12
+		//tlsConfig.SessionTicketsDisabled = true
+		return conf.tlsConfig
 	} else {
-		logger.By(hostname).Err("connection service can't find cert by %s", hostname)
+		logger.By(hostname).Err("connection service can't make tls config by %s", hostname)
 		return nil
 	}
 }
@@ -172,8 +209,7 @@ type Config struct {
 	// количество ip
 	addressesLen int
 
-	// пул сертификатов
-	pool *x509.CertPool
+	tlsConfig *tls.Config
 
 	hostname string
 }

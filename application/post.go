@@ -8,6 +8,7 @@ import (
 	"github.com/actionpay/postmanq/limiter"
 	"github.com/actionpay/postmanq/logger"
 	"github.com/actionpay/postmanq/mailer"
+	"github.com/actionpay/postmanq/recipient"
 	yaml "gopkg.in/yaml.v2"
 	"runtime"
 )
@@ -41,6 +42,7 @@ func (p *Post) Run() {
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
+		recipient.Inst(),
 	}
 	p.run(p, common.NewApplicationEvent(common.InitApplicationEventKind))
 }

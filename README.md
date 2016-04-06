@@ -64,19 +64,28 @@ PostmanQ разбирает одну или несколько очередей 
     openssl x509 -req -in request.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out example.crt -days 5000
     # создаем публичный ключ из приватного
     openssl rsa -in private.key -pubout > public.key
-        
-Далее добавляем DKIM и SPF записи в DNS:
-       
-    _domainkey.example.com. TXT "t=s; o=~;"
-    selector._domainkey.example.com. 3600 IN TXT "k=rsa\; t=s\; p=содержимое public.key" 
-    example.com. IN TXT "v=spf1 +a +mx ~all"
-    
-Selector-ом может быть любым словом на латинице. Значение selector-а необходимо указать в настройках PostmanQ в поле dkimSelector.
-    
-Кроме того необходимо прописать PTR-запись, которой соответствовала бы А-запись, с которой идет рассылка. 
+     
+Теперь необходимо настроить DNS.
 
-    # PTR запись для 1.2.3.4:
-    4.3.2.1.in-addr.arpa IN PTR mail.example.com
+PostmanQ должен представляться в команде HELO/EHLO своим полным доменным именем(FQDN) почты.
+
+FQDN почты должно быть указано в A записи с внешним IP.
+
+PTR запись должна указывать на FQDN почты.
+
+MX запись должна указывать на FQDN почты.
+ 
+Также необходимо указать DKIM и SPF записи.
+
+    example.com.                     A           1.1.1.1
+    example.com.                     MX 10       mail.example.com.
+    mail.example.com.                A           1.2.3.4
+    4.3.2.1.in-addr.arpa.            IN PTR      mail.example.com. 
+    _domainkey.example.com.          TXT         "t=s; o=~;"
+    selector._domainkey.example.com. 3600 IN TXT "k=rsa\; t=s\; p=содержимое public.key" 
+    example.com.                     IN TXT      "v=spf1 +a +mx ~all"
+          
+Selector-ом может быть любым словом на латинице. Значение selector-а необходимо указать в настройках PostmanQ в поле dkimSelector.
 
 Если PTR запись отсутствует, то письма могут попадать в спам, либо почтовые сервисы могут отклонять отправку.
 

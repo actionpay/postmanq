@@ -11,14 +11,14 @@ func main() {
 
 	//	amqpURI := "amqp://admin:admin0987654321@192.168.13.130:5672/postmanq"
 	amqpURI := "amqp://solomonov:123123123@localhost:5672/postmanq"
-	messageCount := 10
+	messageCount := 1
 	//	hasError := true
 	hasError := false
 	exchange := "postmanq"
 	//	exchange := "postmanq.failure.recipient"
 	envelope := "robotron@ap-ok.ru"
-	recipient := "solomonov@leadmix.ru"
-	//	recipient := "asolomonoff@gmail.com"
+	recipient := "3keltw+1191enyyarlwg@sharklasers.com"
+	//recipient := "asolomonoff@gmail.com"
 	//	recipient := "byorty@yandex.ru""
 	//	recipient := "byorty@mail.ru"
 	//	recipient := "byorty@fastmail.com"
