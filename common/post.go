@@ -10,7 +10,8 @@ import (
 
 const (
 	// Максимальное количество попыток подключения к почтовику за отправку письма
-	MaxTryConnectionCount = 30
+	MaxTryConnectionCount int = 30
+	MaxSendingCount       int = 96
 )
 
 var (
@@ -111,11 +112,14 @@ type MailMessage struct {
 
 	// ошибка отправки
 	Error *MailError `json:"error"`
+
+	TrySendingCount int `json:"trySendingCount"`
 }
 
 // инициализирует письмо
 func (this *MailMessage) Init() {
 	this.Id = time.Now().UnixNano()
+	this.TrySendingCount++
 	this.CreatedDate = time.Now()
 	if hostname, err := this.getHostnameFromEmail(this.Envelope); err == nil {
 		this.HostnameFrom = hostname
