@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"github.com/actionpay/postmanq/common"
@@ -18,6 +19,17 @@ var (
 
 	// почтовые сервисы будут хранится в карте по домену
 	mailServers = make(map[string]*MailServer)
+
+	cipherSuites = []uint16{
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	}
 )
 
 // сервис, управляющий соединениями к почтовым сервисам
@@ -43,8 +55,7 @@ type Service struct {
 	// количество ip
 	addressesLen int
 
-	// пул сертификатов
-	pool *x509.CertPool
+	conf *tls.Config
 }
 
 // создает новый сервис соединений
@@ -59,6 +70,12 @@ func Inst() *Service {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
+		s.conf = &tls.Config{
+			ClientAuth:             tls.RequireAndVerifyClientCert,
+			CipherSuites:           cipherSuites,
+			MinVersion:             tls.VersionTLS12,
+			SessionTicketsDisabled: true,
+		}
 		// если указан путь до сертификата
 		if len(s.CertFilename) > 0 {
 			// пытаемся прочитать сертификат
@@ -67,10 +84,18 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
 				cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-				s.pool = x509.NewCertPool()
-				s.pool.AddCert(cert)
+				pool := x509.NewCertPool()
+				pool.AddCert(cert)
+				s.conf.RootCAs = pool
+				s.conf.ClientCAs = pool
 			} else {
 				logger.FailExit("connection service can't read certificate, error - %v", err)
+			}
+			cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
+			if err == nil {
+				s.conf.Certificates = []tls.Certificate{cert}
+			} else {
+				logger.FailExit("connection service can't load certificate %s, private key %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
 			}
 		} else {
 			logger.Debug("certificate is not defined")

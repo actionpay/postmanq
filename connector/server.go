@@ -42,9 +42,6 @@ type MxServer struct {
 	// клиенты сервера
 	clients []*common.SmtpClient
 
-	// А запись сервера
-	realServerName string
-
 	// использоватение TLS
 	useTLS bool
 
