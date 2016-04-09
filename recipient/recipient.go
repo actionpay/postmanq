@@ -1,7 +1,6 @@
 package recipient
 
 import (
-	"cmd/go/testdata/src/vend/x/vendor/r"
 	"net"
 	"net/textproto"
 )
