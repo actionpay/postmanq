@@ -1,12 +1,12 @@
 #PostmanQ
 
-PostmanQ - это высоко производительный почтовый сервер(MTA). 
+PostmanQ - это высокопроизводительный почтовый сервер(MTA). 
 На сервере под управлением Ubuntu 12.04 с 8-ми ядерным процессором и 32ГБ оперативной памяти 
-PostmanQ рассылает более 10000 писем в минуту.
+PostmanQ рассылает более 300 писем в секунду.
 
 Для работы PostmanQ потребуется AMQP-сервер, в котором будут храниться письма. 
 
-PostmanQ разбирает одну или несколько очередей с письмами и отправляет письма по SMTP сторонним почтовым сервисам.
+PostmanQ разбирает одну или несколько очередей одного или нескольких AMQP-серверов с письмами и отправляет письма по SMTP сторонним почтовым сервисам.
 
 ##Возможности
 
@@ -42,49 +42,64 @@ PostmanQ разбирает одну или несколько очередей 
 
 ##Предварительная подготовка
 
-В начале создаем пару ключей:
+Чтобы наши письма отправлялись безопасно и доходили до адресатов, не попадая в спам, нам необходимо создать сертификат, публичный и закрытый ключ для каждого домена.
 
-    openssl genrsa -out private.key 1024               # путь до этого ключа нужно будет указать в настройках postmanq
-    openssl rsa -pubout -in private.key out public.key # этот ключ нужно будет указать в DNS
-    
 Закрытый ключ будет использоваться для подписи DKIM. 
 
 Публичный ключ необходимо указать в DNS записи для того, чтобы сторонние почтовые сервисы могли валидировать DKIM наших писем.
 
-Затем необходимо создать подписанный сертификат. Он будет использоваться для создания TLS соединений к удаленным почтовым сервисами.
+Сертификат будет использоваться для создания TLS соединений к удаленным почтовым сервисами.
 
     cd /some/path
-    /System/Library/OpenSSL/misc/CA.pl -newca                                                # создаем центр авторизации
-    echo "unique_subject = no" > someNameCA/index.txt.attr                                   # 
-    openssl req -new -x509 -key private.key -out cert.pem                                    # создаем неподписанный сертификат
-    cat cert.pem private.key | openssl x509 -x509toreq -signkey private.key -out certreq.csr # создаем CSR
-    openssl ca -in certreq.csr -out cert.pem                                                 # создаем подписанный сертификат
-    rm certreq.csr
-    
-Далее добавляем DKIM и SPF записи в DNS:
-    
-    _domainkey.example.com. TXT "t=s; o=~;"
-    selector._domainkey.example.com. 3600 IN TXT "k=rsa\; t=s\; p=содержимое public.key" 
-    example.com. IN TXT "v=spf1 +a +mx ~all"
-    
-Теперь наши письма не будут попадать в спам. 
+    # создаем корневой ключ
+    openssl genrsa -out rootCA.key 2048 
+    # создаем корневой сертификат на 10000 дней
+    openssl req -x509 -new -key rootCA.key -days 10000 -out rootCA.crt
+    # создаем приватный ключ
+    openssl genrsa -out private.key 2048
+    # создаем запрос на сертификат
+    openssl req -new -key private.key -out request.csr
+    # подписываем сертификат
+    openssl x509 -req -in request.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out example.crt -days 5000
+    # создаем публичный ключ из приватного
+    openssl rsa -in private.key -pubout > public.key
+     
+Теперь необходимо настроить DNS.
 
-Selector-ом может быть любым словом на латинице. Значение selector-а необходимо указать в настройках postmanq в поле dkimSelector.
+PostmanQ должен представляться в команде HELO/EHLO своим полным доменным именем(FQDN) почты.
+
+FQDN почты должно быть указано в A записи с внешним IP.
+
+PTR запись должна указывать на FQDN почты.
+
+MX запись должна указывать на FQDN почты.
+ 
+Также необходимо указать DKIM и SPF записи.
+
+    mail.example.com.                A           1.2.3.4
+    4.3.2.1.in-addr.arpa.            IN PTR      mail.example.com. 
+    _domainkey.example.com.          TXT         "t=s; o=~;"
+    selector._domainkey.example.com. 3600 IN TXT "k=rsa\; t=s\; p=содержимое public.key" 
+    example.com.                     IN TXT      "v=spf1 +a +mx ~all"
+          
+Selector-ом может быть любым словом на латинице. Значение selector-а необходимо указать в настройках PostmanQ в поле dkimSelector.
+
+Если PTR запись отсутствует, то письма могут попадать в спам, либо почтовые сервисы могут отклонять отправку.
 
 Также необходимо увеличить количество открываемых файловых дескрипторов, иначе PostmanQ не сможет открывать новые соединения, и письма будут падать в одну из очередей для повторной отправки.
 
 Затем устанавливаем AMQP-сервер, например [RabbitMQ](https://www.rabbitmq.com).
     
-Теперь все готово для установки PostmanQ.
+Теперь наши письма не будут попадать в спам, и все готово для установки PostmanQ.
 
 ##Установка
 
-Сначала уcтанавливаем [go](http://golang.org/doc/install). Затем устанавливаем postmanq:
+Сначала уcтанавливаем [go](http://golang.org/doc/install). Затем устанавливаем PostmanQ:
 
     cd /some/path && mkdir postmanq && cd postmanq/
     export GOPATH=/some/path/postmanq/
     export GOBIN=/some/path/postmanq/bin/
-    go get github.com/actionpay/postmanq
+    go get -d github.com/actionpay/postmanq/cmd
     cd src/github.com/actionpay/postmanq
     git checkout v.3.1
     go install cmd/postmanq.go
