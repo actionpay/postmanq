@@ -23,7 +23,7 @@ func Inst() common.SendingService {
 type Config struct {
 	ListenerCount int    `yaml:"listenerCount"`
 	Inbox         string `yaml:"inbox"`
-	mxHostnames   []string
+	MxHostnames   []string
 }
 
 type Event struct {
@@ -53,9 +53,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 func (s *Service) init(conf *Config, hostname string) {
 	mxes, err := net.LookupMX(hostname)
 	if err == nil {
-		conf.mxHostnames = make([]string, len(mxes))
+		conf.MxHostnames = make([]string, len(mxes))
 		for i, mx := range mxes {
-			conf.mxHostnames[i] = strings.TrimRight(mx.Host, ".")
+			conf.MxHostnames[i] = strings.TrimRight(mx.Host, ".")
 		}
 		if conf.ListenerCount == 0 {
 			conf.ListenerCount = common.DefaultWorkersCount
@@ -67,13 +67,14 @@ func (s *Service) init(conf *Config, hostname string) {
 
 func (s *Service) OnRun() {
 	for hostname, conf := range s.Configs {
-		for _, mxHostname := range conf.mxHostnames {
-			tcpAddr := fmt.Sprintf("%s:25", mxHostname)
+		for _, mxHostname := range conf.MxHostnames {
+			tcpAddr := fmt.Sprintf("%s:2225", mxHostname)
 			addr, err := net.ResolveTCPAddr("tcp", tcpAddr)
 			if err == nil {
 				logger.By(hostname).Info("recipient service - resolve %s success", tcpAddr)
 				listener, err := net.ListenTCP("tcp", addr)
 				if err == nil {
+					logger.By(hostname).Info("recipient service - listen %s success", tcpAddr)
 					go s.run(hostname, mxHostname, conf, listener)
 				} else {
 					logger.By(hostname).Warn("recipient service - can't listen %s, error - %v", tcpAddr, err)
@@ -93,7 +94,12 @@ func (s *Service) run(hostname, mxHostname string, conf *Config, listener *net.T
 	for {
 		conn, err := listener.AcceptTCP()
 		if err == nil {
-			events <- &Event{hostname, mxHostname, conn.RemoteAddr(), conn}
+			events <- &Event{
+				serverHostname:   hostname,
+				serverMxHostname: mxHostname,
+				clientAddr:       conn.RemoteAddr(),
+				conn:             conn,
+			}
 		} else {
 			logger.By(hostname).Warn("recipient service - can't accept %s, error - %v", hostname, err)
 		}

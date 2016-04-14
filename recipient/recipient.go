@@ -1,39 +1,10 @@
 package recipient
 
 import (
+	"github.com/actionpay/postmanq/logger"
 	"net"
 	"net/textproto"
 )
-
-//type RecipientState int
-//
-//const (
-//	Ehlo RecipientState = iota
-//	Helo
-//	Mail
-//	Rcpt
-//	Data
-//	Rset
-//	Noop
-//	Vrfy
-//	Quit
-//)
-//
-//var (
-//	nexts = map[RecipientState][]RecipientState {
-//		Ehlo: []RecipientState{Mail, Rset, Noop, Quit, Vrfy},
-//		Helo: []RecipientState{Mail, Rset, Noop, Quit, Vrfy},
-//		Mail: []RecipientState{Rcpt, Rset, Noop, Quit},
-//		Rcpt: []RecipientState{Data, Rcpt, Rset, Noop, Quit},
-//		Data: []RecipientState{Mail, Rset, Noop, Quit},
-//		Rset: []RecipientState{Mail, Rset, Noop, Quit},
-//		Noop: []RecipientState{},
-//		Vrfy: []RecipientState{},
-//		Quit: []RecipientState{},
-//	}
-//)
-//
-//func (r RecipientState) getName() []byte {}
 
 type Recipient struct {
 	id    int
@@ -43,7 +14,13 @@ type Recipient struct {
 }
 
 func newRecipient(id int, events chan *Event) {
+	data := new(DataState)
+
+	rcpt := new(RcptState)
+	rcpt.SetNext(data)
+
 	mail := new(MailState)
+	mail.SetNext(rcpt)
 	mail.SetPossibles([]State{})
 
 	ehlo := new(EhloState)
@@ -75,10 +52,17 @@ func (r *Recipient) handle(event *Event) {
 		switch status {
 		case SuccessStatus:
 			r.state.Write(r.txt)
-			r.state = r.state.GetNext()
+			state := r.state.GetNext()
+			//if state != nil {
+			state.SetId(r.state.GetId())
+			r.state = state
+			//}
 
+		case WaitingStatus:
+			return
 		case FailureStatus:
-			r.state.Write(r.txt)
+			r.txt.Cmd("500 Syntax error, command unrecognized")
+			//r.state.Write(r.txt)
 
 		case PossibleStatus:
 			var possibleStatus StateStatus
@@ -86,6 +70,7 @@ func (r *Recipient) handle(event *Event) {
 				possible.SetEvent(event)
 				possibleStatus = possible.Read(r.txt)
 				if possibleStatus == SuccessStatus {
+					possible.SetId(r.state.GetId())
 					r.state = possible
 					status = possibleStatus
 					goto handleStatus
@@ -94,6 +79,44 @@ func (r *Recipient) handle(event *Event) {
 			r.txt.Cmd("500 Syntax error, command unrecognized")
 
 		}
-		return
+
+		logger.By("localhost").Info("%v", event.message)
 	}
+}
+
+func (r *Recipient) handleRequest(event *Event, state State, i int) {
+	logger.By("localhost").Info("%T read state id %d", state, state.GetId())
+	state.SetEvent(event)
+	status := state.Read(r.txt)
+	goto handleStatus
+
+handleStatus:
+	logger.By("localhost").Info("%T status %v", state, status)
+	switch status {
+	case SuccessStatus:
+		state.Write(r.txt)
+		nextState := state.GetNext()
+		nextState.SetId(state.GetId())
+		r.state = nextState
+		logger.By("localhost").Info("%T write state id %d", state, state.GetId())
+
+	case FailureStatus:
+		state.Write(r.txt)
+
+	case PossibleStatus:
+		var possibleStatus StateStatus
+		for _, possible := range state.GetPossibles() {
+			possible.SetEvent(event)
+			possibleStatus = possible.Read(r.txt)
+			if possibleStatus == SuccessStatus {
+				possible.SetId(state.GetId())
+				r.state = possible
+				status = possibleStatus
+				goto handleStatus
+			}
+		}
+		r.txt.Cmd("500 Syntax error, command unrecognized")
+
+	}
+	return
 }

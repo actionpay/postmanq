@@ -18,6 +18,7 @@ const (
 var (
 	// Регулярка для проверки адреса почты, сразу компилируем, чтобы при отправке не терять на этом время
 	EmailRegexp   = regexp.MustCompile(`^[\w\d\.\_\%\+\-]+@([\w\d\.\-]+\.\w{2,5})$`)
+	HostnameRegex = regexp.MustCompile(`^[\w\d\.\-]+\.\w{2,5}$`)
 	EmptyStrSlice = []string{}
 )
 

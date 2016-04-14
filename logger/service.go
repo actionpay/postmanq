@@ -64,7 +64,7 @@ func Inst() common.SendingService {
 			go service.listenCommonMessags()
 		}
 		service.Configs = map[string]*Config{
-			"default": &Config{
+			"localhost": &Config{
 				LevelName: "debug",
 				Output:    "stdout",
 			},
