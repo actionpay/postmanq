@@ -77,8 +77,6 @@ MX запись должна указывать на FQDN почты.
  
 Также необходимо указать DKIM и SPF записи.
 
-    example.com.                     A           1.1.1.1
-    example.com.                     MX 10       mail.example.com.
     mail.example.com.                A           1.2.3.4
     4.3.2.1.in-addr.arpa.            IN PTR      mail.example.com. 
     _domainkey.example.com.          TXT         "t=s; o=~;"
