@@ -33,6 +33,7 @@ type Event struct {
 	clientAddr       net.Addr
 	conn             *net.TCPConn
 	message          *common.MailMessage
+	possibleCmd      []byte
 }
 
 type Service struct {
@@ -94,6 +95,7 @@ func (s *Service) run(hostname, mxHostname string, conf *Config, listener *net.T
 	for {
 		conn, err := listener.AcceptTCP()
 		if err == nil {
+			logger.By(hostname).Info("recipient service - accept %s success", hostname)
 			events <- &Event{
 				serverHostname:   hostname,
 				serverMxHostname: mxHostname,
