@@ -80,6 +80,8 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
 				cert, _ := x509.ParseCertificate(pemBlock.Bytes)
+				cert.KeyUsage = x509.KeyUsageCertSign
+				cert.IsCA = true
 				s.pool = x509.NewCertPool()
 				s.pool.AddCert(cert)
 			} else {
