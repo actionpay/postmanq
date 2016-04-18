@@ -137,8 +137,8 @@ func (s *Service) getConf(hostname string) *tls.Config {
 		MinVersion:             tls.VersionTLS12,
 		SessionTicketsDisabled: true,
 		RootCAs:                s.pool,
-		ClientCAs:              s.pool,
-		Certificates:           s.certs,
+		//ClientCAs:              s.pool,
+		Certificates: s.certs,
 	}
 }
 
