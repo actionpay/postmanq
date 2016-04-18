@@ -62,43 +62,62 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 func (s *Service) OnGrep(event *common.ApplicationEvent) {
 	scanner := bufio.NewScanner(s.logFile)
 	scanner.Split(bufio.ScanLines)
-	lines := make([]string, 0)
+	lines := make(chan string)
+	outs := make(chan string)
 
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	linesLen := len(lines)
-	if event.GetIntArg("numberLines") > common.InvalidInputInt && event.GetIntArg("numberLines") < linesLen {
-		lines = lines[linesLen-event.GetIntArg("numberLines"):]
-	}
+	go func() {
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+	}()
 
 	var expr string
-	hasEnvelope := len(event.GetStringArg("envelope")) > 0
+	hasEnvelope := event.GetStringArg("envelope") == ""
 	if hasEnvelope {
 		expr = fmt.Sprintf("envelope - %s, recipient - %s to mailer", event.GetStringArg("envelope"), event.GetStringArg("recipient"))
 	} else {
 		expr = fmt.Sprintf("recipient - %s to mailer", event.GetStringArg("recipient"))
 	}
 
-	var mailsCount int
-	for _, line := range lines {
-		if strings.Contains(line, expr) {
-			mailsCount++
-		}
-	}
-	wg := new(sync.WaitGroup)
-	wg.Add(mailsCount)
-	for i, line := range lines {
-		if strings.Contains(line, expr) {
-			results := mailIdRegex.FindStringSubmatch(line)
-			if len(results) == 3 {
-				go s.print(results[1], lines[i:], wg)
+	go func() {
+		var successExpr, failExpr, failPubExpr, delayExpr, limitExpr string
+		var mailId string
+		for line := range lines {
+			if mailId == "" {
+				if strings.Contains(line, expr) {
+					results := mailIdRegex.FindStringSubmatch(line)
+					if len(results) == 3 {
+						mailId = results[1]
+
+						successExpr = fmt.Sprintf("%s success send", mailId)
+						failExpr = fmt.Sprintf("%s publish failure mail to queue", mailId)
+						failPubExpr = fmt.Sprintf("%s can't publish failure mail to queue", mailId)
+						delayExpr = fmt.Sprintf("%s detect old dlx queue", mailId)
+						limitExpr = fmt.Sprintf("%s detect overlimit", mailId)
+
+						outs <- line
+					}
+				}
+			} else {
+				if strings.Contains(line, mailId) {
+					outs <- line
+				}
+				if strings.Contains(line, successExpr) ||
+					strings.Contains(line, failExpr) ||
+					strings.Contains(line, failPubExpr) ||
+					strings.Contains(line, delayExpr) ||
+					strings.Contains(line, limitExpr) {
+					mailId = ""
+				}
 			}
 		}
-	}
-	wg.Wait()
+		close(lines)
+	}()
 
+	for out := range outs {
+		fmt.Println(out)
+	}
+	close(outs)
 	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
