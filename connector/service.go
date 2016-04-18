@@ -162,7 +162,7 @@ func (s *Service) OnFinish() {
 }
 
 func (s *Service) getConf(hostname string) *tls.Config {
-	return &tls.Config{
+	conf := &tls.Config{
 		ServerName:             hostname,
 		ClientAuth:             tls.RequireAnyClientCert,
 		CipherSuites:           cipherSuites,
@@ -171,6 +171,8 @@ func (s *Service) getConf(hostname string) *tls.Config {
 		RootCAs:                s.pool,
 		Certificates:           s.certs,
 	}
+	conf.BuildNameToCertificate()
+	return conf
 }
 
 // событие создания соединения
