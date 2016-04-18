@@ -80,10 +80,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
 				cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-				cert.KeyUsage = x509.KeyUsageCertSign
-				cert.KeyUsage = x509.KeyUsageCertSign
 				cert.BasicConstraintsValid = true
 				cert.IsCA = true
+				cert.KeyUsage = x509.KeyUsageCertSign
 				s.pool = x509.NewCertPool()
 				s.pool.AddCert(cert)
 			} else {
@@ -93,6 +92,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			if err == nil {
 				cert.Leaf.BasicConstraintsValid = true
 				cert.Leaf.IsCA = true
+				cert.Leaf.KeyUsage = x509.KeyUsageCertSign
 				s.certs = []tls.Certificate{cert}
 			} else {
 				logger.FailExit("connection service can't load certificate %s, private key %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
