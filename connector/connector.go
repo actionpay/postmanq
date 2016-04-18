@@ -170,6 +170,8 @@ func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent
 			client.Quit()
 			// создаем обычное соединие
 			c.createSmtpClient(mxServer, event, ptrSmtpClient)
+
+			logger.Warn("connector#%d-%d can't start tls err - %v", c.id, event.Message.Id, err)
 		}
 	} else {
 		c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
