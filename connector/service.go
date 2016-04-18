@@ -168,7 +168,7 @@ func (s *Service) getConf(hostname string) *tls.Config {
 		CipherSuites:           cipherSuites,
 		MinVersion:             tls.VersionTLS12,
 		SessionTicketsDisabled: true,
-		RootCAs:                s.pool,
+		ClientCAs:              s.pool,
 		Certificates:           s.certs,
 	}
 	conf.BuildNameToCertificate()
