@@ -55,7 +55,9 @@ type Service struct {
 	// количество ip
 	addressesLen int
 
-	conf *tls.Config
+	pool *x509.CertPool
+
+	certs []tls.Certificate
 }
 
 // создает новый сервис соединений
@@ -70,12 +72,6 @@ func Inst() *Service {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		s.conf = &tls.Config{
-			ClientAuth:             tls.RequireAndVerifyClientCert,
-			CipherSuites:           cipherSuites,
-			MinVersion:             tls.VersionTLS12,
-			SessionTicketsDisabled: true,
-		}
 		// если указан путь до сертификата
 		if len(s.CertFilename) > 0 {
 			// пытаемся прочитать сертификат
@@ -84,16 +80,14 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 				// получаем сертификат
 				pemBlock, _ := pem.Decode(pemBytes)
 				cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-				pool := x509.NewCertPool()
-				pool.AddCert(cert)
-				s.conf.RootCAs = pool
-				s.conf.ClientCAs = pool
+				s.pool = x509.NewCertPool()
+				s.pool.AddCert(cert)
 			} else {
 				logger.FailExit("connection service can't read certificate, error - %v", err)
 			}
 			cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
 			if err == nil {
-				s.conf.Certificates = []tls.Certificate{cert}
+				s.certs = []tls.Certificate{cert}
 			} else {
 				logger.FailExit("connection service can't load certificate %s, private key %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
 			}
@@ -133,6 +127,19 @@ func (s *Service) Events() chan *common.SendEvent {
 // завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	close(events)
+}
+
+func (s *Service) getConf(hostname string) *tls.Config {
+	return &tls.Config{
+		ServerName:             hostname,
+		ClientAuth:             tls.RequireAndVerifyClientCert,
+		CipherSuites:           cipherSuites,
+		MinVersion:             tls.VersionTLS12,
+		SessionTicketsDisabled: true,
+		RootCAs:                s.pool,
+		ClientCAs:              s.pool,
+		Certificates:           s.certs,
+	}
 }
 
 // событие создания соединения

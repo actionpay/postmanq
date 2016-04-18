@@ -59,7 +59,9 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 			for i, mx := range mxes {
 				mxHostname := strings.TrimRight(mx.Host, ".")
 				logger.Debug("seeker#%d-%d look up mx domain %s for %s", s.id, event.Message.Id, mxHostname, hostnameTo)
-				mailServer.mxServers[i] = newMxServer(mxHostname)
+				mxServer := newMxServer(mxHostname)
+				mxServer.realServerName = s.seekRealServerName(mx.Host)
+				mailServer.mxServers[i] = mxServer
 			}
 			mailServer.status = SuccessMailServerStatus
 			logger.Debug("seeker#%d-%d look up %s success", s.id, event.Message.Id, hostnameTo)
