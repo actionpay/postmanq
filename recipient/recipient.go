@@ -3,6 +3,7 @@ package recipient
 import (
 	//"github.com/actionpay/postmanq/logger"
 	"bitbucket.org/asolomonov/postmanq/logger"
+	"fmt"
 	"net"
 	"net/textproto"
 )
@@ -51,22 +52,36 @@ func newRecipient(id int, events chan *Event) {
 }
 
 func (r *Recipient) handle(event *Event) {
+	var id uint
 	txt := textproto.NewConn(event.conn)
 	status := ReadStatus
 
 	for {
-		goto handleStatus
+		//goto handleStatus
 
-	handleStatus:
+		//handleStatus:
 		switch status {
 		case ReadStatus:
 			r.state.SetEvent(event)
-			id := txt.Next()
+			id = txt.Next()
 			txt.StartRequest(id)
+			defer txt.EndRequest(id)
 			buf := r.state.Read(txt)
-			txt.EndRequest(id)
 
+			fmt.Println(buf)
+			//r.state
 			logger.By(event.serverHostname).Debug("-> %v", buf)
+			status = WriteStatus
+
+		case WriteStatus:
+			txt.StartResponse(id)
+			defer txt.EndResponse(id)
+			r.state.Write(txt)
+
+			r.state = r.state.GetNext()
+			status = ReadStatus
+			fmt.Println("here!!!")
+
 		}
 
 		//goto handleStatus

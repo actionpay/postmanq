@@ -15,6 +15,7 @@ const (
 	SuccessStatus StateStatus = iota + 1
 	FailureStatus
 	ReadStatus
+	WriteStatus
 	PossibleStatus
 	QuitStatus
 )
@@ -31,6 +32,7 @@ type State interface {
 	GetPossibles() []State
 	SetPossibles([]State)
 	Read(*textproto.Conn) []byte
+	Check([]byte) bool
 	Write(*textproto.Conn)
 	GetId() uint
 	SetId(uint)
@@ -113,18 +115,15 @@ type ConnectState struct {
 }
 
 func (c *ConnectState) Read(conn *textproto.Conn) []byte {
-	//c.id = conn.Next()
-	//conn.StartRequest(c.id)
-	//defer conn.EndRequest(c.id)
 	return nil
 }
 
+func (c *ConnectState) Check(line []byte) bool {
+	return true
+}
+
 func (c *ConnectState) Write(conn *textproto.Conn) {
-	//c.id = conn.Next()
-	//conn.StartResponse(c.id)
-	//defer conn.EndResponse(c.id)
 	conn.PrintfLine(greet, c.event.serverHostname)
-	//logger.By("localhost").Info(greet, c.event.serverHostname)
 	fmt.Printf(greet, c.event.serverHostname)
 	fmt.Println()
 }
@@ -153,6 +152,10 @@ func (e *EhloState) Read(conn *textproto.Conn) []byte {
 	}
 }
 
+func (e *EhloState) Check(line []byte) bool {
+	return e.checkCmd(line, ehlo, ehloLen)
+}
+
 func (e *EhloState) receiveClientHostname(line []byte, cmd []byte, cmdLen int) StateStatus {
 	if e.checkCmd(line, cmd, cmdLen) {
 		hostname := bytes.TrimSpace(line[cmdLen:])
@@ -175,9 +178,9 @@ func (e *EhloState) Write(conn *textproto.Conn) {
 		resp = heloResp
 	}
 
-	e.id = conn.Next()
-	conn.StartResponse(e.id)
-	defer conn.EndResponse(e.id)
+	//e.id = conn.Next()
+	//conn.StartResponse(e.id)
+	//defer conn.EndResponse(e.id)
 	conn.PrintfLine(resp, e.event.serverMxHostname)
 	//logger.By("localhost").Info(resp, e.event.serverMxHostname)
 	fmt.Printf(resp, e.event.serverMxHostname)
