@@ -164,7 +164,7 @@ func (s *Service) OnFinish() {
 func (s *Service) getConf(hostname string) *tls.Config {
 	return &tls.Config{
 		ServerName:             hostname,
-		ClientAuth:             tls.RequireAndVerifyClientCert,
+		ClientAuth:             tls.RequireAnyClientCert,
 		CipherSuites:           cipherSuites,
 		MinVersion:             tls.VersionTLS12,
 		SessionTicketsDisabled: true,
