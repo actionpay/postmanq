@@ -89,15 +89,16 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			if err != nil {
 				logger.FailExit("connection service can't read ca %s, error - %v", s.CACertFilename, err)
 			}
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(caCert)
+			s.pool = x509.NewCertPool()
+			s.pool.AppendCertsFromPEM(caCert)
 
+			s.certs = []tls.Certificate{cert}
 			// Setup HTTPS client
-			s.config = &tls.Config{
-				Certificates: []tls.Certificate{cert},
-				RootCAs:      caCertPool,
-			}
-			s.config.BuildNameToCertificate()
+			//s.config = &tls.Config{
+			//	Certificates: []tls.Certificate{cert},
+			//	RootCAs:      caCertPool,
+			//}
+			//s.config.BuildNameToCertificate()
 
 			//// пытаемся прочитать сертификат
 			//pemBytes, err := ioutil.ReadFile(s.CertFilename)
@@ -168,8 +169,7 @@ func (s *Service) getConf(hostname string) *tls.Config {
 		MinVersion:             tls.VersionTLS12,
 		SessionTicketsDisabled: true,
 		RootCAs:                s.pool,
-		//ClientCAs:              s.pool,
-		Certificates: s.certs,
+		Certificates:           s.certs,
 	}
 }
 
