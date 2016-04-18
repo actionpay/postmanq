@@ -76,10 +76,10 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 func (s *Seeker) seekRealServerName(hostname string) string {
 	parts := strings.Split(hostname, ".")
 	partsLen := len(parts)
-	hostname = strings.Join(parts[partsLen-3:partsLen-1], ".")
-	mxes, err := net.LookupMX(hostname)
+	lookupHostname := strings.Join(parts[partsLen-3:partsLen-1], ".")
+	mxes, err := net.LookupMX(lookupHostname)
 	if err == nil {
-		if strings.Contains(mxes[0].Host, hostname) {
+		if strings.Contains(mxes[0].Host, lookupHostname) {
 			return hostname
 		} else {
 			return s.seekRealServerName(mxes[0].Host)
