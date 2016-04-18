@@ -75,57 +75,21 @@ func Inst() *Service {
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
-		// если указан путь до сертификата
-		if len(s.CertFilename) > 0 {
-
-			// Load client cert
-			cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
-			if err != nil {
-				logger.FailExit("connection service can't load cert from %s and %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
-			}
-
-			// Load CA cert
-			caCert, err := ioutil.ReadFile(s.CACertFilename)
-			if err != nil {
-				logger.FailExit("connection service can't read ca %s, error - %v", s.CACertFilename, err)
-			}
-			s.pool = x509.NewCertPool()
-			s.pool.AppendCertsFromPEM(caCert)
-
-			s.certs = []tls.Certificate{cert}
-			// Setup HTTPS client
-			//s.config = &tls.Config{
-			//	Certificates: []tls.Certificate{cert},
-			//	RootCAs:      caCertPool,
-			//}
-			//s.config.BuildNameToCertificate()
-
-			//// пытаемся прочитать сертификат
-			//pemBytes, err := ioutil.ReadFile(s.CertFilename)
-			//if err == nil {
-			//	// получаем сертификат
-			//	pemBlock, _ := pem.Decode(pemBytes)
-			//	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-			//	//cert.BasicConstraintsValid = true
-			//	//cert.IsCA = true
-			//	cert.KeyUsage = x509.KeyUsageCertSign
-			//	s.pool = x509.NewCertPool()
-			//	s.pool.AddCert(cert)
-			//} else {
-			//	logger.FailExit("connection service can't read certificate, error - %v", err)
-			//}
-			//cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
-			//if err == nil {
-			//	//cert.Leaf.BasicConstraintsValid = true
-			//	//cert.Leaf.IsCA = true
-			//	cert.Leaf.KeyUsage = x509.KeyUsageCertSign
-			//	s.certs = []tls.Certificate{cert}
-			//} else {
-			//	logger.FailExit("connection service can't load certificate %s, private key %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
-			//}
-		} else {
-			logger.Debug("certificate is not defined")
+		// Load client cert
+		cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
+		if err != nil {
+			logger.FailExit("connection service can't load cert from %s and %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
 		}
+
+		// Load CA cert
+		caCert, err := ioutil.ReadFile(s.CACertFilename)
+		if err != nil {
+			logger.FailExit("connection service can't read ca %s, error - %v", s.CACertFilename, err)
+		}
+		s.pool = x509.NewCertPool()
+		s.pool.AppendCertsFromPEM(caCert)
+		s.certs = []tls.Certificate{cert}
+
 		s.addressesLen = len(s.Addresses)
 		if s.addressesLen == 0 {
 			logger.FailExit("ips should be defined")
