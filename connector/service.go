@@ -3,7 +3,6 @@ package connector
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"github.com/actionpay/postmanq/common"
 	"github.com/actionpay/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
@@ -47,6 +46,8 @@ type Service struct {
 	// путь до файла с сертификатом
 	CertFilename string `yaml:"certificate"`
 
+	CACertFilename string `yaml:"caCertificate"`
+
 	// ip с которых будем рассылать письма
 	Addresses []string `yaml:"ips"`
 
@@ -58,6 +59,8 @@ type Service struct {
 	pool *x509.CertPool
 
 	certs []tls.Certificate
+
+	config *tls.Config
 }
 
 // создает новый сервис соединений
@@ -74,29 +77,51 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	if err == nil {
 		// если указан путь до сертификата
 		if len(s.CertFilename) > 0 {
-			// пытаемся прочитать сертификат
-			pemBytes, err := ioutil.ReadFile(s.CertFilename)
-			if err == nil {
-				// получаем сертификат
-				pemBlock, _ := pem.Decode(pemBytes)
-				cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-				cert.BasicConstraintsValid = true
-				cert.IsCA = true
-				cert.KeyUsage = x509.KeyUsageCertSign
-				s.pool = x509.NewCertPool()
-				s.pool.AddCert(cert)
-			} else {
-				logger.FailExit("connection service can't read certificate, error - %v", err)
-			}
+
+			// Load client cert
 			cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
-			if err == nil {
-				cert.Leaf.BasicConstraintsValid = true
-				cert.Leaf.IsCA = true
-				cert.Leaf.KeyUsage = x509.KeyUsageCertSign
-				s.certs = []tls.Certificate{cert}
-			} else {
-				logger.FailExit("connection service can't load certificate %s, private key %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
+			if err != nil {
+				logger.FailExit("connection service can't load cert from %s and %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
 			}
+
+			// Load CA cert
+			caCert, err := ioutil.ReadFile(s.CACertFilename)
+			if err != nil {
+				logger.FailExit("connection service can't read ca %s, error - %v", s.CACertFilename, err)
+			}
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCert)
+
+			// Setup HTTPS client
+			s.config = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+				RootCAs:      caCertPool,
+			}
+			s.config.BuildNameToCertificate()
+
+			//// пытаемся прочитать сертификат
+			//pemBytes, err := ioutil.ReadFile(s.CertFilename)
+			//if err == nil {
+			//	// получаем сертификат
+			//	pemBlock, _ := pem.Decode(pemBytes)
+			//	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
+			//	//cert.BasicConstraintsValid = true
+			//	//cert.IsCA = true
+			//	cert.KeyUsage = x509.KeyUsageCertSign
+			//	s.pool = x509.NewCertPool()
+			//	s.pool.AddCert(cert)
+			//} else {
+			//	logger.FailExit("connection service can't read certificate, error - %v", err)
+			//}
+			//cert, err := tls.LoadX509KeyPair(s.CertFilename, s.PrivateKeyFilename)
+			//if err == nil {
+			//	//cert.Leaf.BasicConstraintsValid = true
+			//	//cert.Leaf.IsCA = true
+			//	cert.Leaf.KeyUsage = x509.KeyUsageCertSign
+			//	s.certs = []tls.Certificate{cert}
+			//} else {
+			//	logger.FailExit("connection service can't load certificate %s, private key %s, error - %v", s.CertFilename, s.PrivateKeyFilename, err)
+			//}
 		} else {
 			logger.Debug("certificate is not defined")
 		}

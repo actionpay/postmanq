@@ -156,7 +156,7 @@ func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent
 	// если есть какие данные о сертификате и к серверу можно создать TLS соединение
 	if mxServer.useTLS {
 		// открываем TLS соединение
-		err := client.StartTLS(service.getConf(mxServer.realServerName))
+		err := client.StartTLS(service.config)
 		// если все нормально, создаем клиента
 		if err == nil {
 			c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
