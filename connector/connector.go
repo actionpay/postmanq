@@ -115,7 +115,7 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 				logger.Debug("connector#%d-%d create client to %s", c.id, event.Message.Id, mxServer.hostname)
 				err = client.Hello(service.Domain)
 				if err == nil {
-					logger.Debug("connector#%d-%d send command HELLO: %s", c.id, event.Message.Id, event.Message.HostnameFrom)
+					logger.Debug("connector#%d-%d send command HELLO: %s", c.id, event.Message.Id, service.Domain)
 					// проверяем доступно ли TLS
 					if mxServer.useTLS {
 						mxServer.useTLS, _ = client.Extension("STARTTLS")
