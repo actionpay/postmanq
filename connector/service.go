@@ -46,8 +46,6 @@ type Service struct {
 	// путь до файла с сертификатом
 	CertFilename string `yaml:"certificate"`
 
-	CACertFilename string `yaml:"caCertificate"`
-
 	// ip с которых будем рассылать письма
 	Addresses []string `yaml:"ips"`
 
@@ -82,9 +80,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 		}
 
 		// Load CA cert
-		caCert, err := ioutil.ReadFile(s.CACertFilename)
+		caCert, err := ioutil.ReadFile(s.CertFilename)
 		if err != nil {
-			logger.FailExit("connection service can't read ca %s, error - %v", s.CACertFilename, err)
+			logger.FailExit("connection service can't read cert %s, error - %v", s.CertFilename, err)
 		}
 		s.pool = x509.NewCertPool()
 		s.pool.AppendCertsFromPEM(caCert)
