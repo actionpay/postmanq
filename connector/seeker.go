@@ -51,7 +51,6 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 	// то таким образом блокируем повторную попытку собрать инфомацию о почтовом сервисе
 	if event.connectorId == mailServer.connectorId && mailServer.status == LookupMailServerStatus {
 		logger.Debug("seeker#%d-%d look up mx domains for %s...", s.id, event.Message.Id, hostnameTo)
-		mailServer := mailServers[hostnameTo]
 		// ищем почтовые сервера для домена
 		mxes, err := net.LookupMX(hostnameTo)
 		if err == nil {
