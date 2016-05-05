@@ -128,7 +128,7 @@ func (s *Service) getConf(hostname string) *tls.Config {
 		ServerName:             hostname,
 		ClientAuth:             tls.RequireAnyClientCert,
 		CipherSuites:           cipherSuites,
-		MinVersion:             tls.VersionTLS12,
+		MinVersion:             tls.VersionTLS11,
 		SessionTicketsDisabled: true,
 		ClientCAs:              s.pool,
 		Certificates:           s.certs,

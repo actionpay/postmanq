@@ -3,8 +3,6 @@ package connector
 import (
 	"github.com/actionpay/postmanq/logger"
 	"net"
-	"regexp"
-	"sort"
 	"strings"
 	"sync"
 )
