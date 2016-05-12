@@ -32,7 +32,7 @@ type State interface {
 	GetPossibles() []State
 	SetPossibles([]State)
 	Read(*textproto.Conn) []byte
-	Check([]byte) bool
+	Process([]byte) StateStatus
 	Write(*textproto.Conn)
 	GetId() uint
 	SetId(uint)
@@ -110,6 +110,15 @@ func (b BaseState) checkCmd(line []byte, cmd []byte, cmdLen int) bool {
 	return len(line) >= cmdLen && bytes.Equal(cmd, bytes.ToUpper(line[:cmdLen]))
 }
 
+func (b BaseState) Read(conn *textproto.Conn) []byte {
+	line, err := conn.ReadLineBytes()
+	if err == nil {
+		return line
+	} else {
+		return nil
+	}
+}
+
 type ConnectState struct {
 	BaseState
 }
@@ -118,14 +127,13 @@ func (c *ConnectState) Read(conn *textproto.Conn) []byte {
 	return nil
 }
 
-func (c *ConnectState) Check(line []byte) bool {
-	return true
+func (c *ConnectState) Process(line []byte) StateStatus {
+	return WriteStatus
 }
 
 func (c *ConnectState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(greet, c.event.serverHostname)
-	fmt.Printf(greet, c.event.serverHostname)
-	fmt.Println()
+	//fmt.Printf(greet, c.event.serverHostname)
 }
 
 type EhloState struct {
@@ -133,27 +141,14 @@ type EhloState struct {
 	useEhlo bool
 }
 
-func (e *EhloState) Read(conn *textproto.Conn) []byte {
-	//conn.StartRequest(e.id)
-	//defer conn.EndRequest(e.id)
-	line, err := conn.ReadLineBytes()
-	//logger.By("localhost").Info(string(line))
-	fmt.Printf(string(line))
-	fmt.Println()
-	if err == nil {
-		//status := e.receiveClientHostname(line, ehlo, ehloLen)
-		//if status == FailureStatus {
-		//	return line, e.receiveClientHostname(line, helo, heloLen)
-		//}
-		//e.useEhlo = true
-		return line
+func (e *EhloState) Process(line []byte) StateStatus {
+	status := e.receiveClientHostname(line, ehlo, ehloLen)
+	if status == WriteStatus {
+		e.useEhlo = true
 	} else {
-		return nil
+		status = e.receiveClientHostname(line, helo, heloLen)
 	}
-}
-
-func (e *EhloState) Check(line []byte) bool {
-	return e.checkCmd(line, ehlo, ehloLen)
+	return status
 }
 
 func (e *EhloState) receiveClientHostname(line []byte, cmd []byte, cmdLen int) StateStatus {
@@ -162,9 +157,9 @@ func (e *EhloState) receiveClientHostname(line []byte, cmd []byte, cmdLen int) S
 		if common.HostnameRegex.Match(hostname) {
 			e.event.clientHostname = hostname
 		} else {
-			// error
+			// handle error
 		}
-		return SuccessStatus
+		return WriteStatus
 	}
 	return FailureStatus
 }
@@ -178,98 +173,75 @@ func (e *EhloState) Write(conn *textproto.Conn) {
 		resp = heloResp
 	}
 
-	//e.id = conn.Next()
-	//conn.StartResponse(e.id)
-	//defer conn.EndResponse(e.id)
 	conn.PrintfLine(resp, e.event.serverMxHostname)
 	//logger.By("localhost").Info(resp, e.event.serverMxHostname)
+	fmt.Print("<-")
 	fmt.Printf(resp, e.event.serverMxHostname)
 	fmt.Println()
 }
 
-//type MailState struct {
-//	BaseState
-//}
-//
-//func (m *MailState) Read(conn *textproto.Conn) StateStatus {
-//
-//	conn.StartRequest(m.id)
-//	defer conn.EndRequest(m.id)
-//	line, err := conn.ReadLineBytes()
-//	//logger.By("localhost").Info(string(line))
-//	fmt.Printf(string(line))
-//	fmt.Println()
-//	if err == nil {
-//		if m.checkCmd(line, mailCmd, mailCmdLen) {
-//			envelope := line[mailCmdLen+1 : len(line)-1]
-//			if common.EmailRegexp.Match(envelope) {
-//				m.event.message = &common.MailMessage{
-//					Envelope: string(envelope),
-//				}
-//				return SuccessStatus
-//			} else {
-//				m.error = &StateError{}
-//				// error
-//			}
-//		} else {
-//			m.event.possibleCmd = line
-//			return PossibleStatus
-//		}
-//	}
-//	return FailureStatus
-//}
-//
-//func (m *MailState) Write(conn *textproto.Conn) {
-//	m.id = conn.Next()
-//	conn.StartResponse(m.id)
-//	defer conn.EndResponse(m.id)
-//	conn.PrintfLine(completeResp)
-//	//logger.By("localhost").Info(completeResp)
-//	fmt.Printf(completeResp)
-//	fmt.Println()
-//}
+type MailState struct {
+	BaseState
+}
 
-//type RcptState struct {
-//	BaseState
-//}
-//
-//func (r *RcptState) Read(conn *textproto.Conn) StateStatus {
-//
-//	conn.StartRequest(r.id)
-//	defer conn.EndRequest(r.id)
-//	line, err := conn.ReadLineBytes()
-//	//logger.By("localhost").Info(string(line))
-//	fmt.Printf(string(line))
-//	fmt.Println()
-//	if err == nil {
-//		if r.checkCmd(line, rcptCmd, rcptCmdLen) {
-//			recipient := line[rcptCmdLen+1 : len(line)-1]
-//			if common.EmailRegexp.Match(recipient) {
-//				r.event.message.Recipient = string(recipient)
-//				return SuccessStatus
-//			} else {
-//				// error
-//			}
-//		}
-//	}
-//	return FailureStatus
-//}
-//
-//func (r *RcptState) Write(conn *textproto.Conn) {
-//	r.id = conn.Next()
-//	conn.StartResponse(r.id)
-//	defer conn.EndResponse(r.id)
-//	conn.PrintfLine(completeResp)
-//	//logger.By("localhost").Info(completeResp)
-//	fmt.Printf(completeResp)
-//	fmt.Println()
-//	//r.id = conn.Next()
-//}
-//
-//type DataState struct {
-//	BaseState
-//}
-//
+func (m *MailState) Process(line []byte) StateStatus {
+	if m.checkCmd(line, mailCmd, mailCmdLen) {
+		envelope := line[mailCmdLen+1 : len(line)-1]
+		if common.EmailRegexp.Match(envelope) {
+			m.event.message = &common.MailMessage{
+				Envelope: string(envelope),
+			}
+			return WriteStatus
+		} else {
+			m.error = &StateError{}
+			// error
+
+			return FailureStatus
+		}
+	}
+	return PossibleStatus
+
+}
+
+func (m *MailState) Write(conn *textproto.Conn) {
+	conn.PrintfLine(completeResp)
+	//	//logger.By("localhost").Info(completeResp)
+	fmt.Print("<-")
+	fmt.Printf(completeResp)
+	fmt.Println()
+}
+
+type RcptState struct {
+	BaseState
+}
+
+func (r *RcptState) Process(line []byte) StateStatus {
+	if r.checkCmd(line, rcptCmd, rcptCmdLen) {
+		recipient := line[rcptCmdLen+1 : len(line)-1]
+		if common.EmailRegexp.Match(recipient) {
+			r.event.message.Recipient = string(recipient)
+			return WriteStatus
+		} else {
+			// error
+			return FailureStatus
+		}
+	}
+
+	return PossibleStatus
+}
+
+func (r *RcptState) Write(conn *textproto.Conn) {
+	conn.PrintfLine(completeResp)
+	//logger.By("localhost").Info(completeResp)
+	fmt.Print("<-")
+	fmt.Printf(completeResp)
+	fmt.Println()
+}
+
+type DataState struct {
+	BaseState
+}
+
 //func (d *DataState) Read(conn *textproto.Conn) StateStatus {
 //
 //	conn.StartRequest(d.id)
@@ -285,25 +257,27 @@ func (e *EhloState) Write(conn *textproto.Conn) {
 //	}
 //	return FailureStatus
 //}
-//
-//func (d *DataState) Write(conn *textproto.Conn) {
-//
-//	//d.id, _ = conn.Cmd(startInputResp)
-//	//logger.By("localhost").Info(startInputResp)
-//	fmt.Printf(startInputResp)
-//	fmt.Println()
-//
-//	d.id = conn.Next()
-//	conn.StartResponse(d.id)
-//	defer conn.EndResponse(d.id)
-//	conn.PrintfLine(startInputResp)
-//	//line, _ := conn.ReadDotBytes()
-//	//fmt.Printf(string(line))
-//	//fmt.Println()
-//
-//	//conn.StartResponse(d.id)
-//	//defer conn.EndResponse(d.id)
-//}
+
+func (d *DataState) Write(conn *textproto.Conn) {
+	//
+	//	//d.id, _ = conn.Cmd(startInputResp)
+	//	//logger.By("localhost").Info(startInputResp)
+	//	fmt.Printf(startInputResp)
+	//	fmt.Println()
+	//
+	//	d.id = conn.Next()
+	//	conn.StartResponse(d.id)
+	//	defer conn.EndResponse(d.id)
+	conn.PrintfLine(startInputResp)
+	//	//line, _ := conn.ReadDotBytes()
+	fmt.Print("<-")
+	fmt.Printf(startInputResp)
+	fmt.Println()
+	//
+	//	//conn.StartResponse(d.id)
+	//	//defer conn.EndResponse(d.id)
+}
+
 //
 //type InputState struct {
 //	BaseState

@@ -26,17 +26,17 @@ func newRecipient(id int, events chan *Event) {
 	//data := new(DataState)
 	//data.SetNext(input)
 	//
-	//rcpt := new(RcptState)
+	rcpt := new(RcptState)
 	//rcpt.SetNext(data)
 	//
-	//mail := new(MailState)
-	//mail.SetNext(rcpt)
-	//mail.SetPossibles(commonPossibles)
+	mail := new(MailState)
+	mail.SetNext(rcpt)
+	mail.SetPossibles([]State{})
 	//input.SetNext(mail)
 
 	ehlo := new(EhloState)
-	//ehlo.SetNext(mail)
-	//ehlo.SetPossibles([]State{})
+	ehlo.SetNext(mail)
+	ehlo.SetPossibles([]State{})
 
 	conn := new(ConnectState)
 	conn.SetNext(ehlo)
@@ -53,6 +53,7 @@ func newRecipient(id int, events chan *Event) {
 
 func (r *Recipient) handle(event *Event) {
 	var id uint
+	var buf []byte
 	txt := textproto.NewConn(event.conn)
 	status := ReadStatus
 
@@ -60,28 +61,32 @@ func (r *Recipient) handle(event *Event) {
 		//goto handleStatus
 
 		//handleStatus:
+		if r.state == nil {
+			continue
+		}
+
 		switch status {
 		case ReadStatus:
 			r.state.SetEvent(event)
 			id = txt.Next()
 			txt.StartRequest(id)
-			defer txt.EndRequest(id)
-			buf := r.state.Read(txt)
-
-			fmt.Println(buf)
-			//r.state
-			logger.By(event.serverHostname).Debug("-> %v", buf)
-			status = WriteStatus
+			buf = r.state.Read(txt)
+			txt.EndRequest(id)
+			status = r.state.Process(buf)
+			logger.By(event.serverHostname).Debug("-> %s", string(buf))
+			fmt.Println("->", string(buf))
+			fmt.Println("status: ", status)
 
 		case WriteStatus:
 			txt.StartResponse(id)
-			defer txt.EndResponse(id)
 			r.state.Write(txt)
+			txt.EndResponse(id)
 
 			r.state = r.state.GetNext()
 			status = ReadStatus
-			fmt.Println("here!!!")
 
+		case PossibleStatus:
+			fmt.Println("PossibleStatus")
 		}
 
 		//goto handleStatus
