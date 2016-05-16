@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/smtp"
 	"runtime"
-	"time"
 )
 
 func main() {
@@ -26,7 +25,6 @@ func main() {
 		}
 		hostname := net.JoinHostPort("localhost", "2225")
 		connection, err := dialer.Dial("tcp", hostname)
-		connection.SetDeadline(time.Now().Add(time.Second * 30))
 		if err == nil {
 			logger.By("localhost").Info("dial localhost:2225")
 			c, err := smtp.NewClient(connection, "example.com")

@@ -33,7 +33,6 @@ type Event struct {
 	clientAddr       net.Addr
 	conn             *net.TCPConn
 	message          *common.MailMessage
-	possibleCmd      []byte
 }
 
 type Service struct {

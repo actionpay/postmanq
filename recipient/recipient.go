@@ -15,32 +15,41 @@ type Recipient struct {
 }
 
 func newRecipient(id int, events chan *Event) {
-	//quit := new(QuitState)
-	//
-	//commonPossibles := []State{
-	//	quit,
-	//}
-	//
-	//input := new(InputState)
-	//
-	//data := new(DataState)
-	//data.SetNext(input)
-	//
+	quit := new(QuitState)
+	noop := new(NoopState)
+	rset := new(RsetState)
+
+	commonPossibles := []State{
+		quit,
+		noop,
+		rset,
+	}
+
+	input := new(InputState)
+	input.SetPossibles(commonPossibles)
+
+	data := new(DataState)
+	data.SetNext(input)
+	data.SetPossibles(commonPossibles)
+
 	rcpt := new(RcptState)
-	//rcpt.SetNext(data)
-	//
+	rcpt.SetNext(data)
+	rcpt.SetPossibles(commonPossibles)
+
 	mail := new(MailState)
 	mail.SetNext(rcpt)
-	mail.SetPossibles([]State{})
-	//input.SetNext(mail)
+	mail.SetPossibles(commonPossibles)
+
+	input.SetNext(mail)
+	rset.SetNext(mail)
 
 	ehlo := new(EhloState)
 	ehlo.SetNext(mail)
-	ehlo.SetPossibles([]State{})
+	ehlo.SetPossibles(commonPossibles)
 
 	conn := new(ConnectState)
 	conn.SetNext(ehlo)
-	//conn.SetPossibles([]State{})
+	conn.SetPossibles(commonPossibles)
 
 	recipient := &Recipient{
 		id:    id,
@@ -58,9 +67,6 @@ func (r *Recipient) handle(event *Event) {
 	status := ReadStatus
 
 	for {
-		//goto handleStatus
-
-		//handleStatus:
 		if r.state == nil {
 			continue
 		}
@@ -86,47 +92,32 @@ func (r *Recipient) handle(event *Event) {
 			status = ReadStatus
 
 		case PossibleStatus:
-			fmt.Println("PossibleStatus")
+			var possibleStatus StateStatus
+			var state State
+			for _, possible := range r.state.GetPossibles() {
+				possible.SetEvent(event)
+				possibleStatus = possible.Process(buf)
+				if possibleStatus != FailureStatus {
+					state = possible
+					status = possibleStatus
+					break
+				}
+			}
+			if state == nil {
+				txt.Cmd(syntaxErrorResp)
+			} else {
+				if state.IsUseCurrent() {
+					state.SetNext(r.state)
+				}
+				r.state = state
+			}
+
+		case QuitStatus:
+			txt.StartResponse(id)
+			r.state.Write(txt)
+			txt.EndResponse(id)
+			txt.Close()
+			return
 		}
-
-		//goto handleStatus
-
-		//handleStatus:
-		//	switch status {
-		//	case SuccessStatus:
-		//		r.state.Write(txt)
-		//		state := r.state.GetNext()
-		//		state.SetId(r.state.GetId())
-		//		r.state = state
-		//
-		//	case QuitStatus:
-		//		r.state.Write(txt)
-		//		event.conn.Close()
-		//		return
-		//
-		//	case FailureStatus:
-		//		txt.Cmd("500 Syntax error, command unrecognized")
-		//		return
-		//
-		//	case PossibleStatus:
-		//		var possibleStatus StateStatus
-		//		var state State
-		//		for _, possible := range r.state.GetPossibles() {
-		//			possible.SetEvent(event)
-		//			possibleStatus = possible.Read(r.txt)
-		//			if possibleStatus != FailureStatus {
-		//				possible.SetId(r.state.GetId())
-		//				state = possible
-		//				status = possibleStatus
-		//				break
-		//			}
-		//		}
-		//		if state == nil {
-		//			txt.Cmd("511 Syntax error, command unrecognized")
-		//		} else {
-		//			r.state = state
-		//			goto handleStatus
-		//		}
-		//	}
 	}
 }

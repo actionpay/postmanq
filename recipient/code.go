@@ -1,9 +1,15 @@
 package recipient
 
+import "fmt"
+
 type Code int
 
 func (c Code) GetName() string {
 	return codeMessages[c]
+}
+
+func (c Code) GetFormattedName() string {
+	return fmt.Sprintf(c.GetName(), c)
 }
 
 const (

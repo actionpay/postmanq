@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/actionpay/postmanq/common"
 	//"github.com/actionpay/postmanq/logger"
+	"cmd/go/testdata/src/vend/x/vendor/r"
 	"net/textproto"
 	"strings"
 )
@@ -36,21 +37,23 @@ type State interface {
 	Write(*textproto.Conn)
 	GetId() uint
 	SetId(uint)
+	IsUseCurrent() bool
 }
 
 var (
 	crlf           = "\r\n"
-	greet          = fmt.Sprintf("%d %s", ReadyCode, "%s ESMTP")
+	greetResp      = fmt.Sprintf("%d %s", ReadyCode, "%s ESMTP")
 	ehloExtensions = []string{
 		fmt.Sprintf("%d-STARTTLS", CompleteCode),
 		fmt.Sprintf("%d-SIZE", CompleteCode),
 		fmt.Sprintf("%d HELP", CompleteCode),
 	}
-	ehloResp       = fmt.Sprintf("%d-%s", CompleteCode, "%s ready to serve") + crlf + strings.Join(ehloExtensions, crlf)
-	heloResp       = fmt.Sprintf("%d %s", CompleteCode, "%s ready to serve")
-	completeResp   = fmt.Sprintf("%d OK", CompleteCode)
-	startInputResp = fmt.Sprintf(StartInputCode.GetName(), StartInputCode)
-	closeResp      = CloseCode.GetName()
+	ehloResp        = fmt.Sprintf("%d-%s", CompleteCode, "%s ready to serve") + crlf + strings.Join(ehloExtensions, crlf)
+	heloResp        = fmt.Sprintf("%d %s", CompleteCode, "%s ready to serve")
+	completeResp    = fmt.Sprintf("%d OK", CompleteCode)
+	startInputResp  = StartInputCode.GetFormattedName()
+	closeResp       = CloseCode.GetFormattedName()
+	syntaxErrorResp = SyntaxErrorCode.GetFormattedName()
 
 	ehlo       = []byte("EHLO")
 	ehloLen    = len(ehlo)
@@ -64,6 +67,12 @@ var (
 	dataCmdLen = len(dataCmd)
 	quitCmd    = []byte("QUIT")
 	quitCmdLen = len(quitCmd)
+	noopCmd    = []byte("NOOP")
+	noopCmdLen = len(quitCmd)
+	rsetCmd    = []byte("RSET")
+	rsetCmdLen = len(quitCmd)
+	vrfyCmd    = []byte("VRFY")
+	vrfyCmdLen = len(quitCmd)
 )
 
 type BaseState struct {
@@ -119,6 +128,10 @@ func (b BaseState) Read(conn *textproto.Conn) []byte {
 	}
 }
 
+func (b BaseState) IsUseCurrent() bool {
+	return false
+}
+
 type ConnectState struct {
 	BaseState
 }
@@ -132,8 +145,10 @@ func (c *ConnectState) Process(line []byte) StateStatus {
 }
 
 func (c *ConnectState) Write(conn *textproto.Conn) {
-	conn.PrintfLine(greet, c.event.serverHostname)
-	//fmt.Printf(greet, c.event.serverHostname)
+	conn.PrintfLine(greetResp, c.event.serverHostname)
+	fmt.Print("<-")
+	fmt.Printf(greetResp, c.event.serverHostname)
+	fmt.Println()
 }
 
 type EhloState struct {
@@ -242,99 +257,123 @@ type DataState struct {
 	BaseState
 }
 
-//func (d *DataState) Read(conn *textproto.Conn) StateStatus {
-//
-//	conn.StartRequest(d.id)
-//	defer conn.EndRequest(d.id)
-//	line, err := conn.ReadLineBytes()
-//	//logger.By("localhost").Info(string(line))
-//	fmt.Printf(string(line))
-//	fmt.Println()
-//	if err == nil {
-//		if d.checkCmd(line, dataCmd, dataCmdLen) {
-//			return SuccessStatus
-//		}
-//	}
-//	return FailureStatus
-//}
+func (d *DataState) Process(line []byte) StateStatus {
+	if d.checkCmd(line, dataCmd, dataCmdLen) {
+		return WriteStatus
+	}
+	return FailureStatus
+}
 
 func (d *DataState) Write(conn *textproto.Conn) {
-	//
-	//	//d.id, _ = conn.Cmd(startInputResp)
-	//	//logger.By("localhost").Info(startInputResp)
-	//	fmt.Printf(startInputResp)
-	//	fmt.Println()
-	//
-	//	d.id = conn.Next()
-	//	conn.StartResponse(d.id)
-	//	defer conn.EndResponse(d.id)
 	conn.PrintfLine(startInputResp)
-	//	//line, _ := conn.ReadDotBytes()
 	fmt.Print("<-")
 	fmt.Printf(startInputResp)
 	fmt.Println()
-	//
-	//	//conn.StartResponse(d.id)
-	//	//defer conn.EndResponse(d.id)
 }
 
-//
-//type InputState struct {
-//	BaseState
-//}
-//
-//func (i *InputState) Read(conn *textproto.Conn) StateStatus {
-//	conn.StartRequest(i.id)
-//	defer conn.EndRequest(i.id)
-//	line, err := conn.ReadDotBytes()
-//	str := string(line)
-//	fmt.Printf(str)
-//	fmt.Println()
-//	if err == nil {
-//		i.event.message.Body = str
-//		return SuccessStatus
-//	}
-//	return FailureStatus
-//}
-//
-//func (i *InputState) Write(conn *textproto.Conn) {
-//	i.id = conn.Next()
-//	conn.StartResponse(i.id)
-//	defer conn.EndResponse(i.id)
-//	conn.PrintfLine(completeResp)
-//	//i.id, _ = conn.Cmd(completeResp)
-//	//logger.By("localhost").Info(completeResp)
-//	fmt.Printf(completeResp)
-//	fmt.Println()
-//}
-//
-//type QuitState struct {
-//	BaseState
-//}
-//
-//func (q *QuitState) Read(conn *textproto.Conn) StateStatus {
-//	//conn.StartRequest(q.id)
-//	//defer conn.EndRequest(q.id)
-//	//line, err := conn.ReadLineBytes()
-//
-//	//if err == nil {
-//	fmt.Printf(string(q.event.possibleCmd))
-//	fmt.Println()
-//	fmt.Println(bytes.Equal(q.event.possibleCmd, bytes.ToUpper(q.event.possibleCmd[:quitCmdLen])))
-//	fmt.Println()
-//		if q.checkCmd(q.event.possibleCmd, quitCmd, quitCmdLen) {
-//			return QuitStatus
-//		}
-//	//}
-//	return FailureStatus
-//
-//}
-//
-//func (q *QuitState) Write(conn *textproto.Conn) {
-//	q.id = conn.Next()
-//	conn.StartResponse(q.id)
-//	defer conn.EndResponse(q.id)
-//	conn.PrintfLine(closeResp, CloseCode, q.event.serverMxHostname)
-//	fmt.Printf(closeResp, CloseCode, q.event.serverMxHostname)
-//	fmt.Println()
-//}
+type InputState struct {
+	BaseState
+}
+
+func (i *InputState) Read(conn *textproto.Conn) []byte {
+	line, err := conn.ReadDotBytes()
+	if err == nil {
+		return line
+	} else {
+		return nil
+	}
+}
+
+func (i *InputState) Process(line []byte) StateStatus {
+	i.event.message.Body = string(line)
+	return WriteStatus
+}
+
+func (i *InputState) Write(conn *textproto.Conn) {
+	conn.PrintfLine(completeResp)
+	//logger.By("localhost").Info(completeResp)
+	fmt.Print("<-")
+	fmt.Printf(completeResp)
+	fmt.Println()
+}
+
+type QuitState struct {
+	BaseState
+}
+
+func (q *QuitState) Process(line []byte) StateStatus {
+	if q.checkCmd(line, quitCmd, quitCmdLen) {
+		return QuitStatus
+	}
+	return FailureStatus
+}
+
+func (q *QuitState) Write(conn *textproto.Conn) {
+	conn.PrintfLine(closeResp, CloseCode, q.event.serverMxHostname)
+	fmt.Print("<-")
+	fmt.Printf(closeResp, CloseCode, q.event.serverMxHostname)
+	fmt.Println()
+	conn.Close()
+}
+
+type NoopState struct {
+	BaseState
+}
+
+func (n *NoopState) Process(line []byte) StateStatus {
+	if n.checkCmd(line, noopCmd, noopCmdLen) {
+		return WriteStatus
+	}
+	return FailureStatus
+}
+
+func (n *NoopState) Write(conn *textproto.Conn) {
+	conn.PrintfLine(completeResp)
+	//logger.By("localhost").Info(completeResp)
+	fmt.Print("<-")
+	fmt.Printf(completeResp)
+	fmt.Println()
+}
+
+func (n NoopState) IsUseCurrent() bool {
+	return true
+}
+
+type RsetState struct {
+	BaseState
+}
+
+func (r *RsetState) Process(line []byte) StateStatus {
+	if r.checkCmd(line, rsetCmd, rsetCmdLen) {
+		return WriteStatus
+	}
+	return FailureStatus
+}
+
+func (r *RsetState) Write(conn *textproto.Conn) {
+	r.event.message = nil
+	conn.PrintfLine(completeResp)
+	//logger.By("localhost").Info(completeResp)
+	fmt.Print("<-")
+	fmt.Printf(completeResp)
+	fmt.Println()
+}
+
+type VrfyState struct {
+	BaseState
+}
+
+func (v *VrfyState) Process(line []byte) StateStatus {
+	if v.checkCmd(line, vrfyCmd, vrfyCmdLen) {
+		return WriteStatus
+	}
+	return FailureStatus
+}
+
+func (v *VrfyState) Write(conn *textproto.Conn) {
+	conn.PrintfLine(completeResp)
+	//logger.By("localhost").Info(completeResp)
+	fmt.Print("<-")
+	fmt.Printf(completeResp)
+	fmt.Println()
+}
