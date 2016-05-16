@@ -140,7 +140,7 @@ func (s *Seeker) seekRealServerName(hostname string) string {
 		lookupHostname = strings.Join(parts, ".")
 	}
 	mxes, err := net.LookupMX(lookupHostname)
-	if err == nil {
+	if err == nil && len(mxes) > 0 {
 		if strings.Contains(mxes[0].Host, lookupHostname) {
 			return hostname
 		} else {

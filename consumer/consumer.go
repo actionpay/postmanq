@@ -161,7 +161,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 				message.Error.Code,
 			)
 		} else {
-			logger.Debug(
+			logger.Warn(
 				"consumer#%d-%d can't publish failure mail to queue %s, message: %s, code: %d, publish error% %v",
 				c.id,
 				message.Id,
@@ -170,7 +170,6 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 				message.Error.Code,
 				err,
 			)
-			logger.WarnWithErr(err)
 		}
 	} else {
 		logger.WarnWithErr(err)

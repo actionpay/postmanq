@@ -65,7 +65,7 @@ func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
 					event.Kind = common.RunApplicationEventKind
 					app.Events() <- event
 				case common.FinishApplicationEventKind:
-					time.Sleep(2 * time.Second)
+					time.Sleep(30 * time.Second)
 					app.Done() <- true
 				}
 			}

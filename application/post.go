@@ -52,7 +52,7 @@ func (p *Post) Init(event *common.ApplicationEvent) {
 	if err == nil {
 		p.CommonTimeout.Init()
 		common.DefaultWorkersCount = p.Workers
-		runtime.GOMAXPROCS(common.DefaultWorkersCount * 2)
+		runtime.GOMAXPROCS(runtime.NumCPU())
 		logger.Debug("app workers count %d", p.Workers)
 	} else {
 		logger.FailExitWithErr(err)

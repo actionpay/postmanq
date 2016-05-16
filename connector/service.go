@@ -128,12 +128,11 @@ func (s *Service) getConf(hostname string) *tls.Config {
 		ServerName:             hostname,
 		ClientAuth:             tls.RequireAnyClientCert,
 		CipherSuites:           cipherSuites,
-		MinVersion:             tls.VersionTLS11,
+		MinVersion:             tls.VersionTLS12,
 		SessionTicketsDisabled: true,
 		ClientCAs:              s.pool,
 		Certificates:           s.certs,
 	}
-	conf.BuildNameToCertificate()
 	return conf
 }
 
