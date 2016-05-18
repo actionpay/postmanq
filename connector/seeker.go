@@ -59,7 +59,7 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 				mxHostname := strings.TrimRight(mx.Host, ".")
 				logger.Debug("seeker#%d-%d look up mx domain %s for %s", s.id, event.Message.Id, mxHostname, hostnameTo)
 				mxServer := newMxServer(mxHostname)
-				mxServer.realServerName = s.seekRealServerName(mx.Host)
+				mxServer.realServerName = s.seekRealServerName(mx.Host, event)
 				// собираем IP адреса для сертификата и проверок
 				//ips, err := net.LookupIP(mxHostname)
 				//if err == nil {
@@ -124,13 +124,13 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 			logger.Debug("seeker#%d-%d look up %s success", s.id, event.Message.Id, hostnameTo)
 		} else {
 			mailServer.status = ErrorMailServerStatus
-			logger.Warn("seeker#%d-%d can't look up mx domains for %s", s.id, event.Message.Id, hostnameTo)
+			logger.Warn("seeker#%d-%d can't look up mx domains for %s, err: %v", s.id, event.Message.Id, hostnameTo, err)
 		}
 	}
 	event.servers <- mailServer
 }
 
-func (s *Seeker) seekRealServerName(hostname string) string {
+func (s *Seeker) seekRealServerName(hostname string, event *ConnectionEvent) string {
 	parts := strings.Split(hostname, ".")
 	partsLen := len(parts)
 	var lookupHostname string
@@ -144,9 +144,10 @@ func (s *Seeker) seekRealServerName(hostname string) string {
 		if strings.Contains(mxes[0].Host, lookupHostname) {
 			return hostname
 		} else {
-			return s.seekRealServerName(mxes[0].Host)
+			return s.seekRealServerName(mxes[0].Host, event)
 		}
 	} else {
+		logger.Warn("seeker#%d-%d can't look up real mx domains for %s, err: %v", s.id, event.Message.Id, lookupHostname, err)
 		return hostname
 	}
 }
