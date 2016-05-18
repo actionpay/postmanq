@@ -51,9 +51,9 @@ var (
 	ehloResp        = fmt.Sprintf("%d-%s", CompleteCode, "%s ready to serve") + crlf + strings.Join(ehloExtensions, crlf)
 	heloResp        = fmt.Sprintf("%d %s", CompleteCode, "%s ready to serve")
 	completeResp    = fmt.Sprintf("%d OK", CompleteCode)
-	startInputResp  = StartInputCode.GetFormattedName()
-	closeResp       = CloseCode.GetFormattedName()
-	syntaxErrorResp = SyntaxErrorCode.GetFormattedName()
+	startInputResp  = fmt.Sprintf(StartInputCode.GetName(), StartInputCode)
+	closeResp       = CloseCode.GetName()
+	syntaxErrorResp = SyntaxErrorCode.GetName()
 
 	ehlo       = []byte("EHLO")
 	ehloLen    = len(ehlo)
@@ -286,6 +286,7 @@ func (i *InputState) Read(conn *textproto.Conn) []byte {
 
 func (i *InputState) Process(line []byte) StateStatus {
 	i.event.message.Body = string(line)
+
 	return WriteStatus
 }
 

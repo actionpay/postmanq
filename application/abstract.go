@@ -173,6 +173,6 @@ func (f FinishFireAction) Fire(app common.Application, event *common.Application
 }
 
 func (f FinishFireAction) PostFire(app common.Application, event *common.ApplicationEvent) {
-	time.Sleep(2 * time.Second)
+	time.Sleep(30 * time.Second)
 	app.Done() <- true
 }
