@@ -49,8 +49,17 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 	// если пришло несколько несколько писем на один почтовый сервис,
 	// и информация о сервисе еще не собрана,
 	// то таким образом блокируем повторную попытку собрать инфомацию о почтовом сервисе
+	logger.Debug(
+		"seeker#%d-%d event connector#%d, mail connector#%d, status#%d",
+		s.id,
+		event.Message.Id,
+		event.connectorId,
+		mailServer.connectorId,
+		mailServer.status,
+	)
 	if event.connectorId == mailServer.connectorId && mailServer.status == LookupMailServerStatus {
 		logger.Debug("seeker#%d-%d look up mx domains for %s...", s.id, event.Message.Id, hostnameTo)
+		mailServer := mailServers[hostnameTo]
 		// ищем почтовые сервера для домена
 		mxes, err := net.LookupMX(hostnameTo)
 		if err == nil {
