@@ -1,9 +1,7 @@
 package recipient
 
 import (
-	//"github.com/actionpay/postmanq/logger"
-	"bitbucket.org/asolomonov/postmanq/logger"
-	"fmt"
+	"github.com/actionpay/postmanq/logger"
 	"net"
 	"net/textproto"
 )
@@ -18,11 +16,13 @@ func newRecipient(id int, events chan *Event) {
 	quit := new(QuitState)
 	noop := new(NoopState)
 	rset := new(RsetState)
+	vrfy := new(VrfyState)
 
 	commonPossibles := []State{
 		quit,
 		noop,
 		rset,
+		vrfy,
 	}
 
 	input := new(InputState)
@@ -70,18 +70,16 @@ func (r *Recipient) handle(event *Event) {
 		if r.state == nil {
 			continue
 		}
+		r.state.SetEvent(event)
 
 		switch status {
 		case ReadStatus:
-			r.state.SetEvent(event)
 			id = txt.Next()
 			txt.StartRequest(id)
 			buf = r.state.Read(txt)
 			txt.EndRequest(id)
 			status = r.state.Process(buf)
-			logger.By(event.serverHostname).Debug("-> %s", string(buf))
-			fmt.Println("->", string(buf))
-			fmt.Println("status: ", status)
+			logger.By(event.serverHostname).Debug(string(buf))
 
 		case WriteStatus:
 			txt.StartResponse(id)
@@ -111,6 +109,8 @@ func (r *Recipient) handle(event *Event) {
 				}
 				r.state = state
 			}
+
+		case FailureStatus:
 
 		case QuitStatus:
 			txt.StartResponse(id)

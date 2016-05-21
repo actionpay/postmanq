@@ -4,8 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/actionpay/postmanq/common"
-	//"github.com/actionpay/postmanq/logger"
-	"cmd/go/testdata/src/vend/x/vendor/r"
+	"github.com/actionpay/postmanq/logger"
 	"net/textproto"
 	"strings"
 )
@@ -13,8 +12,7 @@ import (
 type StateStatus int
 
 const (
-	SuccessStatus StateStatus = iota + 1
-	FailureStatus
+	FailureStatus StateStatus = iota + 1
 	ReadStatus
 	WriteStatus
 	PossibleStatus
@@ -22,7 +20,6 @@ const (
 )
 
 type StateError struct {
-	code    int
 	message string
 }
 
@@ -112,7 +109,7 @@ func (b *BaseState) SetId(id uint) {
 }
 
 func (b BaseState) writeError(conn *textproto.Conn) {
-	conn.PrintfLine(b.error.message, b.error.code)
+	conn.PrintfLine(b.error.message)
 }
 
 func (b BaseState) checkCmd(line []byte, cmd []byte, cmdLen int) bool {
@@ -146,9 +143,7 @@ func (c *ConnectState) Process(line []byte) StateStatus {
 
 func (c *ConnectState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(greetResp, c.event.serverHostname)
-	fmt.Print("<-")
-	fmt.Printf(greetResp, c.event.serverHostname)
-	fmt.Println()
+	logger.By(c.event.serverHostname).Debug(greetResp, c.event.serverHostname)
 }
 
 type EhloState struct {
@@ -171,12 +166,15 @@ func (e *EhloState) receiveClientHostname(line []byte, cmd []byte, cmdLen int) S
 		hostname := bytes.TrimSpace(line[cmdLen:])
 		if common.HostnameRegex.Match(hostname) {
 			e.event.clientHostname = hostname
+			return WriteStatus
 		} else {
-			// handle error
+			e.error = &StateError{
+				message: SyntaxParamErrorCode.GetFormattedName(),
+			}
+			return FailureStatus
 		}
-		return WriteStatus
 	}
-	return FailureStatus
+	return PossibleStatus
 }
 
 func (e *EhloState) Write(conn *textproto.Conn) {
@@ -189,10 +187,7 @@ func (e *EhloState) Write(conn *textproto.Conn) {
 	}
 
 	conn.PrintfLine(resp, e.event.serverMxHostname)
-	//logger.By("localhost").Info(resp, e.event.serverMxHostname)
-	fmt.Print("<-")
-	fmt.Printf(resp, e.event.serverMxHostname)
-	fmt.Println()
+	logger.By(e.event.serverHostname).Debug(resp, e.event.serverMxHostname)
 }
 
 type MailState struct {
@@ -208,8 +203,6 @@ func (m *MailState) Process(line []byte) StateStatus {
 			}
 			return WriteStatus
 		} else {
-			m.error = &StateError{}
-			// error
 
 			return FailureStatus
 		}
@@ -220,10 +213,7 @@ func (m *MailState) Process(line []byte) StateStatus {
 
 func (m *MailState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(completeResp)
-	//	//logger.By("localhost").Info(completeResp)
-	fmt.Print("<-")
-	fmt.Printf(completeResp)
-	fmt.Println()
+	logger.By(m.event.serverHostname).Debug(completeResp)
 }
 
 type RcptState struct {
@@ -237,7 +227,7 @@ func (r *RcptState) Process(line []byte) StateStatus {
 			r.event.message.Recipient = string(recipient)
 			return WriteStatus
 		} else {
-			// error
+			logger.By(r.event.serverHostname).Warn(completeResp)
 			return FailureStatus
 		}
 	}
@@ -247,10 +237,7 @@ func (r *RcptState) Process(line []byte) StateStatus {
 
 func (r *RcptState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(completeResp)
-	//logger.By("localhost").Info(completeResp)
-	fmt.Print("<-")
-	fmt.Printf(completeResp)
-	fmt.Println()
+	logger.By(r.event.serverHostname).Debug(completeResp)
 }
 
 type DataState struct {
@@ -266,9 +253,7 @@ func (d *DataState) Process(line []byte) StateStatus {
 
 func (d *DataState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(startInputResp)
-	fmt.Print("<-")
-	fmt.Printf(startInputResp)
-	fmt.Println()
+	logger.By(d.event.serverHostname).Debug(startInputResp)
 }
 
 type InputState struct {
@@ -286,16 +271,18 @@ func (i *InputState) Read(conn *textproto.Conn) []byte {
 
 func (i *InputState) Process(line []byte) StateStatus {
 	i.event.message.Body = string(line)
-
+	logger.By(i.event.serverHostname).Debug(
+		"envelope: %s, recipient: %s, body: %s",
+		i.event.message.Envelope,
+		i.event.message.Recipient,
+		i.event.message.Body,
+	)
 	return WriteStatus
 }
 
 func (i *InputState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(completeResp)
-	//logger.By("localhost").Info(completeResp)
-	fmt.Print("<-")
-	fmt.Printf(completeResp)
-	fmt.Println()
+	logger.By(i.event.serverHostname).Debug(completeResp)
 }
 
 type QuitState struct {
@@ -311,9 +298,7 @@ func (q *QuitState) Process(line []byte) StateStatus {
 
 func (q *QuitState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(closeResp, CloseCode, q.event.serverMxHostname)
-	fmt.Print("<-")
-	fmt.Printf(closeResp, CloseCode, q.event.serverMxHostname)
-	fmt.Println()
+	logger.By(q.event.serverHostname).Debug(closeResp, CloseCode, q.event.serverMxHostname)
 	conn.Close()
 }
 
@@ -330,10 +315,7 @@ func (n *NoopState) Process(line []byte) StateStatus {
 
 func (n *NoopState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(completeResp)
-	//logger.By("localhost").Info(completeResp)
-	fmt.Print("<-")
-	fmt.Printf(completeResp)
-	fmt.Println()
+	logger.By(n.event.serverHostname).Debug(completeResp)
 }
 
 func (n NoopState) IsUseCurrent() bool {
@@ -354,10 +336,7 @@ func (r *RsetState) Process(line []byte) StateStatus {
 func (r *RsetState) Write(conn *textproto.Conn) {
 	r.event.message = nil
 	conn.PrintfLine(completeResp)
-	//logger.By("localhost").Info(completeResp)
-	fmt.Print("<-")
-	fmt.Printf(completeResp)
-	fmt.Println()
+	logger.By(r.event.serverHostname).Debug(completeResp)
 }
 
 type VrfyState struct {
@@ -366,15 +345,20 @@ type VrfyState struct {
 
 func (v *VrfyState) Process(line []byte) StateStatus {
 	if v.checkCmd(line, vrfyCmd, vrfyCmdLen) {
-		return WriteStatus
+		if common.EmailRegexp.Match(line[vrfyCmdLen+1:]) {
+			return WriteStatus
+		} else {
+			return FailureStatus
+		}
 	}
 	return FailureStatus
 }
 
 func (v *VrfyState) Write(conn *textproto.Conn) {
 	conn.PrintfLine(completeResp)
-	//logger.By("localhost").Info(completeResp)
-	fmt.Print("<-")
-	fmt.Printf(completeResp)
-	fmt.Println()
+	logger.By(v.event.serverHostname).Debug(completeResp)
+}
+
+func (v VrfyState) IsUseCurrent() bool {
+	return true
 }

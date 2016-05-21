@@ -8,11 +8,15 @@ import (
 	"net"
 	"net/smtp"
 	"runtime"
+	"strings"
+	"time"
 )
 
 func main() {
 	common.DefaultWorkersCount = runtime.NumCPU()
 	logger.Inst()
+
+	//showConn()
 
 	logger.By("localhost").Info("start!")
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort("localhost", "0"))
@@ -67,6 +71,41 @@ func main() {
 			}
 		} else {
 			logger.By("localhost").Info("can't dial localhost:2225")
+		}
+	} else {
+		logger.By("localhost").Info("can't resolve tcp addr localhost")
+	}
+
+}
+
+func showConn() {
+	logger.By("localhost").Info("start!")
+	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort("192.168.43.208", "0"))
+	if err == nil {
+		logger.By("localhost").Info("resolve tcp addr localhost")
+		dialer := &net.Dialer{
+			LocalAddr: tcpAddr,
+			DualStack: true,
+			Timeout:   time.Second * 30,
+		}
+		mxes, _ := net.LookupMX("gmail.com")
+		for _, mx := range mxes {
+			mxHostname := strings.TrimRight(mx.Host, ".")
+			hostname := net.JoinHostPort(mxHostname, "25")
+			connection, err := dialer.Dial("tcp", hostname)
+			if err == nil {
+				logger.By("localhost").Info("dial %s", connection.LocalAddr())
+				c, _ := smtp.NewClient(connection, mxHostname)
+				////c, err := smtp.Dial(hostname)
+				////if err != nil {
+				////	log.Fatal(err)
+				////}
+				state, _ := c.TLSConnectionState()
+				logger.By("localhost").Info("%v", state)
+			} else {
+				logger.By("localhost").Info("can't connect %s", hostname)
+			}
+			break
 		}
 	} else {
 		logger.By("localhost").Info("can't resolve tcp addr localhost")
