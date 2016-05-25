@@ -118,19 +118,19 @@ type MailMessage struct {
 }
 
 // инициализирует письмо
-func (this *MailMessage) Init() {
-	this.Id = time.Now().UnixNano()
-	this.CreatedDate = time.Now()
-	if hostname, err := this.getHostnameFromEmail(this.Envelope); err == nil {
-		this.HostnameFrom = hostname
+func (m *MailMessage) Init() {
+	m.Id = time.Now().UnixNano()
+	m.CreatedDate = time.Now()
+	if hostname, err := m.getHostnameFromEmail(m.Envelope); err == nil {
+		m.HostnameFrom = hostname
 	}
-	if hostname, err := this.getHostnameFromEmail(this.Recipient); err == nil {
-		this.HostnameTo = hostname
+	if hostname, err := m.getHostnameFromEmail(m.Recipient); err == nil {
+		m.HostnameTo = hostname
 	}
 }
 
 // получает домен из адреса
-func (this *MailMessage) getHostnameFromEmail(email string) (string, error) {
+func (m *MailMessage) getHostnameFromEmail(email string) (string, error) {
 	matches := EmailRegexp.FindAllStringSubmatch(email, -1)
 	if len(matches) == 1 && len(matches[0]) == 2 {
 		return matches[0][1], nil

@@ -8,6 +8,7 @@ import (
 
 type Recipient struct {
 	id    int
+	first State
 	state State
 	conn  net.Conn
 }
@@ -53,7 +54,7 @@ func newRecipient(id int, events chan *Event) {
 
 	recipient := &Recipient{
 		id:    id,
-		state: conn,
+		first: conn,
 	}
 	for event := range events {
 		recipient.handle(event)
@@ -64,12 +65,12 @@ func (r *Recipient) handle(event *Event) {
 	var id uint
 	var buf []byte
 	txt := textproto.NewConn(event.conn)
-	status := ReadStatus
+	//status := ReadStatus
+	r.state = r.first
 
-	for {
-		if r.state == nil {
-			continue
-		}
+	statuses := make(StateStatuses)
+	statuses.Add(ReadStatus)
+	for status := range statuses {
 		r.state.SetEvent(event)
 
 		switch status {
@@ -78,7 +79,12 @@ func (r *Recipient) handle(event *Event) {
 			txt.StartRequest(id)
 			buf = r.state.Read(txt)
 			txt.EndRequest(id)
-			status = r.state.Process(buf)
+			cmd, cmdLen := r.state.GetCmd()
+			if r.state.Check(buf, cmd, cmdLen) {
+				statuses.Add(r.state.Process(buf))
+			} else {
+				statuses.Add(PossibleStatus)
+			}
 			logger.By(event.serverHostname).Debug(string(buf))
 
 		case WriteStatus:
@@ -87,22 +93,29 @@ func (r *Recipient) handle(event *Event) {
 			txt.EndResponse(id)
 
 			r.state = r.state.GetNext()
-			status = ReadStatus
+			statuses.Add(ReadStatus)
 
 		case PossibleStatus:
 			var possibleStatus StateStatus
 			var state State
 			for _, possible := range r.state.GetPossibles() {
 				possible.SetEvent(event)
-				possibleStatus = possible.Process(buf)
-				if possibleStatus != FailureStatus {
-					state = possible
-					status = possibleStatus
-					break
+				cmd, cmdLen := possible.GetCmd()
+				if possible.Check(buf, cmd, cmdLen) {
+					possibleStatus = possible.Process(buf)
+					if possibleStatus != FailureStatus {
+						state = possible
+						status = possibleStatus
+						break
+					}
 				}
 			}
 			if state == nil {
-				txt.Cmd(syntaxErrorResp)
+				state := r.first
+				for state.GetNext() != nil {
+
+				}
+				txt.PrintfLine(syntaxErrorResp)
 			} else {
 				if state.IsUseCurrent() {
 					state.SetNext(r.state)
@@ -111,6 +124,11 @@ func (r *Recipient) handle(event *Event) {
 			}
 
 		case FailureStatus:
+			txt.StartResponse(id)
+			txt.PrintfLine(r.state.GetError().message)
+			txt.EndResponse(id)
+			logger.By(event.serverHostname).Debug("%s: %s", buf, r.state.GetError().message)
+			//statuses.Add(ReadStatus)
 
 		case QuitStatus:
 			txt.StartResponse(id)
@@ -120,4 +138,5 @@ func (r *Recipient) handle(event *Event) {
 			return
 		}
 	}
+	close(statuses)
 }

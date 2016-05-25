@@ -35,6 +35,9 @@ type State interface {
 	GetId() uint
 	SetId(uint)
 	IsUseCurrent() bool
+	GetCmd() ([]byte, int)
+	Check([]byte, []byte, int) bool
+	GetError() *StateError
 }
 
 var (
@@ -52,6 +55,7 @@ var (
 	closeResp       = CloseCode.GetName()
 	syntaxErrorResp = SyntaxErrorCode.GetName()
 
+	emptyCmd   = []byte{}
 	ehlo       = []byte("EHLO")
 	ehloLen    = len(ehlo)
 	helo       = []byte("HELO")
@@ -108,11 +112,11 @@ func (b *BaseState) SetId(id uint) {
 	b.id = id
 }
 
-func (b BaseState) writeError(conn *textproto.Conn) {
-	conn.PrintfLine(b.error.message)
+func (b BaseState) GetError() *StateError {
+	return b.error
 }
 
-func (b BaseState) checkCmd(line []byte, cmd []byte, cmdLen int) bool {
+func (b BaseState) Check(line []byte, cmd []byte, cmdLen int) bool {
 	return len(line) >= cmdLen && bytes.Equal(cmd, bytes.ToUpper(line[:cmdLen]))
 }
 
@@ -127,6 +131,13 @@ func (b BaseState) Read(conn *textproto.Conn) []byte {
 
 func (b BaseState) IsUseCurrent() bool {
 	return false
+}
+
+func (b *BaseState) wrongParams() StateStatus {
+	b.error = &StateError{
+		message: SyntaxParamErrorCode.GetFormattedName(),
+	}
+	return FailureStatus
 }
 
 type ConnectState struct {
@@ -146,15 +157,33 @@ func (c *ConnectState) Write(conn *textproto.Conn) {
 	logger.By(c.event.serverHostname).Debug(greetResp, c.event.serverHostname)
 }
 
+func (c *ConnectState) GetCmd() ([]byte, int) {
+	return emptyCmd, 0
+}
+
 type EhloState struct {
 	BaseState
 	useEhlo bool
 }
 
-func (e *EhloState) Process(line []byte) StateStatus {
-	status := e.receiveClientHostname(line, ehlo, ehloLen)
-	if status == WriteStatus {
+func (e *EhloState) Check(line []byte, cmd []byte, cmdLen int) bool {
+	isEhlo := e.BaseState.Check(line, ehlo, ehloLen)
+	if isEhlo {
 		e.useEhlo = true
+		return isEhlo
+	} else {
+		return e.BaseState.Check(line, helo, heloLen)
+	}
+}
+
+func (e *EhloState) GetCmd() ([]byte, int) {
+	return ehlo, ehloLen
+}
+
+func (e *EhloState) Process(line []byte) StateStatus {
+	var status StateStatus
+	if e.useEhlo {
+		status = e.receiveClientHostname(line, ehlo, ehloLen)
 	} else {
 		status = e.receiveClientHostname(line, helo, heloLen)
 	}
@@ -162,19 +191,13 @@ func (e *EhloState) Process(line []byte) StateStatus {
 }
 
 func (e *EhloState) receiveClientHostname(line []byte, cmd []byte, cmdLen int) StateStatus {
-	if e.checkCmd(line, cmd, cmdLen) {
-		hostname := bytes.TrimSpace(line[cmdLen:])
-		if common.HostnameRegex.Match(hostname) {
-			e.event.clientHostname = hostname
-			return WriteStatus
-		} else {
-			e.error = &StateError{
-				message: SyntaxParamErrorCode.GetFormattedName(),
-			}
-			return FailureStatus
-		}
+	hostname := bytes.TrimSpace(line[cmdLen:])
+	if common.HostnameRegex.Match(hostname) {
+		e.event.clientHostname = hostname
+		return WriteStatus
+	} else {
+		return e.wrongParams()
 	}
-	return PossibleStatus
 }
 
 func (e *EhloState) Write(conn *textproto.Conn) {
@@ -194,21 +217,20 @@ type MailState struct {
 	BaseState
 }
 
+func (m *MailState) GetCmd() ([]byte, int) {
+	return mailCmd, mailCmdLen
+}
+
 func (m *MailState) Process(line []byte) StateStatus {
-	if m.checkCmd(line, mailCmd, mailCmdLen) {
-		envelope := line[mailCmdLen+1 : len(line)-1]
-		if common.EmailRegexp.Match(envelope) {
-			m.event.message = &common.MailMessage{
-				Envelope: string(envelope),
-			}
-			return WriteStatus
-		} else {
-
-			return FailureStatus
+	envelope := line[mailCmdLen+1 : len(line)-1]
+	if common.EmailRegexp.Match(envelope) {
+		m.event.message = &common.MailMessage{
+			Envelope: string(envelope),
 		}
+		return WriteStatus
+	} else {
+		return m.wrongParams()
 	}
-	return PossibleStatus
-
 }
 
 func (m *MailState) Write(conn *textproto.Conn) {
@@ -220,19 +242,18 @@ type RcptState struct {
 	BaseState
 }
 
-func (r *RcptState) Process(line []byte) StateStatus {
-	if r.checkCmd(line, rcptCmd, rcptCmdLen) {
-		recipient := line[rcptCmdLen+1 : len(line)-1]
-		if common.EmailRegexp.Match(recipient) {
-			r.event.message.Recipient = string(recipient)
-			return WriteStatus
-		} else {
-			logger.By(r.event.serverHostname).Warn(completeResp)
-			return FailureStatus
-		}
-	}
+func (r *RcptState) GetCmd() ([]byte, int) {
+	return rcptCmd, rcptCmdLen
+}
 
-	return PossibleStatus
+func (r *RcptState) Process(line []byte) StateStatus {
+	recipient := line[rcptCmdLen+1 : len(line)-1]
+	if common.EmailRegexp.Match(recipient) {
+		r.event.message.Recipient = string(recipient)
+		return WriteStatus
+	} else {
+		return r.wrongParams()
+	}
 }
 
 func (r *RcptState) Write(conn *textproto.Conn) {
@@ -244,11 +265,12 @@ type DataState struct {
 	BaseState
 }
 
+func (d *DataState) GetCmd() ([]byte, int) {
+	return dataCmd, dataCmdLen
+}
+
 func (d *DataState) Process(line []byte) StateStatus {
-	if d.checkCmd(line, dataCmd, dataCmdLen) {
-		return WriteStatus
-	}
-	return FailureStatus
+	return WriteStatus
 }
 
 func (d *DataState) Write(conn *textproto.Conn) {
@@ -267,6 +289,10 @@ func (i *InputState) Read(conn *textproto.Conn) []byte {
 	} else {
 		return nil
 	}
+}
+
+func (i *InputState) GetCmd() ([]byte, int) {
+	return emptyCmd, 0
 }
 
 func (i *InputState) Process(line []byte) StateStatus {
@@ -289,11 +315,12 @@ type QuitState struct {
 	BaseState
 }
 
+func (q *QuitState) GetCmd() ([]byte, int) {
+	return quitCmd, quitCmdLen
+}
+
 func (q *QuitState) Process(line []byte) StateStatus {
-	if q.checkCmd(line, quitCmd, quitCmdLen) {
-		return QuitStatus
-	}
-	return FailureStatus
+	return QuitStatus
 }
 
 func (q *QuitState) Write(conn *textproto.Conn) {
@@ -306,11 +333,12 @@ type NoopState struct {
 	BaseState
 }
 
+func (n *NoopState) GetCmd() ([]byte, int) {
+	return noopCmd, noopCmdLen
+}
+
 func (n *NoopState) Process(line []byte) StateStatus {
-	if n.checkCmd(line, noopCmd, noopCmdLen) {
-		return WriteStatus
-	}
-	return FailureStatus
+	return WriteStatus
 }
 
 func (n *NoopState) Write(conn *textproto.Conn) {
@@ -326,15 +354,16 @@ type RsetState struct {
 	BaseState
 }
 
+func (r *RsetState) GetCmd() ([]byte, int) {
+	return rsetCmd, rsetCmdLen
+}
+
 func (r *RsetState) Process(line []byte) StateStatus {
-	if r.checkCmd(line, rsetCmd, rsetCmdLen) {
-		return WriteStatus
-	}
-	return FailureStatus
+	r.event.message = nil
+	return WriteStatus
 }
 
 func (r *RsetState) Write(conn *textproto.Conn) {
-	r.event.message = nil
 	conn.PrintfLine(completeResp)
 	logger.By(r.event.serverHostname).Debug(completeResp)
 }
@@ -343,15 +372,16 @@ type VrfyState struct {
 	BaseState
 }
 
+func (v *VrfyState) GetCmd() ([]byte, int) {
+	return vrfyCmd, vrfyCmdLen
+}
+
 func (v *VrfyState) Process(line []byte) StateStatus {
-	if v.checkCmd(line, vrfyCmd, vrfyCmdLen) {
-		if common.EmailRegexp.Match(line[vrfyCmdLen+1:]) {
-			return WriteStatus
-		} else {
-			return FailureStatus
-		}
+	if common.EmailRegexp.Match(line[vrfyCmdLen+1:]) {
+		return WriteStatus
+	} else {
+		return FailureStatus
 	}
-	return FailureStatus
 }
 
 func (v *VrfyState) Write(conn *textproto.Conn) {

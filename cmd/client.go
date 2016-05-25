@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"github.com/actionpay/postmanq/common"
 	"github.com/actionpay/postmanq/logger"
@@ -32,6 +33,8 @@ func main() {
 		if err == nil {
 			logger.By("localhost").Info("dial localhost:2225")
 			c, err := smtp.NewClient(connection, "example.com")
+			//c.Hello("trololo.com")
+			c.Hello("trololo")
 			//c, err := smtp.Dial(hostname)
 			//if err != nil {
 			//	log.Fatal(err)
@@ -80,7 +83,7 @@ func main() {
 
 func showConn() {
 	logger.By("localhost").Info("start!")
-	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort("192.168.43.208", "0"))
+	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort("", "0"))
 	if err == nil {
 		logger.By("localhost").Info("resolve tcp addr localhost")
 		dialer := &net.Dialer{
@@ -100,6 +103,12 @@ func showConn() {
 				////if err != nil {
 				////	log.Fatal(err)
 				////}
+				c.StartTLS(&tls.Config{
+					GetCertificate: func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+						logger.By("localhost").Info("%v", clientHello)
+						return nil, nil
+					},
+				})
 				state, _ := c.TLSConnectionState()
 				logger.By("localhost").Info("%v", state)
 			} else {
