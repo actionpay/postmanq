@@ -101,8 +101,8 @@ func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent,
 	if err == nil {
 		logger.Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
 		dialer := &net.Dialer{
-			Timeout:   common.App.Timeout().Connection,
-			LocalAddr: tcpAddr,
+			Timeout: common.App.Timeout().Connection,
+			//LocalAddr: tcpAddr,
 		}
 		hostname := net.JoinHostPort(mxServer.hostname, "25")
 		// создаем соединение к почтовому сервису
