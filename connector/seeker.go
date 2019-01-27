@@ -120,7 +120,7 @@ func (s *Seeker) seek(event *ConnectionEvent) {
 								}
 							}
 						} else {
-							logger.Warn("seeker#%d-%d can't look up addr for ip %s", s.id, event.Message.Id, ip.String())
+							logger.Warn("seeker#%d-%d can't look up addr for ip %s, err: %s", s.id, event.Message.Id, ip.String(), err)
 						}
 					}
 				} else {
