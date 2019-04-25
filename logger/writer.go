@@ -11,7 +11,7 @@ type Writer interface {
 }
 
 // автор логов пишущий в стандартный вывод
-type StdoutWriter struct{
+type StdoutWriter struct {
 	// уровень логов, ниже этого уровня логи писаться не будут
 	level Level
 }

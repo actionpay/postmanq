@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/actionpay/postmanq/common"
+	"github.com/Halfi/postmanq/common"
 	"os"
 	"strconv"
 	"strings"

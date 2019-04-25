@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/consumer"
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/consumer"
 )
 
 // приложение, перекладывающее письма из очереди в очередь

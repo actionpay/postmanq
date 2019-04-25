@@ -95,15 +95,12 @@ func (e *EhloState) Read(conn *textproto.Conn) StateStatus {
 			if hostnameRegex.Match(line[ehloLen:]) {
 				e.event.clientHostname = line[ehloLen:]
 			}
+			return SuccessStatus
 		} else if bytes.Equal(helo, line[:heloLen]) {
-
-		} else {
-			return FailureStatus
+			return SuccessStatus
 		}
-	} else {
-
-		return FailureStatus
 	}
+	return FailureStatus
 }
 
 func (e *EhloState) Write(conn *textproto.Conn) {
@@ -123,7 +120,7 @@ type MailState struct {
 }
 
 func (m *MailState) Read(conn *textproto.Conn) StateStatus {
-	return nil
+	return FailureStatus
 }
 
 func (m *MailState) Write(conn *textproto.Conn) {

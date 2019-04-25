@@ -22,8 +22,8 @@ BASE_PATH=`pwd`
 VERSION="v.3.1"
 export GOPATH="$BASE_PATH"
 export GOBIN="$BASE_PATH/bin/"
-go get -d github.com/actionpay/postmanq/cmd
-cd "$BASE_PATH/src/github.com/actionpay/postmanq"
+go get -d github.com/Halfi/postmanq/cmd
+cd "$BASE_PATH/src/github.com/Halfi/postmanq"
 git checkout "$VERSION"
 go install cmd/postmanq.go
 go install cmd/pmq-grep.go

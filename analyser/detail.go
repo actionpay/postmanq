@@ -2,7 +2,7 @@ package analyser
 
 import (
 	"fmt"
-	"github.com/actionpay/postmanq/common"
+	"github.com/Halfi/postmanq/common"
 	"regexp"
 	"strings"
 )

@@ -2,8 +2,8 @@ package recipient
 
 import (
 	"fmt"
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/logger"
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"net"
 	"strings"
@@ -93,7 +93,7 @@ func (s *Service) run(hostname, mxHostname string, conf *Config, listener *net.T
 	for {
 		conn, err := listener.AcceptTCP()
 		if err == nil {
-			events <- &Event{hostname, mxHostname, conn.RemoteAddr(), conn}
+			events <- &Event{serverHostname: hostname, serverMxHostname: mxHostname, clientAddr: conn.RemoteAddr(), conn: conn}
 		} else {
 			logger.By(hostname).Warn("recipient service - can't accept %s, error - %v", hostname, err)
 		}

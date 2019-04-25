@@ -1,7 +1,7 @@
 package connector
 
 import (
-	"github.com/actionpay/postmanq/common"
+	"github.com/Halfi/postmanq/common"
 	"net"
 )
 

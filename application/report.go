@@ -1,9 +1,9 @@
 package application
 
 import (
-	"github.com/actionpay/postmanq/analyser"
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/consumer"
+	"github.com/Halfi/postmanq/analyser"
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/consumer"
 )
 
 // приложение, анализирующее неотправленные сообщения
