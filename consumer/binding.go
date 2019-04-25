@@ -207,7 +207,7 @@ func (b *Binding) declareDelayed(binding *Binding, channel *amqp.Channel) {
 }
 
 type AssistantBinding struct {
-	Binding
+	Binding Binding `yaml:",inline"`
 
 	Dest map[string]string `yaml:"dest"`
 

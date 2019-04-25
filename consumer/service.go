@@ -85,9 +85,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 					}
 					assistants := make([]*Assistant, len(config.Assistants))
 					for i, assistantBinding := range config.Assistants {
-						assistantBinding.init()
+						assistantBinding.Binding.init()
 						// объявляем очередь
-						assistantBinding.declare(channel)
+						assistantBinding.Binding.declare(channel)
 
 						destBindings := make(map[string]*Binding)
 						for domain, exchange := range assistantBinding.Dest {

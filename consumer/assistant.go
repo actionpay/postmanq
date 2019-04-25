@@ -15,7 +15,7 @@ type Assistant struct {
 }
 
 func (a *Assistant) run() {
-	for i := 0; i < a.srcBinding.Handlers; i++ {
+	for i := 0; i < a.srcBinding.Binding.Handlers; i++ {
 		go a.consume(i)
 	}
 }
@@ -25,9 +25,9 @@ func (a *Assistant) consume(id int) {
 	// выбираем из очереди сообщения с запасом
 	// это нужно для того, чтобы после отправки письма новое уже было готово к отправке
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
-	channel.Qos(a.srcBinding.PrefetchCount, 0, false)
+	channel.Qos(a.srcBinding.Binding.PrefetchCount, 0, false)
 	deliveries, err := channel.Consume(
-		a.srcBinding.Queue, // name
+		a.srcBinding.Binding.Queue, // name
 		"",                 // consumerTag,
 		false,              // noAck
 		false,              // exclusive
@@ -38,7 +38,7 @@ func (a *Assistant) consume(id int) {
 	if err == nil {
 		go a.publish(id, channel, deliveries)
 	} else {
-		logger.All().Warn("assistant#%d, handler#%d can't consume queue %s", a.id, id, a.srcBinding.Queue)
+		logger.All().Warn("assistant#%d, handler#%d can't consume queue %s", a.id, id, a.srcBinding.Binding.Queue)
 	}
 }
 
