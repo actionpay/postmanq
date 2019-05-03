@@ -7,10 +7,10 @@ ADD . /src/app
 WORKDIR /src/app
 
 RUN mkdir ./bin && \
-    go build -o ./bin/postmanq -a cmd/postmanq.go && \
-    go build -o ./bin/pmq-grep -a cmd/pmq-grep.go && \
-    go build -o ./bin/pmq-publish -a cmd/pmq-publish.go && \
-    go build -o ./bin/pmq-report -a cmd/pmq-report.go
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/postmanq -a cmd/postmanq.go && \
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-grep -a cmd/pmq-grep.go && \
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-publish -a cmd/pmq-publish.go && \
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-report -a cmd/pmq-report.go
 
 FROM alpine:3.9
 
