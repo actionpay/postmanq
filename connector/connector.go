@@ -47,7 +47,12 @@ receiveConnect:
 		logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d try receive connection for %s", c.id, event.Message.Id, mxServer.hostname)
 
 		// пробуем получить клиента
-		event.Queue, _ = mxServer.queues[event.address]
+		var ok bool
+		event.Queue, ok = mxServer.queues[event.address]
+		if !ok {
+			event.Queue = common.NewLimitQueue()
+		}
+
 		client := event.Queue.Pop()
 		if client != nil {
 			targetClient = client.(*common.SmtpClient)

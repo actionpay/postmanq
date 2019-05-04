@@ -23,7 +23,11 @@ func Inst() common.SendingService {
 type Config struct {
 	ListenerCount int    `yaml:"listenerCount"`
 	Inbox         string `yaml:"inbox"`
-	mxHostnames   []string
+
+	// hostname, на котором будет слушаться 25 порт
+	MXHostname string `yaml:"mxHostname"`
+
+	mxHostnames []string
 }
 
 type Event struct {
@@ -43,6 +47,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
 		for name, config := range s.Configs {
+			if config.MXHostname != "" {
+				name = config.MXHostname
+			}
 			s.init(config, name)
 		}
 	} else {

@@ -28,12 +28,12 @@ func (a *Assistant) consume(id int) {
 	channel.Qos(a.srcBinding.Binding.PrefetchCount, 0, false)
 	deliveries, err := channel.Consume(
 		a.srcBinding.Binding.Queue, // name
-		"",                 // consumerTag,
-		false,              // noAck
-		false,              // exclusive
-		false,              // noLocal
-		false,              // noWait
-		nil,                // arguments
+		"",                         // consumerTag,
+		false,                      // noAck
+		false,                      // exclusive
+		false,                      // noLocal
+		false,                      // noWait
+		nil,                        // arguments
 	)
 	if err == nil {
 		go a.publish(id, channel, deliveries)

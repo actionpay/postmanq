@@ -1,6 +1,8 @@
 package application
 
 import (
+	"runtime"
+
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/connector"
 	"github.com/Halfi/postmanq/consumer"
@@ -8,9 +10,7 @@ import (
 	"github.com/Halfi/postmanq/limiter"
 	"github.com/Halfi/postmanq/logger"
 	"github.com/Halfi/postmanq/mailer"
-	"github.com/Halfi/postmanq/recipient"
-	yaml "gopkg.in/yaml.v2"
-	"runtime"
+	"gopkg.in/yaml.v2"
 )
 
 // приложение, рассылающее письма
@@ -42,7 +42,7 @@ func (p *Post) Run() {
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
-		recipient.Inst(),
+		//recipient.Inst(),
 	}
 	p.run(p, common.NewApplicationEvent(common.InitApplicationEventKind))
 }
