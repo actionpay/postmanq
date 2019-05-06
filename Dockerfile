@@ -12,14 +12,14 @@ RUN mkdir ./bin && \
     CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-publish -a cmd/pmq-publish.go && \
     CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-report -a cmd/pmq-report.go
 
-FROM alpine:3.9
+FROM scratch
 
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip /usr/local/go/lib/time/zoneinfo.zip
-COPY --from=builder /src/app/bin/postmanq /bin/postmanq
-COPY --from=builder /src/app/bin/pmq-grep /bin/pmq-grep
-COPY --from=builder /src/app/bin/pmq-publish /bin/pmq-publish
-COPY --from=builder /src/app/bin/pmq-report /bin/pmq-report
+COPY --from=builder /src/app/bin/postmanq /postmanq
+COPY --from=builder /src/app/bin/pmq-grep /pmq-grep
+COPY --from=builder /src/app/bin/pmq-publish /pmq-publish
+COPY --from=builder /src/app/bin/pmq-report /pmq-report
 
 
-ENTRYPOINT ["postmanq"]
-CMD ["-f", "/etc/postmaq.yaml"]
+ENTRYPOINT ["/postmanq"]
+CMD ["-f", "/postmaq.yaml"]
