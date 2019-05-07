@@ -44,17 +44,12 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 	if err == nil {
 		conf[dkim.AUIDKey] = message.Envelope
 		conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
-		signer := dkim.NewByKey(conf, service.getPrivateKey(message.HostnameFrom))
+		signed, err := dkim.NewByKey(conf, service.getPrivateKey(message.HostnameFrom)).Sign(message.Body)
 		if err == nil {
-			signed, err := signer.Sign([]byte(message.Body))
-			if err == nil {
-				message.Body = string(signed)
-				logger.By(message.HostnameFrom).Debug("mailer#%d-%d success sign mail", m.id, message.Id)
-			} else {
-				logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't sign mail, error - %v", m.id, message.Id, err)
-			}
+			message.Body = signed
+			logger.By(message.HostnameFrom).Debug("mailer#%d-%d success sign mail", m.id, message.Id)
 		} else {
-			logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't create dkim signer, error - %v", m.id, message.Id, err)
+			logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't sign mail, error - %v", m.id, message.Id, err)
 		}
 	} else {
 		logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't create dkim config, error - %v", m.id, message.Id, err)
@@ -81,9 +76,9 @@ func (m *Mailer) send(event *common.SendEvent) {
 			wc, err := worker.Data()
 			if err == nil {
 				logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command DATA", m.id, message.Id)
-				_, err = fmt.Fprint(wc, message.Body)
+				_, err = wc.Write(message.Body)
 				if err == nil {
-					wc.Close()
+					_ = wc.Close()
 					logger.By(message.HostnameFrom).Debug("%s", message.Body)
 					logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command .", m.id, message.Id)
 					// стараемся слать письма через уже созданное соединение,

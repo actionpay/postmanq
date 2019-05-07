@@ -98,7 +98,7 @@ type MailMessage struct {
 	Recipient string `json:"recipient"`
 
 	// тело письма
-	Body string `json:"body"`
+	Body []byte `json:"body"`
 
 	// домен отправителя, удобно сразу получить и использовать далее
 	HostnameFrom string `json:"-"`
