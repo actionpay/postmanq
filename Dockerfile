@@ -1,4 +1,4 @@
-FROM golang:1.12.4-alpine3.9 AS builder
+FROM golang:1.14.6-alpine3.12 AS builder
 
 RUN apk add --update --no-cache make bash git openssh-client build-base musl-dev curl wget
 
@@ -7,10 +7,10 @@ ADD . /src/app
 WORKDIR /src/app
 
 RUN mkdir ./bin && \
-    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/postmanq -a cmd/postmanq.go && \
-    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-grep -a cmd/pmq-grep.go && \
-    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-publish -a cmd/pmq-publish.go && \
-    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-report -a cmd/pmq-report.go
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/postmanq -a cmd/postmanq/main.go && \
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-grep -a cmd/tools/pmq-grep/main.go && \
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-publish -a cmd/tools/pmq-publish/main.go && \
+    CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-report -a cmd/tools/pmq-report/main.go
 
 FROM scratch
 

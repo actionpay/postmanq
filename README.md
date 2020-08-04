@@ -99,20 +99,11 @@ Selector-ом может быть любым словом на латинице.
 
 Сначала уcтанавливаем [go](http://golang.org/doc/install). Затем устанавливаем PostmanQ:
 
-    cd /some/path && mkdir postmanq && cd postmanq/
-    export GOPATH=/some/path/postmanq/
-    export GOBIN=/some/path/postmanq/bin/
-    go get -d github.com/Halfi/postmanq/cmd
-    cd src/github.com/Halfi/postmanq
-    git checkout v.3.1
-    go install cmd/postmanq.go
-    go install cmd/pmq-grep.go
-    go install cmd/pmq-publish.go
-    go install cmd/pmq-report.go
-    ln -s /some/path/postmanq/bin/postmanq /usr/bin/
-    ln -s /some/path/postmanq/bin/pmq-grep /usr/bin/
-    ln -s /some/path/postmanq/bin/pmq-publish /usr/bin/
-    ln -s /some/path/postmanq/bin/pmq-report /usr/bin/
+    cd /some/path && mkdir postmanq
+    git clone --depth 1 -b 3.2 https://github.com/Halfi/postmanq.git
+    cd postmanq/
+    go install ./cmd/postmanq/...
+    go install ./cmd/tools/...
     
 Затем берем из репозитория config.yaml и пишем свой файл с настройками. Все настройки подробно описаны в самом config.yaml.
 

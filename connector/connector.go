@@ -101,7 +101,7 @@ waitConnect:
 
 // создает соединение к почтовому сервису
 func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient) {
-	// устанавливаем ip, с которого бцдем отсылать письмо
+	// устанавливаем ip, с которого будем отсылать письмо
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
 	if err == nil {
 		logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
