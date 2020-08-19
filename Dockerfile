@@ -12,7 +12,7 @@ RUN mkdir ./bin && \
     CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-publish -a cmd/tools/pmq-publish/main.go && \
     CGO_ENABLED=0 go build -i -ldflags '-d -s -w' -o ./bin/pmq-report -a cmd/tools/pmq-report/main.go
 
-FROM scratch
+FROM alpine:3.12
 
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip /usr/local/go/lib/time/zoneinfo.zip
 COPY --from=builder /src/app/bin/postmanq /postmanq
