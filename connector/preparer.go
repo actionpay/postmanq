@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
+	"github.com/Halfi/postmanq/mailer"
 	"time"
 )
 
@@ -50,7 +51,7 @@ connectToMailServer:
 		connectionEvent.server = server
 		connectorEvents <- connectionEvent
 	case ErrorMailServerStatus:
-		common.ReturnMail(
+		mailer.ReturnMail(
 			event,
 			errors.New(fmt.Sprintf("511 preparer#%d-%d can't lookup %s", p.id, event.Message.Id, event.Message.HostnameTo)),
 		)

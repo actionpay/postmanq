@@ -46,10 +46,20 @@ func (c *Consumer) run() {
 // подключается к очереди для получения сообщений
 func (c *Consumer) consume(id int) {
 	channel, err := c.connect.Channel()
+	if err != nil {
+		logger.All().Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
+		return
+	}
+
 	// выбираем из очереди сообщения с запасом
 	// это нужно для того, чтобы после отправки письма новое уже было готово к отправке
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
-	channel.Qos(c.binding.PrefetchCount, 0, false)
+	err = channel.Qos(c.binding.PrefetchCount, 0, false)
+	if err != nil {
+		logger.All().Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
+		return
+	}
+
 	deliveries, err := channel.Consume(
 		c.binding.Queue, // name
 		"",              // consumerTag,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
+	"github.com/Halfi/postmanq/mailer"
 	"net"
 	"net/smtp"
 	"time"
@@ -87,7 +88,7 @@ receiveConnect:
 
 waitConnect:
 	if event.TryCount >= common.MaxTryConnectionCount {
-		common.ReturnMail(
+		mailer.ReturnMail(
 			event.SendEvent,
 			errors.New(fmt.Sprintf("connector#%d can't connect to %s", c.id, event.Message.HostnameTo)),
 		)

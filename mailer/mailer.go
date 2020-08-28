@@ -6,6 +6,9 @@ import (
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
 	"github.com/byorty/dkim"
+	"io"
+	"strconv"
+	"strings"
 )
 
 // отправитель письма
@@ -34,7 +37,7 @@ func (m *Mailer) sendMail(event *common.SendEvent) {
 		m.prepare(message)
 		m.send(event)
 	} else {
-		common.ReturnMail(event, errors.New(fmt.Sprintf("511 service#%d can't send mail#%d, envelope or ricipient is invalid", m.id, message.Id)))
+		ReturnMail(event, errors.New(fmt.Sprintf("511 service#%d can't send mail#%d, envelope or ricipient is invalid", m.id, message.Id)))
 	}
 }
 
@@ -73,7 +76,8 @@ func (m *Mailer) send(event *common.SendEvent) {
 		if err == nil {
 			logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command RCPT TO: %s", m.id, message.Id, message.Recipient)
 			event.Client.SetTimeout(common.App.Timeout().Data)
-			wc, err := worker.Data()
+			var wc io.WriteCloser
+			wc, err = worker.Data()
 			if err == nil {
 				logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command DATA", m.id, message.Id)
 				_, err = wc.Write(message.Body)
@@ -101,6 +105,51 @@ func (m *Mailer) send(event *common.SendEvent) {
 		// отпускаем поток получателя сообщений из очереди
 		event.Result <- common.SuccessSendEventResult
 	} else {
-		common.ReturnMail(event, err)
+		ReturnMail(event, err)
+	}
+}
+
+// возвращает письмо обратно в очередь после ошибки во время отправки
+func ReturnMail(event *common.SendEvent, err error) {
+	// необходимо проверить сообщение на наличие кода ошибки
+	// обычно код идет первым
+	if err != nil {
+		errorMessage := err.Error()
+		parts := strings.Split(errorMessage, " ")
+		if len(parts) > 0 {
+			// пытаемся получить код
+			code, e := strconv.Atoi(strings.TrimSpace(parts[0]))
+			// и создать ошибку
+			// письмо с ошибкой вернется в другую очередь, отличную от письмо без ошибки
+			if e == nil {
+				event.Message.Error = &common.MailError{errorMessage, code}
+			}
+		} else {
+			logger.All().Err("can't get err code from error: %s", err)
+		}
+	}
+
+	// если в событии уже создан клиент
+	if event.Client != nil {
+		if event.Client.Worker != nil {
+			// сбрасываем цепочку команд к почтовому сервису
+			err := event.Client.Worker.Reset()
+			if err != nil {
+				logger.All().WarnWithErr(err)
+			}
+		}
+	}
+
+	// отпускаем поток получателя сообщений из очереди
+	if event.Message.Error == nil {
+		event.Result <- common.DelaySendEventResult
+		logger.All().Warn("message delayed")
+	} else {
+		if event.Message.Error.Code == 421 {
+			logger.All().Warn("message delayed with error %s", event.Message.Error.Message)
+			event.Result <- common.DelaySendEventResult
+		} else {
+			event.Result <- common.ErrorSendEventResult
+		}
 	}
 }
