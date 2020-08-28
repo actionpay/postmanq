@@ -22,10 +22,20 @@ func (a *Assistant) run() {
 
 func (a *Assistant) consume(id int) {
 	channel, err := a.connect.Channel()
+	if err != nil {
+		logger.All().Warn("consumer#%d, handler#%d can't get channel %s", a.id, id, a.srcBinding.Binding.Queue)
+		return
+	}
+
 	// выбираем из очереди сообщения с запасом
 	// это нужно для того, чтобы после отправки письма новое уже было готово к отправке
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
-	channel.Qos(a.srcBinding.Binding.PrefetchCount, 0, false)
+	err = channel.Qos(a.srcBinding.Binding.PrefetchCount, 0, false)
+	if err != nil {
+		logger.All().Warn("consumer#%d, handler#%d can't set qos %s", a.id, id, a.srcBinding.Binding.Queue)
+		return
+	}
+
 	deliveries, err := channel.Consume(
 		a.srcBinding.Binding.Queue, // name
 		"",                         // consumerTag,

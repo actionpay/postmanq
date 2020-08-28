@@ -38,7 +38,7 @@ type Limit struct {
 	Value int32 `json:"value"`
 
 	// тип ограничения
-	Kind Kind `json:"type"`
+	Type Kind `json:"type"`
 
 	// текущее количество писем
 	currentValue int32
@@ -55,10 +55,10 @@ type Limit struct {
 
 // инициализирует значения по умолчанию
 func (l *Limit) init() {
-	if duration, ok := limitDurations[l.Kind]; ok {
+	if duration, ok := limitDurations[l.Type]; ok {
 		l.duration = duration
 	}
-	if bindingType, ok := limitBindingTypes[l.Kind]; ok {
+	if bindingType, ok := limitBindingTypes[l.Type]; ok {
 		l.bindingType = bindingType
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/Halfi/postmanq/common"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 	"os"
 	"regexp"
 	"strings"

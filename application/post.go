@@ -10,7 +10,7 @@ import (
 	"github.com/Halfi/postmanq/limiter"
 	"github.com/Halfi/postmanq/logger"
 	"github.com/Halfi/postmanq/mailer"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // приложение, рассылающее письма

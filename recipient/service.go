@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 	"net"
 	"strings"
 )

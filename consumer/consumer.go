@@ -47,7 +47,7 @@ func (c *Consumer) run() {
 func (c *Consumer) consume(id int) {
 	channel, err := c.connect.Channel()
 	if err != nil {
-		logger.All().Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
+		logger.All().Warn("consumer#%d, handler#%d can't get channel %s", c.id, id, c.binding.Queue)
 		return
 	}
 
@@ -56,7 +56,7 @@ func (c *Consumer) consume(id int) {
 	// в тоже время нельзя выбираеть все сообщения из очереди разом, т.к. можно упереться в память
 	err = channel.Qos(c.binding.PrefetchCount, 0, false)
 	if err != nil {
-		logger.All().Warn("consumer#%d, handler#%d can't consume queue %s", c.id, id, c.binding.Queue)
+		logger.All().Warn("consumer#%d, handler#%d can't set qos %s", c.id, id, c.binding.Queue)
 		return
 	}
 
