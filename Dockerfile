@@ -1,4 +1,4 @@
-FROM golang:1.14.6-alpine3.12 AS builder
+FROM golang:1.15-alpine3.12 AS builder
 
 RUN apk add --update --no-cache make bash git openssh-client build-base musl-dev curl wget
 

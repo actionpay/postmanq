@@ -1,32 +1,16 @@
 package logger
 
 import (
-	"github.com/Halfi/postmanq/common"
 	"runtime/debug"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 // запись логирования
 type Message struct {
 	Hostname string
-	// сообщение для лога, может содержать параметры
-	Message string
-
-	// уровень логирования записи, необходим для отсечения лишних записей
-	Level Level
-
-	// аргументы для параметров сообщения
-	Args []interface{}
 
 	Stack []byte
-}
-
-// созадние новой записи логирования
-func NewMessage(level Level, message string, args ...interface{}) *Message {
-	logMessage := new(Message)
-	logMessage.Level = level
-	logMessage.Message = message
-	logMessage.Args = args
-	return logMessage
 }
 
 func All() *Message {
@@ -39,21 +23,9 @@ func By(hostname string) *Message {
 	}
 }
 
-func (m *Message) log(message string, necessaryLevel Level, args ...interface{}) {
-	m.Message = message
-	m.Level = necessaryLevel
-	m.Args = args
-
-	if necessaryLevel > InfoLevel || necessaryLevel == DebugLevel {
-		m.Stack = debug.Stack()
-	}
-
-	messages <- m
-}
-
 // пишет ошибку в лог
 func (m *Message) Err(message string, args ...interface{}) {
-	go m.log(message, ErrorLevel, args...)
+	logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
 }
 
 // пишет произвольную ошибку в лог и завершает программу
@@ -64,25 +36,26 @@ func (m *Message) FailExit(message string, args ...interface{}) {
 
 // пишет системную ошибку в лог и завершает программу
 func (m *Message) FailExitWithErr(err error) {
-	m.FailExit("%v", err)
+	logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Interface("error", err).Send()
+	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
 // пишет произвольное предупреждение
 func (m *Message) Warn(message string, args ...interface{}) {
-	go m.log(message, WarningLevel, args...)
+	logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
 }
 
 // пишет системное предупреждение
 func (m *Message) WarnWithErr(err error) {
-	m.Warn("%v", err)
+	logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Interface("error", err).Send()
 }
 
 // пишет информационное сообщение
 func (m *Message) Info(message string, args ...interface{}) {
-	go m.log(message, InfoLevel, args...)
+	logger.Info().Str("hostname", m.Hostname).Msgf(message, args)
 }
 
 // пишет сообщение для отладки
 func (m *Message) Debug(message string, args ...interface{}) {
-	go m.log(message, DebugLevel, args...)
+	logger.Debug().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
 }
