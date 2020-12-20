@@ -173,12 +173,19 @@ func (s *Service) Events() chan *common.SendEvent {
 
 // закрывает канал логирования
 func (s *Service) OnFinish() {
-	close(messages)
+	if messagesChanPool == nil {
+		return
+	}
+
 	for name, messagesChan := range messagesChanPool {
 		close(messagesChan)
 		delete(messagesChanPool, name)
 	}
 	messagesChanPool = nil
+	go func() {
+		<- time.After(time.Second)
+		close(messages)
+	}()
 }
 
 type Config struct {
