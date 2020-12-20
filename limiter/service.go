@@ -47,7 +47,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			s.LimitersCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.All().FailExitWithErr(err)
+		logger.All().FailExitErr(err)
 	}
 }
 

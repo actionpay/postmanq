@@ -182,10 +182,10 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 					message.Error.Code,
 					err,
 				)
-			logger.By(message.HostnameFrom).WarnWithErr(err)
+			logger.By(message.HostnameFrom).WarnErr(err)
 		}
 	} else {
-		logger.By(message.HostnameFrom).WarnWithErr(err)
+		logger.By(message.HostnameFrom).WarnErr(err)
 	}
 }
 
@@ -261,7 +261,7 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType comm
 			if err == nil {
 				logger.By(message.HostnameFrom).Debug("consumer#%d-%d publish failure mail to queue %s", c.id, message.Id, delayedBinding.Queue)
 			} else {
-				logger.All().Warn("consumer#%d-%d can't publish failure mail to queue %s, error - %v", c.id, message.Id, delayedBinding.Queue, err)
+				logger.All().WarnWithErr(err, "consumer#%d-%d can't publish failure mail to queue %s", c.id, message.Id, delayedBinding.Queue)
 			}
 		} else {
 			logger.All().Warn("consumer#%d-%d can't marshal mail to json", c.id, message.Id)
@@ -292,7 +292,7 @@ func (c *Consumer) consumeFailureMessages(group *sync.WaitGroup) {
 		}
 		group.Done()
 	} else {
-		logger.All().WarnWithErr(err)
+		logger.All().WarnErr(err)
 	}
 }
 
@@ -371,7 +371,7 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 		}
 		group.Done()
 	} else {
-		logger.All().WarnWithErr(err)
+		logger.All().WarnErr(err)
 	}
 }
 

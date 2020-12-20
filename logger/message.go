@@ -25,7 +25,9 @@ func By(hostname string) *Message {
 
 // пишет ошибку в лог
 func (m *Message) Err(message string, args ...interface{}) {
-	logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
+	go func() {
+		logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
+	}()
 }
 
 // пишет произвольную ошибку в лог и завершает программу
@@ -34,28 +36,70 @@ func (m *Message) FailExit(message string, args ...interface{}) {
 	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
+// пишет ошибку с сообщением в лог и завершает программу
+func (m *Message) FailExitWithErr(err error, message string, args ...interface{}) {
+	go func() {
+		l := logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
+		if err != nil {
+			l = l.Interface("error", err)
+		}
+
+		l.Msgf(message, args)
+	}()
+	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+}
+
 // пишет системную ошибку в лог и завершает программу
-func (m *Message) FailExitWithErr(err error) {
-	logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Interface("error", err).Send()
+func (m *Message) FailExitErr(err error) {
+	go func() {
+		l := logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
+		if err != nil {
+			l = l.Interface("error", err)
+		}
+
+		l.Send()
+	}()
+
 	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
 }
 
 // пишет произвольное предупреждение
 func (m *Message) Warn(message string, args ...interface{}) {
-	logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
+	go func() {
+		logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
+	}()
 }
 
 // пишет системное предупреждение
-func (m *Message) WarnWithErr(err error) {
-	logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Interface("error", err).Send()
+func (m *Message) WarnErr(err error) {
+	go func() {
+		l := logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
+		if err != nil {
+			l = l.Interface("error", err)
+		}
+		l.Send()
+	}()
+}
+
+// пишет ошибку с сообщением
+func (m *Message) WarnWithErr(err error, message string, args ...interface{}) {
+	go func() {
+		l := logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
+		if err != nil {
+			l = l.Interface("error", err)
+		}
+		l.Msgf(message, args)
+	}()
 }
 
 // пишет информационное сообщение
 func (m *Message) Info(message string, args ...interface{}) {
-	logger.Info().Str("hostname", m.Hostname).Msgf(message, args)
+	go func() { logger.Info().Str("hostname", m.Hostname).Msgf(message, args) }()
 }
 
 // пишет сообщение для отладки
 func (m *Message) Debug(message string, args ...interface{}) {
-	logger.Debug().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
+	go func() {
+		logger.Debug().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args)
+	}()
 }

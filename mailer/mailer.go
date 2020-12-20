@@ -52,10 +52,10 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 			message.Body = signed
 			logger.By(message.HostnameFrom).Debug("mailer#%d-%d success sign mail", m.id, message.Id)
 		} else {
-			logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't sign mail, error - %v", m.id, message.Id, err)
+			logger.By(message.HostnameFrom).WarnWithErr(err, "mailer#%d-%d can't sign mail", m.id, message.Id)
 		}
 	} else {
-		logger.By(message.HostnameFrom).Warn("mailer#%d-%d can't create dkim config, error - %v", m.id, message.Id, err)
+		logger.By(message.HostnameFrom).WarnWithErr(err, "mailer#%d-%d can't create dkim config", m.id, message.Id)
 	}
 }
 
@@ -135,7 +135,7 @@ func ReturnMail(event *common.SendEvent, err error) {
 			// сбрасываем цепочку команд к почтовому сервису
 			err := event.Client.Worker.Reset()
 			if err != nil {
-				logger.All().WarnWithErr(err)
+				logger.All().WarnErr(err)
 			}
 		}
 	}

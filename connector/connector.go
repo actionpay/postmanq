@@ -104,56 +104,70 @@ waitConnect:
 func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient) {
 	// устанавливаем ip, с которого будем отсылать письмо
 	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
-	if err == nil {
-		logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
-		dialer := &net.Dialer{
-			Timeout:   common.App.Timeout().Connection,
-			LocalAddr: tcpAddr,
+	if err != nil {
+		logger.By(event.Message.HostnameFrom).WarnWithErr(err, "connector#%d-%d can't resolve tcp address %s", c.id, event.Message.Id, event.address)
+		return
+	}
+
+	logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
+	dialer := &net.Dialer{
+		Timeout:   common.App.Timeout().Connection,
+		LocalAddr: tcpAddr,
+	}
+	hostname := net.JoinHostPort(mxServer.hostname, "25")
+	// создаем соединение к почтовому сервису
+	connection, err := dialer.Dial("tcp", hostname)
+	if err != nil {
+		// если не удалось установить соединение,
+		// возможно, на почтовом сервисе стоит ограничение на количество соединений
+		// ставим лимит очереди, чтобы не пытаться открывать новые соединения
+		event.Queue.HasLimitOn()
+		logger.By(event.Message.HostnameFrom).WarnWithErr(err, "connector#%d-%d can't dial to %s", c.id, event.Message.Id, hostname)
+		return
+	}
+
+	logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d connect to %s", c.id, event.Message.Id, hostname)
+
+	if err := connection.SetDeadline(time.Now().Add(common.App.Timeout().Hello)); err != nil {
+		logger.By(event.Message.HostnameFrom).WarnWithErr(err, "can't set connection deadline to %s", time.Now().Add(common.App.Timeout().Hello))
+	}
+
+	client, err := smtp.NewClient(connection, mxServer.hostname)
+	if err != nil {
+		// если не удалось создать клиента,
+		// возможно, на почтовом сервисе стоит ограничение на количество активных клиентов
+		// ставим лимит очереди, чтобы не пытаться открывать новые соединения и не создавать новые клиенты
+		event.Queue.HasLimitOn()
+		if err := connection.Close(); err != nil {
+			logger.By(event.Message.HostnameFrom).WarnWithErr(err, "can't close connector")
 		}
-		hostname := net.JoinHostPort(mxServer.hostname, "25")
-		// создаем соединение к почтовому сервису
-		connection, err := dialer.Dial("tcp", hostname)
-		if err == nil {
-			logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d connect to %s", c.id, event.Message.Id, hostname)
-			connection.SetDeadline(time.Now().Add(common.App.Timeout().Hello))
-			client, err := smtp.NewClient(connection, mxServer.hostname)
-			if err == nil {
-				logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d create client to %s", c.id, event.Message.Id, mxServer.hostname)
-				err = client.Hello(service.getHostname(event.Message.HostnameFrom))
-				if err == nil {
-					logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d send command HELLO: %s", c.id, event.Message.Id, event.Message.HostnameFrom)
-					// проверяем доступно ли TLS
-					if mxServer.useTLS {
-						mxServer.useTLS, _ = client.Extension("STARTTLS")
-					}
-					logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d use TLS %v", c.id, event.Message.Id, mxServer.useTLS)
-					// создаем TLS или обычное соединение
-					if mxServer.useTLS {
-						c.initTlsSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
-					} else {
-						c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
-					}
-				} else {
-					client.Quit()
-					logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d can't create client to %s, err - %v", c.id, event.Message.Id, mxServer.hostname, err)
-				}
-			} else {
-				// если не удалось создать клиента,
-				// возможно, на почтовом сервисе стоит ограничение на количество активных клиентов
-				// ставим лимит очереди, чтобы не пытаться открывать новые соединения и не создавать новые клиенты
-				event.Queue.HasLimitOn()
-				connection.Close()
-				logger.By(event.Message.HostnameFrom).Warn("connector#%d-%d can't create client to %s, err - %v", c.id, event.Message.Id, mxServer.hostname, err)
-			}
-		} else {
-			// если не удалось установить соединение,
-			// возможно, на почтовом сервисе стоит ограничение на количество соединений
-			// ставим лимит очереди, чтобы не пытаться открывать новые соединения
-			event.Queue.HasLimitOn()
-			logger.By(event.Message.HostnameFrom).Warn("connector#%d-%d can't dial to %s, err - %v", c.id, event.Message.Id, hostname, err)
+
+		logger.By(event.Message.HostnameFrom).WarnWithErr(err, "connector#%d-%d can't create client to %s", c.id, event.Message.Id, mxServer.hostname)
+		return
+	}
+
+	logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d create client to %s", c.id, event.Message.Id, mxServer.hostname)
+	err = client.Hello(service.getHostname(event.Message.HostnameFrom))
+	if err != nil {
+		if err := client.Quit(); err != nil {
+			logger.By(event.Message.HostnameFrom).WarnWithErr(err, "can't quit from client")
 		}
+
+		logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d can't create client to %s, err - %v", c.id, event.Message.Id, mxServer.hostname, err)
+		return
+	}
+
+	logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d send command HELLO: %s", c.id, event.Message.Id, event.Message.HostnameFrom)
+	// проверяем доступно ли TLS
+	if mxServer.useTLS {
+		mxServer.useTLS, _ = client.Extension("STARTTLS")
+	}
+	logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d use TLS %v", c.id, event.Message.Id, mxServer.useTLS)
+	// создаем TLS или обычное соединение
+	if mxServer.useTLS {
+		c.initTlsSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 	} else {
-		logger.By(event.Message.HostnameFrom).Warn("connector#%d-%d can't resolve tcp address %s, err - %v", c.id, event.Message.Id, tcpAddr.String(), err)
+		c.initSmtpClient(mxServer, event, ptrSmtpClient, connection, client)
 	}
 }
 
@@ -174,7 +188,9 @@ func (c *Connector) initTlsSmtpClient(mxServer *MxServer, event *ConnectionEvent
 			// разрываем созданое соединение
 			// это необходимо, т.к. не все почтовые сервисы позволяют продолжить отправку письма
 			// после неудачной попытке создать TLS соединение
-			client.Quit()
+			if err := client.Quit(); err != nil {
+				logger.By(event.Message.HostnameFrom).WarnWithErr(err, "can't quit from client")
+			}
 			// создаем обычное соединие
 			c.createSmtpClient(mxServer, event, ptrSmtpClient)
 		}

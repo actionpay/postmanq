@@ -57,7 +57,7 @@ func (p *Post) Init(event *common.ApplicationEvent) {
 		runtime.GOMAXPROCS(common.DefaultWorkersCount * 2)
 		logger.All().Debug("app workers count %d", p.Workers)
 	} else {
-		logger.All().FailExitWithErr(err)
+		logger.All().FailExitErr(err)
 	}
 }
 

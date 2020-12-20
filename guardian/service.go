@@ -39,7 +39,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			s.GuardiansCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.All().FailExitWithErr(err)
+		logger.All().FailExitErr(err)
 	}
 }
 

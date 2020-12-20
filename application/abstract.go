@@ -151,7 +151,7 @@ func (i InitFireAction) PreFire(app common.Application, event *common.Applicatio
 		event.Data = bytes
 		app.Init(event)
 	} else {
-		logger.All().FailExit("application can't read configuration file, error -  %v", err)
+		logger.All().FailExitWithErr(err, "application can't read configuration file")
 	}
 }
 

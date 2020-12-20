@@ -53,7 +53,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			s.init(config, name)
 		}
 	} else {
-		logger.All().FailExitWithErr(err)
+		logger.All().FailExitErr(err)
 	}
 }
 
@@ -83,10 +83,10 @@ func (s *Service) OnRun() {
 				if err == nil {
 					go s.run(hostname, mxHostname, conf, listener)
 				} else {
-					logger.By(hostname).Warn("recipient service - can't listen %s, error - %v", tcpAddr, err)
+					logger.By(hostname).WarnWithErr(err, "recipient service - can't listen %s", tcpAddr)
 				}
 			} else {
-				logger.By(hostname).Warn("recipient service - can't resolve %s, error - %v", tcpAddr, err)
+				logger.By(hostname).WarnWithErr(err, "recipient service - can't resolve %s", tcpAddr)
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func (s *Service) run(hostname, mxHostname string, conf *Config, listener *net.T
 		if err == nil {
 			events <- &Event{serverHostname: hostname, serverMxHostname: mxHostname, clientAddr: conn.RemoteAddr(), conn: conn}
 		} else {
-			logger.By(hostname).Warn("recipient service - can't accept %s, error - %v", hostname, err)
+			logger.By(hostname).WarnWithErr(err, "recipient service - can't accept %s", hostname)
 		}
 	}
 }

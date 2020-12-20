@@ -68,7 +68,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			s.ConnectorsCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.All().FailExit("connection service can't unmarshal config, error - %v", err)
+		logger.All().FailExitWithErr(err, "connection service can't unmarshal config")
 	}
 }
 
@@ -93,7 +93,7 @@ func (s *Service) init(conf *Config, hostname string) {
 			conf.tlsConfig.RootCAs = pool
 			conf.tlsConfig.ClientCAs = pool
 		} else {
-			logger.By(hostname).FailExit("connection service can't read certificate %s, error - %v", conf.CertFilename, err)
+			logger.By(hostname).FailExitWithErr(err, "connection service can't read certificate %s", conf.CertFilename)
 		}
 		cert, err := tls.LoadX509KeyPair(conf.CertFilename, conf.PrivateKeyFilename)
 		if err == nil {
@@ -101,7 +101,7 @@ func (s *Service) init(conf *Config, hostname string) {
 				cert,
 			}
 		} else {
-			logger.By(hostname).FailExit("connection service can't load certificate %s, private key %s, error - %v", conf.CertFilename, conf.PrivateKeyFilename, err)
+			logger.By(hostname).FailExitWithErr(err, "connection service can't load certificate %s, private key %s", conf.CertFilename, conf.PrivateKeyFilename)
 		}
 	} else {
 		logger.By(hostname).Debug("connection service - certificate is not defined")

@@ -49,79 +49,83 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.All().Debug("init consumer service")
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, s)
-	if err == nil {
-		consumersCount := 0
-		assistantsCount := 0
-		for _, config := range s.Configs {
-			connect, err := amqp.Dial(config.URI)
-			if err == nil {
-				channel, err := connect.Channel()
-				if err == nil {
-					consumers := make([]*Consumer, len(config.Bindings))
-					for i, binding := range config.Bindings {
-						binding.init()
-						// объявляем очередь
-						binding.declare(channel)
+	if err != nil {
+		logger.All().FailExitWithErr(err, "consumer service can't unmarshal config")
+		return
+	}
 
-						binding.delayedBindings = make(map[common.DelayedBindingType]*Binding)
-						// объявляем отложенные очереди
-						for delayedBindingType, delayedBinding := range delayedBindings {
-							delayedBinding.declareDelayed(binding, channel)
-							binding.delayedBindings[delayedBindingType] = delayedBinding
-						}
+	consumersCount := 0
+	assistantsCount := 0
+	for _, config := range s.Configs {
+		connect, err := amqp.Dial(config.URI)
+		if err != nil {
+			logger.All().FailExitWithErr(err, "consumer service can't connect to %s", config.URI)
+			return
+		}
 
-						binding.failureBindings = make(map[FailureBindingType]*Binding)
-						for failureBindingType, tplName := range failureBindingTypeTplNames {
-							failureBinding := new(Binding)
-							failureBinding.Exchange = fmt.Sprintf(tplName, binding.Exchange)
-							failureBinding.Queue = fmt.Sprintf(tplName, binding.Queue)
-							failureBinding.Type = binding.Type
-							failureBinding.declare(channel)
-							binding.failureBindings[failureBindingType] = failureBinding
-						}
+		channel, err := connect.Channel()
+		if err != nil {
+			logger.All().FailExitWithErr(err, "consumer service can't get channel to %s", config.URI)
+			return
+		}
 
-						consumersCount++
-						consumers[i] = NewConsumer(consumersCount, connect, binding)
+		consumers := make([]*Consumer, len(config.Bindings))
+		for i, binding := range config.Bindings {
+			binding.init()
+			// объявляем очередь
+			binding.declare(channel)
+
+			binding.delayedBindings = make(map[common.DelayedBindingType]*Binding)
+			// объявляем отложенные очереди
+			for delayedBindingType, delayedBinding := range delayedBindings {
+				delayedBinding.declareDelayed(binding, channel)
+				binding.delayedBindings[delayedBindingType] = delayedBinding
+			}
+
+			binding.failureBindings = make(map[FailureBindingType]*Binding)
+			for failureBindingType, tplName := range failureBindingTypeTplNames {
+				failureBinding := new(Binding)
+				failureBinding.Exchange = fmt.Sprintf(tplName, binding.Exchange)
+				failureBinding.Queue = fmt.Sprintf(tplName, binding.Queue)
+				failureBinding.Type = binding.Type
+				failureBinding.declare(channel)
+				binding.failureBindings[failureBindingType] = failureBinding
+			}
+
+			consumersCount++
+			consumers[i] = NewConsumer(consumersCount, connect, binding)
+		}
+
+		assistants := make([]*Assistant, len(config.Assistants))
+		for i, assistantBinding := range config.Assistants {
+			assistantBinding.Binding.init()
+			// объявляем очередь
+			assistantBinding.Binding.declare(channel)
+
+			destBindings := make(map[string]*Binding)
+			for domain, exchange := range assistantBinding.Dest {
+				for _, consumer := range consumers {
+					if consumer.binding.Exchange == exchange {
+						destBindings[domain] = consumer.binding
+						break
 					}
-					assistants := make([]*Assistant, len(config.Assistants))
-					for i, assistantBinding := range config.Assistants {
-						assistantBinding.Binding.init()
-						// объявляем очередь
-						assistantBinding.Binding.declare(channel)
-
-						destBindings := make(map[string]*Binding)
-						for domain, exchange := range assistantBinding.Dest {
-							for _, consumer := range consumers {
-								if consumer.binding.Exchange == exchange {
-									destBindings[domain] = consumer.binding
-									break
-								}
-							}
-						}
-
-						assistantsCount++
-						assistants[i] = &Assistant{
-							id:           assistantsCount,
-							connect:      connect,
-							srcBinding:   assistantBinding,
-							destBindings: destBindings,
-						}
-					}
-
-					s.connections[config.URI] = connect
-					s.consumers[config.URI] = consumers
-					s.assistants[config.URI] = assistants
-					// слушаем закрытие соединения
-					s.reconnect(connect, config)
-				} else {
-					logger.All().FailExit("consumer service can't get channel to %s, error - %v", config.URI, err)
 				}
-			} else {
-				logger.All().FailExit("consumer service can't connect to %s, error - %v", config.URI, err)
+			}
+
+			assistantsCount++
+			assistants[i] = &Assistant{
+				id:           assistantsCount,
+				connect:      connect,
+				srcBinding:   assistantBinding,
+				destBindings: destBindings,
 			}
 		}
-	} else {
-		logger.All().FailExit("consumer service can't unmarshal config, error - %v", err)
+
+		s.connections[config.URI] = connect
+		s.consumers[config.URI] = consumers
+		s.assistants[config.URI] = assistants
+		// слушаем закрытие соединения
+		s.reconnect(connect, config)
 	}
 }
 
@@ -147,7 +151,7 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 			}
 			logger.All().Debug("consumer service reconnect to amqp server %s", config.URI)
 		} else {
-			logger.All().Warn("consumer service can't reconnect to amqp server %s with error - %v", config.URI, err)
+			logger.All().WarnWithErr(err, "consumer service can't reconnect to amqp server %s", config.URI)
 		}
 	}
 }
@@ -183,7 +187,7 @@ func (s *Service) OnFinish() {
 		if connect != nil {
 			err := connect.Close()
 			if err != nil {
-				logger.All().WarnWithErr(err)
+				logger.All().WarnErr(err)
 			}
 		}
 	}

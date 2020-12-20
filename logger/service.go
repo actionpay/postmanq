@@ -46,7 +46,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	if err == nil {
 		level, err := zerolog.ParseLevel(s.LevelName)
 		if err != nil {
-			All().FailExitWithErr(err)
+			All().FailExitErr(err)
 			return
 		}
 
@@ -64,7 +64,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 		logger = log.With().Logger()
 
 	} else {
-		All().FailExitWithErr(err)
+		All().FailExitErr(err)
 	}
 }
 

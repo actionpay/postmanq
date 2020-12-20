@@ -56,69 +56,58 @@ func (a *Assistant) publish(id int, channel *amqp.Channel, deliveries <-chan amq
 	for delivery := range deliveries {
 		message := new(common.MailMessage)
 		err := json.Unmarshal(delivery.Body, message)
-		if err == nil {
-			message.Init()
-			logger.
-				By(message.HostnameFrom).
-				Info(
-					"assistant#%d-%d, handler#%d requeue mail#%d: envelope - %s, recipient - %s to %s",
-					a.id,
-					message.Id,
-					id,
-					message.Id,
-					message.Envelope,
-					message.Recipient,
-					message.HostnameFrom,
-				)
-			if binding, ok := a.destBindings[message.HostnameFrom]; ok {
-				err = channel.Publish(
-					binding.Exchange,
-					binding.Routing,
-					false,
-					false,
-					amqp.Publishing{
-						ContentType:  "text/plain",
-						Body:         delivery.Body,
-						DeliveryMode: amqp.Transient,
-					},
-				)
-				if err == nil {
-					logger.
-						By(message.HostnameFrom).
-						Info(
-							"assistant#%d-%d publish mail#%d to exchange %s",
-							a.id,
-							message.Id,
-							message.Id,
-							binding.Exchange,
-						)
-					delivery.Ack(true)
-					return
-				} else {
-					logger.
-						By(message.HostnameFrom).
-						Warn(
-							"assistant#%d-%d can't publish mail#%d, error - %v",
-							a.id,
-							message.Id,
-							message.Id,
-							err,
-						)
-				}
-			} else {
-				logger.
-					By(message.HostnameFrom).
-					Warn(
-						"assistant#%d-%d can't publish mail#%d, not found exchange for %s",
-						a.id,
-						message.Id,
-						message.Id,
-						message.HostnameFrom,
-					)
-			}
-		} else {
-			logger.All().Warn("assistant#%d can't unmarshal delivery body, body should be json, %v given, error - %v", a.id, delivery.Body, err)
+		if err != nil {
+			logger.All().WarnWithErr(err, "assistant#%d can't unmarshal delivery body, body should be json, %v given", a.id, delivery.Body)
+			continue
 		}
-		delivery.Nack(true, true)
+
+		message.Init()
+		logger.
+			By(message.HostnameFrom).
+			Info(
+				"assistant#%d-%d, handler#%d requeue mail#%d: envelope - %s, recipient - %s to %s",
+				a.id,
+				message.Id,
+				id,
+				message.Id,
+				message.Envelope,
+				message.Recipient,
+				message.HostnameFrom,
+			)
+
+		if binding, ok := a.destBindings[message.HostnameFrom]; ok {
+			err = channel.Publish(
+				binding.Exchange,
+				binding.Routing,
+				false,
+				false,
+				amqp.Publishing{
+					ContentType:  "text/plain",
+					Body:         delivery.Body,
+					DeliveryMode: amqp.Transient,
+				},
+			)
+			if err != nil {
+				logger.By(message.HostnameFrom).WarnWithErr(err, "assistant#%d-%d can't publish mail#%d", a.id, message.Id, message.Id)
+				continue
+			}
+
+			logger.By(message.HostnameFrom).
+				Info("assistant#%d-%d publish mail#%d to exchange %s", a.id, message.Id, message.Id, binding.Exchange)
+
+			if err := delivery.Ack(true); err != nil {
+				logger.All().
+					WarnWithErr(err, "assistant#%d-%d can't ack mail#%d to exchange %s", a.id, message.Id, message.Id, binding.Exchange)
+			}
+
+			return
+		}
+
+		logger.By(message.HostnameFrom).
+			Warn("assistant#%d-%d can't publish mail#%d, not found exchange for %s", a.id, message.Id, message.Id, message.HostnameFrom)
+
+		if err := delivery.Nack(true, true); err != nil {
+			logger.All().WarnWithErr(err, "assistant#%d-%d can't nack email message", a.id, message.Id)
+		}
 	}
 }

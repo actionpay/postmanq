@@ -51,7 +51,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 			s.MailersCount = common.DefaultWorkersCount
 		}
 	} else {
-		logger.All().FailExitWithErr(err)
+		logger.All().FailExitErr(err)
 	}
 }
 
@@ -65,11 +65,11 @@ func (s *Service) init(conf *Config, hostname string) {
 		conf.privateKey, err = x509.ParsePKCS1PrivateKey(der.Bytes)
 		if err != nil {
 			logger.By(hostname).Err("mailer service can't decode or parse private key %s", conf.PrivateKeyFilename)
-			logger.By(hostname).FailExitWithErr(err)
+			logger.By(hostname).FailExitErr(err)
 		}
 	} else {
 		logger.By(hostname).Err("mailer service can't read private key %s", conf.PrivateKeyFilename)
-		logger.By(hostname).FailExitWithErr(err)
+		logger.By(hostname).FailExitErr(err)
 	}
 	// если не задан селектор, устанавливаем селектор по умолчанию
 	if len(conf.DkimSelector) == 0 {
