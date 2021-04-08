@@ -1,0 +1,19 @@
+version: "3.2"
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    ports:
+#        - "15672:15672"
+#        - "5672:5672"
+        - "127.0.0.1:15672:15672"
+        - "127.0.0.1:5672:5672"
+    volumes:
+        - .conf/data/:/var/lib/rabbitmq/
+        - .conf/log/:/var/log/rabbitmq
+    networks:
+        - rabbitmq_go_net
+
+networks:
+  rabbitmq_go_net:
+    driver: bridge

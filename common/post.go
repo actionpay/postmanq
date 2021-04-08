@@ -86,34 +86,20 @@ type MailError struct {
 
 // письмо
 type MailMessage struct {
-	// идентификатор для логов
-	Id int64 `json:"-"`
-
-	// отправитель
-	Envelope string `json:"envelope"`
-
-	// получатель
-	Recipient string `json:"recipient"`
-
-	// тело письма
-	Body string `json:"body"`
-
-	// домен отправителя, удобно сразу получить и использовать далее
-	HostnameFrom string `json:"-"`
-
-	// Домен получателя, удобно сразу получить и использовать далее
-	HostnameTo string `json:"-"`
-
-	// дата создания, используется в основном сервисом ограничений
-	CreatedDate time.Time `json:"-"`
-
-	// тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
-	BindingType DelayedBindingType `json:"bindingType"`
-
-	// ошибка отправки
-	Error *MailError `json:"error"`
-
-	TrySendingCount int `json:"trySendingCount"`
+	Id              int64              `json:"-"`                      // идентификатор для логов
+	Envelope        string             `json:"envelope"`               // отправитель
+	Recipient       string             `json:"recipient"`              // получатель
+	Body            string             `json:"body"`                   // тело письма
+	EnvelopeName    string             `json:"envelopeName,omitempty"` // отправитель / имя
+	ContentType     string             `json:"contentType,omitempty"`  // тип контента
+	Subject         string             `json:"subject,omitempty"`      // тема письма
+	TemplateName    string             `json:"tplName,omitempty"`      //шаблон который использовать
+	HostnameFrom    string             `json:"-"`                      // домен отправителя, удобно сразу получить и использовать далее
+	HostnameTo      string             `json:"-"`                      // Домен получателя, удобно сразу получить и использовать далее
+	CreatedDate     time.Time          `json:"-"`                      // дата создания, используется в основном сервисом ограничений
+	BindingType     DelayedBindingType `json:"bindingType"`            // тип очереди, в которою письмо уже было отправлено после неудачной отправки, ипользуется для цепочки очередей
+	Error           *MailError         `json:"error"`                  // ошибка отправки
+	TrySendingCount int                `json:"trySendingCount"`
 }
 
 // инициализирует письмо

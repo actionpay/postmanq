@@ -1,8 +1,8 @@
 package application
 
 import (
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/logger"
+	"github.com/sergw3x/postmanq/common"
+	"github.com/sergw3x/postmanq/logger"
 	"io/ioutil"
 	"time"
 )

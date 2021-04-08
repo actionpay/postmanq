@@ -3,8 +3,8 @@ package connector
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/logger"
+	"github.com/sergw3x/postmanq/common"
+	"github.com/sergw3x/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
 )

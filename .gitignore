@@ -1,2 +1,4 @@
 *example.config.yaml
 cmd/test.go
+work.config.yaml
+/crt/*

@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/actionpay/postmanq/application"
-	"github.com/actionpay/postmanq/common"
+	"github.com/sergw3x/postmanq/application"
+	"github.com/sergw3x/postmanq/common"
 )
 
 func main() {

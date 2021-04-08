@@ -1,11 +1,16 @@
 package mailer
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/logger"
 	"github.com/byorty/dkim"
+	"github.com/sergw3x/postmanq/common"
+	"github.com/sergw3x/postmanq/logger"
+	"os"
+	"path/filepath"
+	"strings"
+	"text/template"
 )
 
 // отправитель письма
@@ -45,6 +50,44 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 		conf[dkim.AUIDKey] = message.Envelope
 		conf[dkim.CanonicalizationKey] = "relaxed/relaxed"
 		signer := dkim.NewByKey(conf, service.privateKey)
+
+		if !strings.Contains(message.Body, "Mime-Version") || !strings.Contains(message.Body, "<html") {
+			if message.ContentType == "" {
+				message.ContentType = "text/plain"
+			}
+			from := fmt.Sprintf("From: <%s>\n", message.Envelope)
+			if message.EnvelopeName != "" {
+				from = fmt.Sprintf("From: %s <%s>\n", message.EnvelopeName, message.Envelope)
+			}
+
+			subject := message.Subject
+			if message.Subject == "" {
+				subject = "Информационное письмо"
+			}
+
+			path := filepath.Join("templates", message.TemplateName+".html")
+			if message.TemplateName == "" {
+				message.TemplateName = "templates/default.html"
+			} else if _, err := os.Stat(path); err != nil {
+				message.TemplateName = "templates/default.html"
+			} else {
+				message.TemplateName = path
+			}
+
+			t, _ := template.ParseFiles(message.TemplateName)
+
+			var body bytes.Buffer
+			mimeHeaders := fmt.Sprintf("Mime-Version: 1.0;\nContent-Type: %s; charset=\"UTF-8\";\n\n", message.ContentType)
+			body.Write([]byte(fmt.Sprintf("%sSubject: %s \n%s\n\n", from, subject, mimeHeaders)))
+
+			t.Execute(&body, struct {
+				Message string
+			}{
+				Message: message.Body,
+			})
+			message.Body = string(body.Bytes())
+		}
+
 		if err == nil {
 			signed, err := signer.Sign([]byte(message.Body))
 			if err == nil {

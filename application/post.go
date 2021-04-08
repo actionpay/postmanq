@@ -1,13 +1,13 @@
 package application
 
 import (
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/connector"
-	"github.com/actionpay/postmanq/consumer"
-	"github.com/actionpay/postmanq/guardian"
-	"github.com/actionpay/postmanq/limiter"
-	"github.com/actionpay/postmanq/logger"
-	"github.com/actionpay/postmanq/mailer"
+	"github.com/sergw3x/postmanq/common"
+	"github.com/sergw3x/postmanq/connector"
+	"github.com/sergw3x/postmanq/consumer"
+	"github.com/sergw3x/postmanq/guardian"
+	"github.com/sergw3x/postmanq/limiter"
+	"github.com/sergw3x/postmanq/logger"
+	"github.com/sergw3x/postmanq/mailer"
 	yaml "gopkg.in/yaml.v2"
 	"runtime"
 )

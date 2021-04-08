@@ -4,9 +4,9 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/actionpay/postmanq/common"
-	"github.com/actionpay/postmanq/logger"
 	"github.com/byorty/dkim"
+	"github.com/sergw3x/postmanq/common"
+	"github.com/sergw3x/postmanq/logger"
 	yaml "gopkg.in/yaml.v2"
 	"io/ioutil"
 )
