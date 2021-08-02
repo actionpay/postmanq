@@ -86,7 +86,7 @@ func (m *Message) WarnWithErr(err error, message string, args ...interface{}) {
 	go func() {
 		l := logger.Warn().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
 		if err != nil {
-			l = l.Interface("error", err)
+			l = l.Interface("error", err).Err(err)
 		}
 		l.Msgf(message, args)
 	}()
