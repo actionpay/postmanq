@@ -141,5 +141,5 @@ curl -o /path/to/config.yaml https://raw.githubusercontent.com/Halfi/postmanq/v.
 И запускаем, прокинув конфиг:
 
 ```bash
-docker run -v `/path/to/config.yaml`:`/etc/postmaq.yaml` -d --restart unless-stopped --name postmanq halfi/postmanq:latest  
+docker run -v `/path/to/config.yaml`:`/etc/postmaq.yaml` -d --restart unless-stopped --name postmanq ghcr.io/halfi/postmanq:latest  
 ```
