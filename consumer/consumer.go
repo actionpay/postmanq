@@ -3,11 +3,13 @@ package consumer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
-	"github.com/streadway/amqp"
 	"regexp"
 	"sync"
+
+	"github.com/streadway/amqp"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 )
 
 var (
@@ -98,7 +100,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 
 			event := common.NewSendEvent(message)
 			logger.By(message.HostnameFrom).Debug("consumer#%d-%d send event", c.id, message.Id)
-			event.Iterator.Next().(common.SendingService).Events() <- event
+			event.Iterator.Next().(common.SendingService).Event(event)
 			// ждем результата,
 			// во время ожидания поток блокируется
 			// если этого не сделать, тогда невозможно будет подтвердить получение сообщения из очереди
@@ -283,7 +285,7 @@ func (c *Consumer) consumeFailureMessages(group *sync.WaitGroup) {
 					err = json.Unmarshal(delivery.Body, message)
 					if err == nil {
 						sendEvent := common.NewSendEvent(message)
-						sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
+						sendEvent.Iterator.Next().(common.ReportService).Event(sendEvent)
 					}
 				} else {
 					break
@@ -304,16 +306,16 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 		srcBinding := c.findBindingByQueueName(event.GetStringArg("srcQueue"))
 		if srcBinding == nil {
 			fmt.Println("source queue should be defined")
-			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+			common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 		}
 		destBinding := c.findBindingByQueueName(event.GetStringArg("destQueue"))
 		if destBinding == nil {
 			fmt.Println("destination queue should be defined")
-			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+			common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 		}
 		if srcBinding == destBinding {
 			fmt.Println("source and destination queue should be different")
-			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+			common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 		}
 		if len(event.GetStringArg("envelope")) > 0 {
 			envelopeRegex, _ = regexp.Compile(event.GetStringArg("envelope"))

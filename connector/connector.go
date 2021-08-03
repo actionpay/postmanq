@@ -3,12 +3,13 @@ package connector
 import (
 	"errors"
 	"fmt"
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
-	"github.com/Halfi/postmanq/mailer"
 	"net"
 	"net/smtp"
 	"time"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
+	"github.com/Halfi/postmanq/mailer"
 )
 
 var (
@@ -82,7 +83,7 @@ receiveConnect:
 		targetClient.Wakeup()
 		event.Client = targetClient
 		// передаем событие отправителю
-		event.Iterator.Next().(common.SendingService).Events() <- event.SendEvent
+		event.Iterator.Next().(common.SendingService).Event(event.SendEvent)
 	}
 	return
 
@@ -102,14 +103,19 @@ waitConnect:
 
 // создает соединение к почтовому сервису
 func (c *Connector) createSmtpClient(mxServer *MxServer, event *ConnectionEvent, ptrSmtpClient **common.SmtpClient) {
-	// устанавливаем ip, с которого будем отсылать письмо
-	tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
-	if err != nil {
-		logger.By(event.Message.HostnameFrom).WarnWithErr(err, "connector#%d-%d can't resolve tcp address %s", c.id, event.Message.Id, event.address)
-		return
+	var tcpAddr net.Addr
+	if event.address != "" {
+		var err error
+		// устанавливаем ip, с которого будем отсылать письмо
+		tcpAddr, err = net.ResolveTCPAddr("tcp", net.JoinHostPort(event.address, "0"))
+		if err != nil {
+			logger.By(event.Message.HostnameFrom).WarnWithErr(err, "connector#%d-%d can't resolve tcp address %s", c.id, event.Message.Id, event.address)
+			return
+		}
+
+		logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
 	}
 
-	logger.By(event.Message.HostnameFrom).Debug("connector#%d-%d resolve tcp address %s", c.id, event.Message.Id, tcpAddr.String())
 	dialer := &net.Dialer{
 		Timeout:   common.App.Timeout().Connection,
 		LocalAddr: tcpAddr,

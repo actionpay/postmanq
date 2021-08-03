@@ -1,9 +1,10 @@
 package limiter
 
 import (
+	"sync/atomic"
+
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
-	"sync/atomic"
 )
 
 // ограничитель, проверяет количество отправленных писем почтовому сервису
@@ -55,5 +56,5 @@ func (l *Limiter) check(event *common.SendEvent) {
 			logger.By(event.Message.HostnameFrom).Debug("limiter#%d-%d duration great then %v", l.id, event.Message.Id, limit.duration)
 		}
 	}
-	event.Iterator.Next().(common.SendingService).Events() <- event
+	event.Iterator.Next().(common.SendingService).Event(event)
 }

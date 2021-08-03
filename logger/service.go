@@ -4,10 +4,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Halfi/postmanq/common"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 var (
@@ -71,9 +72,9 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 // ничего не делает, авторы логов уже пишут
 func (s *Service) OnRun() {}
 
-// не учавствеут в отправке писем
-func (s *Service) Events() chan *common.SendEvent {
-	return nil
+// Event send event
+func (s *Service) Event(_ *common.SendEvent) bool {
+	return true
 }
 
 // закрывает канал логирования

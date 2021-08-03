@@ -2,11 +2,13 @@ package recipient
 
 import (
 	"fmt"
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
-	yaml "gopkg.in/yaml.v3"
 	"net"
 	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 )
 
 var (
@@ -107,8 +109,9 @@ func (s *Service) run(hostname, mxHostname string, conf *Config, listener *net.T
 	}
 }
 
-func (s *Service) Events() chan *common.SendEvent {
-	return nil
+// Event send event
+func (s *Service) Event(_ *common.SendEvent) bool {
+	return true
 }
 
 func (s *Service) OnFinish() {}

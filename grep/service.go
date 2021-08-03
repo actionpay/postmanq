@@ -3,12 +3,14 @@ package grep
 import (
 	"bufio"
 	"fmt"
-	"github.com/Halfi/postmanq/common"
-	yaml "gopkg.in/yaml.v3"
 	"os"
 	"regexp"
 	"strings"
 	"sync"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 var (
@@ -50,7 +52,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 		}
 	} else {
 		fmt.Println("grep service can't unmarshal config file")
-		common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+		common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 	}
 }
 
@@ -60,11 +62,11 @@ func (s *Service) init(config *Config) {
 		config.logFile, err = os.OpenFile(config.Output, os.O_RDONLY, os.ModePerm)
 		if err != nil {
 			fmt.Println(err)
-			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+			common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 		}
 	} else {
 		fmt.Println("grep service can't open logOutput file")
-		common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+		common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 	}
 }
 
@@ -83,10 +85,10 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 			if config, ok := s.Configs[parts[1]]; ok {
 				go s.grep(event, config, outs, group)
 			} else {
-				common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+				common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 			}
 		} else {
-			common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+			common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 		}
 	}
 
@@ -96,7 +98,7 @@ func (s *Service) OnGrep(event *common.ApplicationEvent) {
 		}
 	}()
 	group.Wait()
-	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+	common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 }
 
 func (s *Service) grep(event *common.ApplicationEvent, config *Config, outs chan string, group *sync.WaitGroup) {
@@ -153,7 +155,7 @@ func (s *Service) grep(event *common.ApplicationEvent, config *Config, outs chan
 }
 
 // завершает работу сервиса
-func (s *Service) OnFinish(event *common.ApplicationEvent) {
+func (s *Service) OnFinish() {
 	for _, config := range s.Configs {
 		config.logFile.Close()
 	}

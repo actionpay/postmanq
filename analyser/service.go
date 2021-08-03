@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/Halfi/postmanq/common"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 var (
@@ -64,7 +65,8 @@ type Service struct {
 	mutex *sync.Mutex
 
 	// канал для получения событий отправки
-	events chan *common.SendEvent
+	events       chan *common.SendEvent
+	eventsClosed bool
 
 	// отчеты
 	reports RowWriters
@@ -80,6 +82,13 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	s.events = make(chan *common.SendEvent)
 	s.reports = make(RowWriters)
 	s.mutex = new(sync.Mutex)
+}
+
+func (s *Service) OnFinish() {
+	if !s.eventsClosed {
+		s.eventsClosed = true
+		close(s.events)
+	}
 }
 
 // запускает получение событий и данных от пользователя
@@ -103,7 +112,6 @@ func (s *Service) receiveMessages() {
 // получает событие
 func (s *Service) receiveMessage(event *common.SendEvent) {
 	if event.Message == nil {
-		close(s.events)
 		s.findReports([]string{})
 	} else {
 		var message = event.Message
@@ -239,7 +247,12 @@ func (s *Service) printUsage(flagSet *flag.FlagSet) {
 	fmt.Println("  -c * -l 100 -o 200  show reports with limit and offset")
 }
 
-// возвращает канал для отправки событий
-func (s *Service) Events() chan *common.SendEvent {
-	return s.events
+// Event send event
+func (s *Service) Event(ev *common.SendEvent) bool {
+	if s.eventsClosed {
+		return false
+	}
+
+	s.events <- ev
+	return true
 }

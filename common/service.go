@@ -10,12 +10,13 @@ package common
 // данные для инициализиции берутся из файла настроек
 type Service interface {
 	OnInit(*ApplicationEvent)
+	OnFinish()
 }
 
 // сервис получающий событие отправки письма
 // используется сервисами для передачи события друг другу
 type EventService interface {
-	Events() chan *SendEvent
+	Event(ev *SendEvent) bool
 }
 
 // сервис принимающий участие в отправке письма
@@ -23,7 +24,6 @@ type SendingService interface {
 	Service
 	EventService
 	OnRun()
-	OnFinish()
 }
 
 // сервис принимающий участие в агрегации и выводе в консоль писем с ошибками
@@ -36,6 +36,7 @@ type ReportService interface {
 // сервис перекладывающий письма из очереди в очередь
 type PublishService interface {
 	Service
+	EventService
 	OnPublish(*ApplicationEvent)
 }
 

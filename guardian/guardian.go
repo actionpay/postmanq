@@ -42,6 +42,6 @@ func (g *Guardian) guard(event *common.SendEvent) {
 		event.Result <- common.RevokeSendEventResult
 	} else {
 		logger.By(event.Message.HostnameFrom).Debug("guardian#%d-%d continue sending mail", g.id, event.Message.Id)
-		event.Iterator.Next().(common.SendingService).Events() <- event
+		event.Iterator.Next().(common.SendingService).Event(event)
 	}
 }

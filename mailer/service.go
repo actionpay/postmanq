@@ -4,18 +4,21 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"io/ioutil"
+
+	"github.com/byorty/dkim"
+	"gopkg.in/yaml.v3"
+
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
-	"github.com/byorty/dkim"
-	yaml "gopkg.in/yaml.v3"
-	"io/ioutil"
 )
 
 var (
 	// сервис отправки писем
 	service *Service
 	// канал для писем
-	events = make(chan *common.SendEvent)
+	events       = make(chan *common.SendEvent)
+	eventsClosed bool
 )
 
 // сервис отправки писем
@@ -85,14 +88,22 @@ func (s *Service) OnRun() {
 	}
 }
 
-// канал для приема событий отправки писем
-func (s *Service) Events() chan *common.SendEvent {
-	return events
+// Event send event
+func (s *Service) Event(ev *common.SendEvent) bool {
+	if eventsClosed {
+		return false
+	}
+
+	events <- ev
+	return true
 }
 
 // завершает работу сервиса отправки писем
 func (s *Service) OnFinish() {
-	close(events)
+	if !eventsClosed {
+		eventsClosed = true
+		close(events)
+	}
 }
 
 func (s *Service) getDkimSelector(hostname string) string {

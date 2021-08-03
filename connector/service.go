@@ -4,12 +4,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
-	yaml "gopkg.in/yaml.v3"
 	"io/ioutil"
 	"net"
 	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 )
 
 var (
@@ -17,7 +19,8 @@ var (
 	service *Service
 
 	// канал для приема событий отправки писем
-	events = make(chan *common.SendEvent)
+	events       = make(chan *common.SendEvent)
+	eventsClosed bool
 
 	// почтовые сервисы будут хранится в карте по домену
 	mailServers = make(map[string]*MailServer)
@@ -108,7 +111,7 @@ func (s *Service) init(conf *Config, hostname string) {
 	}
 	conf.addressesLen = len(conf.Addresses)
 	if conf.addressesLen == 0 {
-		logger.By(hostname).FailExit("connection service - ips should be defined")
+		logger.By(hostname).Warn("connection service - ips should be defined")
 	}
 	mxes, err := net.LookupMX(hostname)
 	if err == nil {
@@ -128,14 +131,22 @@ func (s *Service) OnRun() {
 	}
 }
 
-// канал для приема событий отправки писем
-func (s *Service) Events() chan *common.SendEvent {
-	return events
+// Event send event
+func (s *Service) Event(ev *common.SendEvent) bool {
+	if eventsClosed {
+		return false
+	}
+
+	events <- ev
+	return true
 }
 
 // завершает работу сервиса соединений
 func (s *Service) OnFinish() {
-	close(events)
+	if !eventsClosed {
+		eventsClosed = true
+		close(events)
+	}
 }
 
 func (s Service) getTlsConfig(hostname string) *tls.Config {
@@ -165,7 +176,7 @@ func (s Service) getAddresses(hostname string) []string {
 }
 
 func (s Service) getAddress(hostname string, id int) string {
-	if conf, ok := s.Configs[hostname]; ok {
+	if conf, ok := s.Configs[hostname]; ok && conf.addressesLen > 0 {
 		return conf.Addresses[id%conf.addressesLen]
 	} else {
 		logger.By(hostname).Err("connection service can't find ip by %s", hostname)

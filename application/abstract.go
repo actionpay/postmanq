@@ -1,10 +1,11 @@
 package application
 
 import (
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
 	"io/ioutil"
 	"time"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 )
 
 type FireAction interface {
@@ -38,10 +39,12 @@ type Abstract struct {
 	services []interface{}
 
 	// канал событий приложения
-	events chan *common.ApplicationEvent
+	events       chan *common.ApplicationEvent
+	eventsClosed bool
 
 	// флаг, сигнализирующий окончание работы приложения
-	done chan bool
+	done       chan bool
+	doneClosed bool
 
 	CommonTimeout common.Timeout `yaml:"timeouts"`
 }
@@ -53,28 +56,27 @@ func (a *Abstract) IsValidConfigFilename(filename string) bool {
 
 // запускает основной цикл приложения
 func (a *Abstract) run(app common.Application, event *common.ApplicationEvent) {
-	app.SetDone(make(chan bool))
 	// создаем каналы для событий
-	app.SetEvents(make(chan *common.ApplicationEvent, 3))
-	go func() {
-		for event := range app.Events() {
-			action := actions[event.Kind]
+	app.InitChannels(3)
+	defer app.CloseEvents()
 
-			if preAction, ok := action.(PreFireAction); ok {
-				preAction.PreFire(app, event)
-			}
+	app.OnEvent(func(ev *common.ApplicationEvent) {
+		action := actions[event.Kind]
 
-			for _, service := range app.Services() {
-				action.Fire(app, event, service)
-			}
-
-			if postAction, ok := action.(PostFireAction); ok {
-				postAction.PostFire(app, event)
-			}
+		if preAction, ok := action.(PreFireAction); ok {
+			preAction.PreFire(app, event)
 		}
-		close(app.Events())
-	}()
-	app.Events() <- event
+
+		for _, service := range app.Services() {
+			action.Fire(app, event, service)
+		}
+
+		if postAction, ok := action.(PostFireAction); ok {
+			postAction.PostFire(app, event)
+		}
+	})
+
+	app.SendEvents(event)
 	<-app.Done()
 }
 
@@ -92,19 +94,47 @@ func (a *Abstract) SetEvents(events chan *common.ApplicationEvent) {
 	a.events = events
 }
 
-// возвращает канал событий приложения
-func (a *Abstract) Events() chan *common.ApplicationEvent {
-	return a.events
+// InitChannels init channels
+func (a *Abstract) InitChannels(cBufSize int) {
+	a.events = make(chan *common.ApplicationEvent, cBufSize)
+	a.done = make(chan bool)
 }
 
-// устанавливает канал завершения приложения
-func (a *Abstract) SetDone(done chan bool) {
-	a.done = done
+func (a *Abstract) OnEvent(f func(ev *common.ApplicationEvent)) {
+	go func() {
+		for ev := range a.events {
+			go f(ev)
+		}
+	}()
+}
+
+// CloseEvents close events channel
+func (a *Abstract) CloseEvents() {
+	if !a.eventsClosed {
+		a.eventsClosed = true
+		close(a.events)
+	}
+}
+
+func (a *Abstract) SendEvents(ev *common.ApplicationEvent) bool {
+	if a.eventsClosed {
+		return false
+	}
+
+	a.events <- ev
+	return true
 }
 
 // возвращает канал завершения приложения
-func (a *Abstract) Done() chan bool {
+func (a *Abstract) Done() <-chan bool {
 	return a.done
+}
+
+func (a *Abstract) Close() {
+	if !a.doneClosed {
+		a.doneClosed = true
+		a.done <- true
+	}
 }
 
 // возвращает сервисы, используемые приложением
@@ -157,7 +187,7 @@ func (i InitFireAction) PreFire(app common.Application, event *common.Applicatio
 
 func (i InitFireAction) PostFire(app common.Application, event *common.ApplicationEvent) {
 	event.Kind = common.RunApplicationEventKind
-	app.Events() <- event
+	app.SendEvents(event)
 }
 
 type RunFireAction func(*Abstract, *common.ApplicationEvent, interface{})
@@ -174,5 +204,5 @@ func (f FinishFireAction) Fire(app common.Application, event *common.Application
 
 func (f FinishFireAction) PostFire(app common.Application, event *common.ApplicationEvent) {
 	time.Sleep(2 * time.Second)
-	app.Done() <- true
+	app.Close()
 }

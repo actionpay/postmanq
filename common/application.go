@@ -48,17 +48,23 @@ type Application interface {
 	// проверяет валидность пути к файлу с настройками
 	IsValidConfigFilename(string) bool
 
-	// устанавливает канал событий приложения
-	SetEvents(chan *ApplicationEvent)
+	// InitChannels init channels
+	InitChannels(cBufSize int)
 
-	// возвращает канал событий приложения
-	Events() chan *ApplicationEvent
+	// OnEvent runs event callback
+	OnEvent(f func(ev *ApplicationEvent))
 
-	// устанавливает канал завершения приложения
-	SetDone(chan bool)
+	// CloseEvents close events channel
+	CloseEvents()
+
+	// SendEvents send event to the channel
+	SendEvents(ev *ApplicationEvent) bool
 
 	// возвращает канал завершения приложения
-	Done() chan bool
+	Done() <-chan bool
+
+	// Close main app
+	Close()
 
 	// возвращает сервисы, используемые приложением
 	Services() []interface{}

@@ -2,12 +2,14 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
-	"github.com/streadway/amqp"
-	yaml "gopkg.in/yaml.v3"
 	"net/url"
 	"sync"
+
+	"github.com/streadway/amqp"
+	"gopkg.in/yaml.v3"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 )
 
 var (
@@ -15,7 +17,8 @@ var (
 	service common.SendingService
 
 	// канал для получения событий
-	events = make(chan *common.SendEvent)
+	events       = make(chan *common.SendEvent)
+	eventsClosed bool
 )
 
 // сервис получения сообщений
@@ -191,12 +194,21 @@ func (s *Service) OnFinish() {
 			}
 		}
 	}
-	close(events)
+
+	if !eventsClosed {
+		eventsClosed = true
+		close(events)
+	}
 }
 
-// канал для приема событий отправки писем
-func (s *Service) Events() chan *common.SendEvent {
-	return events
+// Event send event
+func (s *Service) Event(ev *common.SendEvent) bool {
+	if eventsClosed {
+		return false
+	}
+
+	events <- ev
+	return true
 }
 
 // запускает получение сообщений с ошибками и пересылает их другому сервису
@@ -212,19 +224,19 @@ func (s *Service) OnShowReport() {
 	}
 	group.Add(delta)
 	for _, apps := range s.consumers {
-		go func() {
+		go func(apps []*Consumer) {
 			for _, app := range apps {
 				for i := 0; i < app.binding.Handlers; i++ {
 					go app.consumeFailureMessages(group)
 				}
 			}
-		}()
+		}(apps)
 	}
 	group.Wait()
 	waiter.Stop()
 
 	sendEvent := common.NewSendEvent(nil)
-	sendEvent.Iterator.Next().(common.ReportService).Events() <- sendEvent
+	sendEvent.Iterator.Next().(common.ReportService).Event(sendEvent)
 }
 
 // перекладывает сообщения из очереди в очередь
@@ -255,7 +267,7 @@ func (s *Service) OnPublish(event *common.ApplicationEvent) {
 	group.Add(delta)
 	group.Wait()
 	fmt.Println("done")
-	common.App.Events() <- common.NewApplicationEvent(common.FinishApplicationEventKind)
+	common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 }
 
 // получатель сообщений из очереди
