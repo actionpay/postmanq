@@ -1,10 +1,11 @@
 package connector
 
 import (
-	"github.com/Halfi/postmanq/logger"
 	"net"
 	"strings"
 	"sync"
+
+	"github.com/Halfi/postmanq/logger"
 )
 
 var (

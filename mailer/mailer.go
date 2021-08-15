@@ -1,17 +1,18 @@
 package mailer
 
 import (
-	"errors"
 	"fmt"
-	"github.com/Halfi/postmanq/common"
-	"github.com/Halfi/postmanq/logger"
-	"github.com/byorty/dkim"
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/byorty/dkim"
+
+	"github.com/Halfi/postmanq/common"
+	"github.com/Halfi/postmanq/logger"
 )
 
-// отправитель письма
+// Mailer отправитель письма
 type Mailer struct {
 	// идентификатор для логов
 	id int
@@ -37,7 +38,7 @@ func (m *Mailer) sendMail(event *common.SendEvent) {
 		m.prepare(message)
 		m.send(event)
 	} else {
-		ReturnMail(event, errors.New(fmt.Sprintf("511 service#%d can't send mail#%d, envelope or ricipient is invalid", m.id, message.Id)))
+		ReturnMail(event, fmt.Errorf("511 service#%d can't send mail#%d, envelope or ricipient is invalid", m.id, message.Id))
 	}
 }
 
@@ -63,28 +64,45 @@ func (m *Mailer) prepare(message *common.MailMessage) {
 func (m *Mailer) send(event *common.SendEvent) {
 	message := event.Message
 	worker := event.Client.Worker
+
 	logger.By(event.Message.HostnameFrom).Info("mailer#%d-%d begin sending mail", m.id, message.Id)
 	logger.By(message.HostnameFrom).Debug("mailer#%d-%d receive smtp client#%d", m.id, message.Id, event.Client.Id)
 
 	success := false
-	event.Client.SetTimeout(common.App.Timeout().Mail)
+	toErr := event.Client.SetTimeout(common.App.Timeout().Mail)
+	if toErr != nil {
+		logger.By(message.HostnameFrom).ErrErr(toErr)
+	}
+
 	err := worker.Mail(message.Envelope)
 	if err == nil {
 		logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command MAIL FROM: %s", m.id, message.Id, message.Envelope)
-		event.Client.SetTimeout(common.App.Timeout().Rcpt)
+
+		toErr := event.Client.SetTimeout(common.App.Timeout().Rcpt)
+		if toErr != nil {
+			logger.By(message.HostnameFrom).ErrErr(toErr)
+		}
+
 		err = worker.Rcpt(message.Recipient)
 		if err == nil {
 			logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command RCPT TO: %s", m.id, message.Id, message.Recipient)
-			event.Client.SetTimeout(common.App.Timeout().Data)
+
+			toErr := event.Client.SetTimeout(common.App.Timeout().Data)
+			if toErr != nil {
+				logger.By(message.HostnameFrom).ErrErr(toErr)
+			}
+
 			var wc io.WriteCloser
 			wc, err = worker.Data()
 			if err == nil {
 				logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command DATA", m.id, message.Id)
+
 				_, err = wc.Write(message.Body)
 				if err == nil {
 					_ = wc.Close()
 					logger.By(message.HostnameFrom).Debug("%s", message.Body)
 					logger.By(message.HostnameFrom).Debug("mailer#%d-%d send command .", m.id, message.Id)
+
 					// стараемся слать письма через уже созданное соединение,
 					// поэтому после отправки письма не закрываем соединение
 					err = worker.Reset()
@@ -122,7 +140,7 @@ func ReturnMail(event *common.SendEvent, err error) {
 			// и создать ошибку
 			// письмо с ошибкой вернется в другую очередь, отличную от письмо без ошибки
 			if e == nil {
-				event.Message.Error = &common.MailError{errorMessage, code}
+				event.Message.Error = &common.MailError{Message: errorMessage, Code: code}
 			}
 		} else {
 			logger.All().Err("can't get err code from error: %s", err)

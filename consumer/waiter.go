@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// ожидающий
+// Waiter ожидающий
 type Waiter struct {
 	*time.Ticker
 }

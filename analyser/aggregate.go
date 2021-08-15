@@ -1,6 +1,6 @@
 package analyser
 
-// автор таблиц, агрегирующий отчеты по ключу, например по коду ошибки
+// KeyAggregateTableWriter автор таблиц, агрегирующий отчеты по ключу, например по коду ошибки
 type KeyAggregateTableWriter struct {
 	*AbstractTableWriter
 }
@@ -12,7 +12,7 @@ func newKeyAggregateTableWriter(fields []interface{}) TableWriter {
 	}
 }
 
-// записывает данные в таблицу
+// Show записывает данные в таблицу
 func (t *KeyAggregateTableWriter) Show() {
 	t.Clean()
 	for key, ids := range t.ids {
@@ -21,7 +21,7 @@ func (t *KeyAggregateTableWriter) Show() {
 	t.Print()
 }
 
-// автор таблиц, агрегирующий данные
+// AggregateTableWriter автор таблиц, агрегирующий данные
 type AggregateTableWriter struct {
 	*AbstractTableWriter
 }
@@ -33,7 +33,7 @@ func newAggregateTableWriter(fields []interface{}) TableWriter {
 	}
 }
 
-// записывает данные в таблицу
+// Show записывает данные в таблицу
 func (a *AggregateTableWriter) Show() {
 	a.Clean()
 	for _, row := range a.rows {

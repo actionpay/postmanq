@@ -3,6 +3,8 @@ package application
 import (
 	"runtime"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/connector"
 	"github.com/Halfi/postmanq/consumer"
@@ -10,23 +12,22 @@ import (
 	"github.com/Halfi/postmanq/limiter"
 	"github.com/Halfi/postmanq/logger"
 	"github.com/Halfi/postmanq/mailer"
-	"gopkg.in/yaml.v3"
 )
 
-// приложение, рассылающее письма
+// Post приложение, рассылающее письма
 type Post struct {
 	Abstract
 
-	// количество отправителей
+	// Workers количество отправителей
 	Workers int `yaml:"workers"`
 }
 
-// создает новое приложение
+// NewPost создает новое приложение
 func NewPost() common.Application {
 	return new(Post)
 }
 
-// запускает приложение
+// Run запускает приложение
 func (p *Post) Run() {
 	common.App = p
 	common.Services = []interface{}{
@@ -42,12 +43,11 @@ func (p *Post) Run() {
 		limiter.Inst(),
 		connector.Inst(),
 		mailer.Inst(),
-		//recipient.Inst(),
 	}
 	p.run(p, common.NewApplicationEvent(common.InitApplicationEventKind))
 }
 
-// инициализирует приложение
+// Init инициализирует приложение
 func (p *Post) Init(event *common.ApplicationEvent) {
 	// получаем настройки
 	err := yaml.Unmarshal(event.Data, p)
@@ -61,13 +61,13 @@ func (p *Post) Init(event *common.ApplicationEvent) {
 	}
 }
 
-// запускает сервисы приложения
+// FireRun запускает сервисы приложения
 func (p *Post) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.SendingService)
 	go service.OnRun()
 }
 
-// останавливает сервисы приложения
+// FireFinish останавливает сервисы приложения
 func (p *Post) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.SendingService)
 	go service.OnFinish()

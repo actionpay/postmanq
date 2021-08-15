@@ -1,9 +1,10 @@
 package analyser
 
 import (
-	"github.com/byorty/clitable"
 	"regexp"
 	"sort"
+
+	"github.com/byorty/clitable"
 )
 
 // автор таблиц

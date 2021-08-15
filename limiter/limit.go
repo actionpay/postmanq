@@ -1,8 +1,9 @@
 package limiter
 
 import (
-	"github.com/Halfi/postmanq/common"
 	"time"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 // тип ограничения
@@ -10,9 +11,9 @@ type Kind string
 
 const (
 	SecondKind Kind = "second"
-	MinuteKind      = "minute"
-	HourKind        = "hour"
-	DayKind         = "day"
+	MinuteKind Kind = "minute"
+	HourKind   Kind = "hour"
+	DayKind    Kind = "day"
 )
 
 var (

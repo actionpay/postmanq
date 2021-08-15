@@ -145,7 +145,6 @@ func (s *Service) notifyCloseError(config *Config, closeErrors chan *amqp.Error)
 		connect, err := amqp.Dial(config.URI)
 		if err == nil {
 			s.connections[config.URI] = connect
-			closeErrors = nil
 			if apps, ok := s.consumers[config.URI]; ok {
 				for _, app := range apps {
 					app.connect = connect

@@ -21,15 +21,15 @@ var (
 	eventsClosed bool
 )
 
-// сервис ограничений, следит за тем, чтобы почтовым сервисам не отправилось больше писем, чем нужно
+// Service сервис ограничений, следит за тем, чтобы почтовым сервисам не отправилось больше писем, чем нужно
 type Service struct {
-	// количество горутин проверяющих количество отправленных писем
+	// LimitersCount количество горутин проверяющих количество отправленных писем
 	LimitersCount int `yaml:"workers"`
 
 	Configs map[string]*Config `yaml:"postmans"`
 }
 
-// создает сервис ограничений
+// Inst создает сервис ограничений
 func Inst() common.SendingService {
 	if service == nil {
 		service = new(Service)
@@ -38,7 +38,7 @@ func Inst() common.SendingService {
 	return service
 }
 
-// инициализирует сервис
+// OnInit инициализирует сервис
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.All().Debug("init limits...")
 	err := yaml.Unmarshal(event.Data, s)
@@ -66,7 +66,7 @@ func (s *Service) init(conf *Config, hostname string) {
 	}
 }
 
-// запускает проверку ограничений и очистку значений лимитов
+// OnRun запускает проверку ограничений и очистку значений лимитов
 func (s *Service) OnRun() {
 	// сразу запускаем проверку значений ограничений
 	go newCleaner()
@@ -85,7 +85,7 @@ func (s *Service) Event(ev *common.SendEvent) bool {
 	return true
 }
 
-// завершает работу сервиса соединений
+// OnFinish завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	if !eventsClosed {
 		eventsClosed = true

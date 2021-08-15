@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+
 	"github.com/Halfi/postmanq/application"
 	"github.com/Halfi/postmanq/common"
 )

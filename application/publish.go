@@ -5,17 +5,17 @@ import (
 	"github.com/Halfi/postmanq/consumer"
 )
 
-// приложение, перекладывающее письма из очереди в очередь
+// Publish приложение, перекладывающее письма из очереди в очередь
 type Publish struct {
 	Abstract
 }
 
-// создает новое приложение
+// NewPublish создает новое приложение
 func NewPublish() common.Application {
 	return new(Publish)
 }
 
-// запускает приложение с аргументами
+// RunWithArgs запускает приложение с аргументами
 func (p *Publish) RunWithArgs(args ...interface{}) {
 	common.App = p
 	p.services = []interface{}{
@@ -32,7 +32,7 @@ func (p *Publish) RunWithArgs(args ...interface{}) {
 	p.run(p, event)
 }
 
-// запускает сервисы приложения
+// FireRun запускает сервисы приложения
 func (p *Publish) FireRun(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.PublishService)
 	go service.OnPublish(event)

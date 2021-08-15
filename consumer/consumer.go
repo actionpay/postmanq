@@ -23,10 +23,9 @@ var (
 
 // получатель сообщений из очереди
 type Consumer struct {
-	id         int
-	connect    *amqp.Connection
-	binding    *Binding
-	deliveries <-chan amqp.Delivery
+	id      int
+	connect *amqp.Connection
+	binding *Binding
 }
 
 // создает нового получателя
@@ -111,7 +110,7 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 			event = nil
 		} else {
 			failureBinding := c.binding.failureBindings[TechnicalFailureBindingType]
-			err = channel.Publish(
+			err := channel.Publish(
 				failureBinding.Exchange,
 				failureBinding.Routing,
 				false,
@@ -122,29 +121,31 @@ func (c *Consumer) consumeDeliveries(id int, channel *amqp.Channel, deliveries <
 					DeliveryMode: amqp.Transient,
 				},
 			)
-			logger.All().Warn("consumer#%d can't unmarshal delivery body, body should be json, %s given", c.id, string(delivery.Body))
+			logger.All().WarnWithErr(err, "consumer#%d can't unmarshal delivery body, body should be json, %s given", c.id, string(delivery.Body))
 		}
 		// всегда подтверждаем получение сообщения
 		// даже если во время отправки письма возникли ошибки,
 		// мы уже положили это письмо в другую очередь
-		delivery.Ack(true)
+		_ = delivery.Ack(true)
 	}
 }
 
 // обрабатывает письма, которые не удалось отправить
 func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMessage) {
-	// если есть ошибка при отправке, значит мы попали в серый список https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
+	// если есть ошибка при отправке, значит мы попали в серый список
+	// https://ru.wikipedia.org/wiki/%D0%A1%D0%B5%D1%80%D1%8B%D0%B9_%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA
 	// или получили какую то ошибку от почтового сервиса, что он не может
 	// отправить письмо указанному адресату или выполнить какую то команду
 	var failureBinding *Binding
 	// если ошибка связана с невозможностью отправить письмо адресату
 	// перекладываем письмо в очередь для плохих писем
 	// и пусть отправители сами с ними разбираются
-	if message.Error.Code >= 500 && message.Error.Code < 600 {
+	switch {
+	case message.Error.Code >= 500 && message.Error.Code < 600:
 		failureBinding = c.binding.failureBindings[errorSignsMap.BindingType(message)]
-	} else if message.Error.Code == 450 || message.Error.Code == 451 { // мы точно попали в серый список, надо повторить отправку письма попозже
+	case message.Error.Code == 450 || message.Error.Code == 451:
 		failureBinding = delayedBindings[common.ThirtyMinutesDelayedBinding]
-	} else {
+	default:
 		failureBinding = c.binding.failureBindings[UnknownFailureBindingType]
 	}
 	jsonMessage, err := json.Marshal(message)
@@ -176,7 +177,7 @@ func (c *Consumer) handleErrorSend(channel *amqp.Channel, message *common.MailMe
 			logger.
 				By(message.HostnameFrom).
 				Debug(
-					"consumer#%d-%d can't publish failure mail to queue %s, message: %s, code: %d, publish error% %v",
+					"consumer#%d-%d can't publish failure mail to queue %s, message: %s, code: %d, publish error %v",
 					c.id,
 					message.Id,
 					failureBinding.Queue,
@@ -256,7 +257,7 @@ func (c *Consumer) publishDelayedMessage(channel *amqp.Channel, bindingType comm
 				false,
 				amqp.Publishing{
 					ContentType:  "text/plain",
-					Body:         []byte(jsonMessage),
+					Body:         jsonMessage,
 					DeliveryMode: amqp.Transient,
 				},
 			)
@@ -366,9 +367,15 @@ func (c *Consumer) consumeAndPublishMessages(event *common.ApplicationEvent, gro
 				},
 			)
 			if err == nil {
-				delivery.Ack(true)
+				err := delivery.Ack(true)
+				if err != nil {
+					logger.All().WarnWithErr(err, "can't acknowledge message")
+				}
 			} else {
-				delivery.Nack(true, true)
+				err := delivery.Nack(true, true)
+				if err != nil {
+					logger.All().WarnWithErr(err, "can't not acknowledge message")
+				}
 			}
 		}
 		group.Done()

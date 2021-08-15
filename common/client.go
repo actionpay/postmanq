@@ -1,63 +1,68 @@
 package common
 
 import (
+	"fmt"
 	"net"
 	"net/smtp"
 	"time"
 )
 
-// статус клиента почтового сервера
+// SmtpClientStatus статус клиента почтового сервера
 type SmtpClientStatus int
 
 const (
-	// отсылает письмо
+	// WorkingSmtpClientStatus отсылает письмо
 	WorkingSmtpClientStatus SmtpClientStatus = iota
 
-	// ожидает письма
+	// WaitingSmtpClientStatus ожидает письма
 	WaitingSmtpClientStatus
 
-	// отсоединен
+	// DisconnectedSmtpClientStatus отсоединен
 	DisconnectedSmtpClientStatus
 )
 
-// клиент почтового сервера
+// SmtpClient клиент почтового сервера
 type SmtpClient struct {
 	// идертификатор клиента для удобства в логах
 	Id int
 
-	// соединение к почтовому серверу
+	// Conn соединение к почтовому серверу
 	Conn net.Conn
 
-	// реальный smtp клиент
+	// Worker реальный smtp клиент
 	Worker *smtp.Client
 
-	// дата создания или изменения статуса клиента
+	// ModifyDate дата создания или изменения статуса клиента
 	ModifyDate time.Time
 
-	// статус
+	// Status статус
 	Status SmtpClientStatus
 
 	// таймер, по истечении которого, соединение к почтовому сервису будет разорвано
 	timer *time.Timer
 }
 
-// сстанавливайт таймаут на чтение и запись соединения
-func (s *SmtpClient) SetTimeout(timeout time.Duration) {
-	s.Conn.SetDeadline(time.Now().Add(timeout))
+// SetTimeout останавливает таймаут на чтение и запись соединения
+func (s *SmtpClient) SetTimeout(timeout time.Duration) error {
+	err := s.Conn.SetDeadline(time.Now().Add(timeout))
+	if err != nil {
+		return fmt.Errorf("can't set smtp connection timeout: %w", err)
+	}
+	return nil
 }
 
-// переводит клиента в ожидание
+// Wait переводит клиента в ожидание
 // после окончания ожидания соединение разрывается, а статус меняется на отсоединенный
 func (s *SmtpClient) Wait() {
 	s.Status = WaitingSmtpClientStatus
 	s.timer = time.AfterFunc(App.Timeout().Waiting, func() {
 		s.Status = DisconnectedSmtpClientStatus
-		s.Worker.Quit()
+		_ = s.Worker.Quit()
 		s.timer = nil
 	})
 }
 
-// переводит клиента в рабочее состояние
+// Wakeup переводит клиента в рабочее состояние
 // если клиент был в ожидании, ожидание прерывается
 func (s *SmtpClient) Wakeup() {
 	s.Status = WorkingSmtpClientStatus

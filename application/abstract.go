@@ -30,7 +30,7 @@ var (
 	}
 )
 
-// базовое приложение
+// Abstract базовое приложение
 type Abstract struct {
 	// путь до конфигурационного файла
 	configFilename string
@@ -49,7 +49,7 @@ type Abstract struct {
 	CommonTimeout common.Timeout `yaml:"timeouts"`
 }
 
-// проверяет валидность пути к файлу с настройками
+// IsValidConfigFilename проверяет валидность пути к файлу с настройками
 func (a *Abstract) IsValidConfigFilename(filename string) bool {
 	return len(filename) > 0 && filename != common.ExampleConfigYaml
 }
@@ -84,12 +84,12 @@ func (a Abstract) GetConfigFilename() string {
 	return a.configFilename
 }
 
-// устанавливает путь к файлу с настройками
+// SetConfigFilename устанавливает путь к файлу с настройками
 func (a *Abstract) SetConfigFilename(configFilename string) {
 	a.configFilename = configFilename
 }
 
-// устанавливает канал событий приложения
+// SetEvents устанавливает канал событий приложения
 func (a *Abstract) SetEvents(events chan *common.ApplicationEvent) {
 	a.events = events
 }
@@ -125,7 +125,7 @@ func (a *Abstract) SendEvents(ev *common.ApplicationEvent) bool {
 	return true
 }
 
-// возвращает канал завершения приложения
+// Done возвращает канал завершения приложения
 func (a *Abstract) Done() <-chan bool {
 	return a.done
 }
@@ -137,33 +137,33 @@ func (a *Abstract) Close() {
 	}
 }
 
-// возвращает сервисы, используемые приложением
+// Services возвращает сервисы, используемые приложением
 func (a *Abstract) Services() []interface{} {
 	return a.services
 }
 
-// инициализирует сервисы
+// FireInit инициализирует сервисы
 func (a *Abstract) FireInit(event *common.ApplicationEvent, abstractService interface{}) {
 	service := abstractService.(common.Service)
 	service.OnInit(event)
 }
 
-// инициализирует приложение
+// Init инициализирует приложение
 func (a *Abstract) Init(event *common.ApplicationEvent) {}
 
-// запускает приложение
+// Run запускает приложение
 func (a *Abstract) Run() {}
 
-// запускает приложение с аргументами
+// RunWithArgs запускает приложение с аргументами
 func (a *Abstract) RunWithArgs(args ...interface{}) {}
 
-// запускает сервисы приложения
+// FireRun запускает сервисы приложения
 func (a *Abstract) FireRun(event *common.ApplicationEvent, abstractService interface{}) {}
 
-// останавливает сервисы приложения
+// FireFinish останавливает сервисы приложения
 func (a *Abstract) FireFinish(event *common.ApplicationEvent, abstractService interface{}) {}
 
-// возвращает таймауты приложения
+// Timeout возвращает таймауты приложения
 func (a *Abstract) Timeout() common.Timeout {
 	return a.CommonTimeout
 }

@@ -1,8 +1,9 @@
 package consumer
 
 import (
-	"github.com/Halfi/postmanq/common"
 	"strings"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 var (

@@ -1,8 +1,9 @@
 package connector
 
 import (
-	"github.com/Halfi/postmanq/common"
 	"net"
+
+	"github.com/Halfi/postmanq/common"
 )
 
 // статус почтового сервис
@@ -38,9 +39,6 @@ type MxServer struct {
 
 	// ip сервера
 	ips []net.IP
-
-	// клиенты сервера
-	clients []*common.SmtpClient
 
 	// А запись сервера
 	realServerName string

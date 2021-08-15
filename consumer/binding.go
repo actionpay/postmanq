@@ -2,10 +2,12 @@ package consumer
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/streadway/amqp"
+
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
-	"github.com/streadway/amqp"
-	"time"
 )
 
 // тип точки обмена
@@ -13,8 +15,8 @@ type ExchangeType string
 
 const (
 	DirectExchangeType ExchangeType = "direct"
-	FanoutExchangeType              = "fanout"
-	TopicExchangeType               = "topic"
+	FanoutExchangeType ExchangeType = "fanout"
+	TopicExchangeType  ExchangeType = "topic"
 )
 
 // тип точки обмена для неотправленного письма
@@ -210,6 +212,4 @@ type AssistantBinding struct {
 	Binding Binding `yaml:",inline"`
 
 	Dest map[string]string `yaml:"dest"`
-
-	destBindings []*Binding
 }

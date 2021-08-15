@@ -3,10 +3,14 @@ package logger
 import (
 	"runtime/debug"
 
+	"github.com/rs/zerolog"
+
 	"github.com/Halfi/postmanq/common"
 )
 
-// запись логирования
+var logger zerolog.Logger
+
+// Message запись логирования
 type Message struct {
 	Hostname string
 
@@ -23,20 +27,26 @@ func By(hostname string) *Message {
 	}
 }
 
-// пишет ошибку в лог
+// Err пишет ошибку в лог
 func (m *Message) Err(message string, args ...interface{}) {
 	go func() {
 		logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Msgf(message, args...)
 	}()
 }
 
-// пишет произвольную ошибку в лог и завершает программу
+func (m *Message) ErrErr(err error) {
+	go func() {
+		logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack())).Interface("error", err).Err(err).Send()
+	}()
+}
+
+// FailExit пишет произвольную ошибку в лог и завершает программу
 func (m *Message) FailExit(message string, args ...interface{}) {
 	m.Err(message, args...)
 	common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 }
 
-// пишет ошибку с сообщением в лог и завершает программу
+// FailExitWithErr пишет ошибку с сообщением в лог и завершает программу
 func (m *Message) FailExitWithErr(err error, message string, args ...interface{}) {
 	go func() {
 		l := logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
@@ -49,7 +59,7 @@ func (m *Message) FailExitWithErr(err error, message string, args ...interface{}
 	common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 }
 
-// пишет системную ошибку в лог и завершает программу
+// FailExitErr пишет системную ошибку в лог и завершает программу
 func (m *Message) FailExitErr(err error) {
 	go func() {
 		l := logger.Error().Str("hostname", m.Hostname).Str("stack", string(debug.Stack()))
@@ -63,14 +73,14 @@ func (m *Message) FailExitErr(err error) {
 	common.App.SendEvents(common.NewApplicationEvent(common.FinishApplicationEventKind))
 }
 
-// пишет произвольное предупреждение
+// Warn пишет произвольное предупреждение
 func (m *Message) Warn(message string, args ...interface{}) {
 	go func() {
 		logger.Warn().Str("hostname", m.Hostname).Msgf(message, args...)
 	}()
 }
 
-// пишет системное предупреждение
+// WarnErr пишет системное предупреждение
 func (m *Message) WarnErr(err error) {
 	go func() {
 		l := logger.Warn().Str("hostname", m.Hostname)
@@ -81,7 +91,7 @@ func (m *Message) WarnErr(err error) {
 	}()
 }
 
-// пишет ошибку с сообщением
+// WarnWithErr пишет ошибку с сообщением
 func (m *Message) WarnWithErr(err error, message string, args ...interface{}) {
 	go func() {
 		l := logger.Warn().Str("hostname", m.Hostname)
@@ -92,12 +102,12 @@ func (m *Message) WarnWithErr(err error, message string, args ...interface{}) {
 	}()
 }
 
-// пишет информационное сообщение
+// Info пишет информационное сообщение
 func (m *Message) Info(message string, args ...interface{}) {
 	go func() { logger.Info().Str("hostname", m.Hostname).Msgf(message, args...) }()
 }
 
-// пишет сообщение для отладки
+// Debug пишет сообщение для отладки
 func (m *Message) Debug(message string, args ...interface{}) {
 	go func() {
 		logger.Debug().Str("hostname", m.Hostname).Msgf(message, args...)

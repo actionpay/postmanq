@@ -1,33 +1,34 @@
 package analyser
 
 import (
-	"github.com/byorty/clitable"
 	"regexp"
 	"time"
+
+	"github.com/byorty/clitable"
 )
 
-// отчет об ошибке
+// Report отчет об ошибке
 type Report struct {
-	// идентификатор
+	// Id идентификатор
 	Id int
 
-	// отправитель
+	// Envelope отправитель
 	Envelope string
 
-	// получатель
+	// Recipient получатель
 	Recipient string
 
-	// код ошибки
+	// Code код ошибки
 	Code int
 
-	// сообщение об ошибке
+	// Message сообщение об ошибке
 	Message string
 
-	// даты отправок
+	// CreatedDates даты отправок
 	CreatedDates []time.Time
 }
 
-// записывает отчет в таблицу
+// Write записывает отчет в таблицу
 func (r Report) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	if valueRegex == nil ||
 		(valueRegex != nil &&
@@ -44,10 +45,10 @@ func (r Report) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	}
 }
 
-// агрегированная строка
+// AggregateRow агрегированная строка
 type AggregateRow []int
 
-// записывает строку в таблицу
+// Write записывает строку в таблицу
 func (a AggregateRow) Write(table *clitable.Table, valueRegex *regexp.Regexp) {
 	table.AddRow(a[0], a[1], a[2], a[3])
 }

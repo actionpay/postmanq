@@ -1,0 +1,44 @@
+# This file contains all available configuration options
+# with their default values.
+
+# options for analysis running
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  timeout: 5m
+
+  # include test files or not, default is true
+  tests: false
+
+linters:
+  disable:
+    - scopelint
+  enable:
+    - errcheck
+    - goimports
+    - gofmt
+    - revive
+    - exportloopref
+    - prealloc
+    - lll
+    - whitespace
+    - unconvert
+    - goconst
+    - gocritic
+  presets:
+    - bugs
+    - unused
+
+linters-settings:
+  lll:
+    line-length: 160
+  revive:
+    ignore-generated-header: true
+    rules:
+      - name: unexported-return
+        disabled: true
+
+issues:
+  exclude-rules:
+    - linters:
+        - lll
+      source: "^//go:generate "

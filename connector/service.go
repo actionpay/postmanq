@@ -37,7 +37,7 @@ var (
 	}
 )
 
-// сервис, управляющий соединениями к почтовым сервисам
+// Service сервис, управляющий соединениями к почтовым сервисам
 // письма могут отсылаться в несколько потоков, почтовый сервис может разрешить несколько подключений с одного IP
 // количество подключений может быть не равно количеству отсылающих потоков
 // если доверить управление подключениями отправляющим потокам, тогда это затруднит общее управление подключениями
@@ -49,7 +49,7 @@ type Service struct {
 	Configs map[string]*Config `yaml:"postmans"`
 }
 
-// создает новый сервис соединений
+// Inst создает новый сервис соединений
 func Inst() *Service {
 	if service == nil {
 		service = new(Service)
@@ -57,7 +57,7 @@ func Inst() *Service {
 	return service
 }
 
-// инициализирует сервис соединений
+// OnInit инициализирует сервис соединений
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	err := yaml.Unmarshal(event.Data, s)
 	if err == nil {
@@ -121,7 +121,7 @@ func (s *Service) init(conf *Config, hostname string) {
 	}
 }
 
-// запускает горутины
+// OnRun запускает горутины
 func (s *Service) OnRun() {
 	for i := 0; i < s.ConnectorsCount; i++ {
 		id := i + 1
@@ -141,7 +141,7 @@ func (s *Service) Event(ev *common.SendEvent) bool {
 	return true
 }
 
-// завершает работу сервиса соединений
+// OnFinish завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	if !eventsClosed {
 		eventsClosed = true
@@ -151,14 +151,6 @@ func (s *Service) OnFinish() {
 
 func (s Service) getTlsConfig(hostname string) *tls.Config {
 	if conf, ok := s.Configs[hostname]; ok {
-		//tlsConfig := new(tls.Config)
-		//tlsConfig.Certificates = conf.certs
-		//tlsConfig.RootCAs = conf.pool
-		//tlsConfig.ClientCAs = conf.pool
-		//tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		//tlsConfig.CipherSuites = cipherSuites
-		//tlsConfig.MinVersion = tls.VersionTLS12
-		//tlsConfig.SessionTicketsDisabled = true
 		return conf.tlsConfig
 	} else {
 		logger.By(hostname).Err("connection service can't make tls config by %s", hostname)
@@ -193,7 +185,7 @@ func (s Service) getHostname(hostname string) string {
 	}
 }
 
-// событие создания соединения
+// ConnectionEvent событие создания соединения
 type ConnectionEvent struct {
 	*common.SendEvent
 
@@ -211,16 +203,16 @@ type ConnectionEvent struct {
 }
 
 type Config struct {
-	// путь до файла с закрытым ключом
+	// PrivateKeyFilename путь до файла с закрытым ключом
 	PrivateKeyFilename string `yaml:"privateKey"`
 
-	// путь до файла с сертификатом
+	// CertFilename путь до файла с сертификатом
 	CertFilename string `yaml:"certificate"`
 
-	// ip с которых будем рассылать письма
+	// Addresses ip с которых будем рассылать письма
 	Addresses []string `yaml:"ips"`
 
-	// hostname, на котором будет слушаться 25 порт
+	// MXHostname hostname, на котором будет слушаться 25 порт
 	MXHostname string `yaml:"mxHostname"`
 
 	// количество ip

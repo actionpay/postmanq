@@ -3,10 +3,11 @@ package connector
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/Halfi/postmanq/common"
 	"github.com/Halfi/postmanq/logger"
 	"github.com/Halfi/postmanq/mailer"
-	"time"
 )
 
 // заготовщик, подготавливает событие соединения
@@ -56,11 +57,9 @@ connectToMailServer:
 			errors.New(fmt.Sprintf("511 preparer#%d-%d can't lookup %s", p.id, event.Message.Id, event.Message.HostnameTo)),
 		)
 	}
-	return
 
 waitLookup:
 	logger.By(event.Message.HostnameFrom).Debug("preparer#%d-%d wait ending look up mail server %s...", p.id, event.Message.Id, event.Message.HostnameTo)
 	time.Sleep(common.App.Timeout().Sleep)
 	goto connectToMailServer
-	return
 }

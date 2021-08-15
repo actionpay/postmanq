@@ -8,23 +8,23 @@ import (
 )
 
 var (
-	// сервис блокирующий отправку писем
+	// Сервис блокирующий отправку писем
 	service *Service
 
-	// канал для приема событий отправки писем
+	// Канал для приема событий отправки писем
 	events       = make(chan *common.SendEvent)
 	eventsClosed bool
 )
 
-// сервис блокирующий отправку писем
+// Service сервис блокирующий отправку писем
 type Service struct {
-	// количество горутин блокирующий отправку писем к почтовым сервисам
+	// GuardiansCount количество горутин блокирующий отправку писем к почтовым сервисам
 	GuardiansCount int `yaml:"workers"`
 
 	Configs map[string]*Config `yaml:"postmans"`
 }
 
-// создает новый сервис блокировок
+// Inst создает новый сервис блокировок
 func Inst() common.SendingService {
 	if service == nil {
 		service = new(Service)
@@ -32,7 +32,7 @@ func Inst() common.SendingService {
 	return service
 }
 
-// инициализирует сервис блокировок
+// OnInit инициализирует сервис блокировок
 func (s *Service) OnInit(event *common.ApplicationEvent) {
 	logger.All().Debug("init guardians...")
 	err := yaml.Unmarshal(event.Data, s)
@@ -45,7 +45,7 @@ func (s *Service) OnInit(event *common.ApplicationEvent) {
 	}
 }
 
-// запускает горутины
+// OnRun запускает горутины
 func (s *Service) OnRun() {
 	for i := 0; i < s.GuardiansCount; i++ {
 		go newGuardian(i + 1)
@@ -62,7 +62,7 @@ func (s *Service) Event(ev *common.SendEvent) bool {
 	return true
 }
 
-// завершает работу сервиса соединений
+// OnFinish завершает работу сервиса соединений
 func (s *Service) OnFinish() {
 	if !eventsClosed {
 		eventsClosed = true
@@ -73,12 +73,11 @@ func (s *Service) OnFinish() {
 func (s Service) getExcludes(hostname string) []string {
 	if conf, ok := s.Configs[hostname]; ok {
 		return conf.Excludes
-	} else {
-		return common.EmptyStrSlice
 	}
+	return common.EmptyStrSlice
 }
 
 type Config struct {
-	// хосты, на которую блокируется отправка писем
+	// Excludes хосты, на которую блокируется отправка писем
 	Excludes []string `yaml:"exclude"`
 }
